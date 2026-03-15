@@ -9,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusMenuController: StatusMenuController!
     private var permissionsManager: PermissionsManager?
     private var permissionWindow: NSWindow?
+    private var audioRecorder: AudioRecorder?
+    private var textInjector: TextInjector?
+    private var overlayController: OverlayWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -29,9 +32,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menubarController = MenubarController()
         escapeMonitor = EscapeMonitor(coordinator: coordinator)
 
+        // Create remaining dependencies
+        let audioRecorder = AudioRecorder()
+        let textInjector = TextInjector(permissionsManager: permissionsManager)
+        let overlayController = OverlayWindowController()
+
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
         coordinator.escapeMonitor = escapeMonitor
+        coordinator.audioRecorder = audioRecorder
+        coordinator.textInjector = textInjector
+        coordinator.overlayController = overlayController
+
+        // Store strong references
+        self.audioRecorder = audioRecorder
+        self.textInjector = textInjector
+        self.overlayController = overlayController
 
         // Build and attach menu
         statusMenuController = StatusMenuController(coordinator: coordinator)
