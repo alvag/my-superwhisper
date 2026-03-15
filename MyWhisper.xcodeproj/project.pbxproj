@@ -19,6 +19,9 @@
 		AA000010001 /* AppCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000010000 /* AppCoordinatorTests.swift */; };
 		AA000011001 /* HotkeyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000011000 /* HotkeyMonitorTests.swift */; };
 		AA000012001 /* MenubarControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000012000 /* MenubarControllerTests.swift */; };
+		AA000013001 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000013000 /* PermissionsManager.swift */; };
+		AA000014001 /* PermissionBlockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000014000 /* PermissionBlockedView.swift */; };
+		AA000015001 /* PermissionsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000015000 /* PermissionsManagerTests.swift */; };
 		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
 /* End PBXBuildFile section */
 
@@ -35,6 +38,9 @@
 		AA000010000 /* AppCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorTests.swift; sourceTree = "<group>"; };
 		AA000011000 /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
 		AA000012000 /* MenubarControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarControllerTests.swift; sourceTree = "<group>"; };
+		AA000013000 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
+		AA000014000 /* PermissionBlockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionBlockedView.swift; sourceTree = "<group>"; };
+		AA000015000 /* PermissionsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManagerTests.swift; sourceTree = "<group>"; };
 		AA000030000 /* MyWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000031000 /* MyWhisperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyWhisperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000032000 /* MyWhisper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyWhisper.entitlements; sourceTree = "<group>"; };
@@ -97,6 +103,7 @@
 			children = (
 				AA000006000 /* HotkeyMonitor.swift */,
 				AA000007000 /* EscapeMonitor.swift */,
+				AA000013000 /* PermissionsManager.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -106,6 +113,7 @@
 			children = (
 				AA000008000 /* MenubarController.swift */,
 				AA000009000 /* StatusMenuView.swift */,
+				AA000014000 /* PermissionBlockedView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -116,6 +124,7 @@
 				AA000010000 /* AppCoordinatorTests.swift */,
 				AA000011000 /* HotkeyMonitorTests.swift */,
 				AA000012000 /* MenubarControllerTests.swift */,
+				AA000015000 /* PermissionsManagerTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -251,6 +260,8 @@
 				AA000007001 /* EscapeMonitor.swift in Sources */,
 				AA000008001 /* MenubarController.swift in Sources */,
 				AA000009001 /* StatusMenuView.swift in Sources */,
+				AA000013001 /* PermissionsManager.swift in Sources */,
+				AA000014001 /* PermissionBlockedView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -261,6 +272,7 @@
 				AA000010001 /* AppCoordinatorTests.swift in Sources */,
 				AA000011001 /* HotkeyMonitorTests.swift in Sources */,
 				AA000012001 /* MenubarControllerTests.swift in Sources */,
+				AA000015001 /* PermissionsManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
