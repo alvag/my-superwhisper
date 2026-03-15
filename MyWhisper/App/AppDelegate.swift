@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.audioRecorder = audioRecorder
         coordinator.textInjector = textInjector
         coordinator.overlayController = overlayController
+        coordinator.permissionsManager = permissionsManager
 
         // Store strong references
         self.audioRecorder = audioRecorder
