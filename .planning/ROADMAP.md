@@ -29,12 +29,13 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. App prompts for Accessibility and Microphone permissions on first launch with clear explanations
   4. App detects when permissions have been revoked (e.g., after OS update) and surfaces a recovery prompt on every launch
   5. Text placed on the clipboard is automatically pasted at the current cursor position in any app (Slack, VS Code, browser, Notes)
-**Plans**: 3 plans
+**Plans**: 4 plans
 
 Plans:
 - [x] 01-01-PLAN.md — Xcode scaffold, AppState FSM, AppCoordinator, HotkeyMonitor, EscapeMonitor, MenubarController
-- [ ] 01-02-PLAN.md — PermissionsManager (health check + on-the-fly requesting) and PermissionBlockedView
-- [ ] 01-03-PLAN.md — TextInjector (paste simulation), AudioRecorder stub, OverlayWindowController, full wiring
+- [x] 01-02-PLAN.md — PermissionsManager (health check + on-the-fly requesting) and PermissionBlockedView
+- [x] 01-03-PLAN.md — TextInjector (paste simulation), AudioRecorder stub, OverlayWindowController, full wiring
+- [ ] 01-04-PLAN.md — Gap closure: wire on-the-fly microphone permission request into AppCoordinator (MAC-02 partial fix)
 
 ### Phase 2: Audio + Transcription
 **Goal**: Users can speak after pressing the hotkey and receive the raw transcribed Spanish text pasted at their cursor
@@ -78,7 +79,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 3/3 | Complete   | 2026-03-15 |
+| 1. Foundation | 3/4 | Gap closure pending | 2026-03-15 |
 | 2. Audio + Transcription | 0/TBD | Not started | - |
 | 3. Haiku Cleanup | 0/TBD | Not started | - |
 | 4. Settings, History, and Polish | 0/TBD | Not started | - |
