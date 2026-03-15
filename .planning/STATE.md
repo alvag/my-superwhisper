@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-foundation 01-03-PLAN.md
-last_updated: "2026-03-15T21:06:12.130Z"
+stopped_at: Completed 01-foundation 01-04-PLAN.md
+last_updated: "2026-03-15T21:19:52.372Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 4
+  completed_plans: 4
   percent: 8
 ---
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 8%
 *Updated after each plan completion*
 | Phase 01-foundation P02 | 4 min | 2 tasks | 5 files |
 | Phase 01-foundation P03 | 3 min | 2 tasks | 8 files |
+| Phase 01-foundation P04 | 2min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,9 @@ Recent decisions affecting current work:
 - [Phase 01-03]: orderFront(nil) not makeKeyAndOrderFront(nil) for NSPanel overlay — prevents focus steal from target app which would break paste
 - [Phase 01-03]: AudioRecorder actually starts AVAudioEngine against real mic (validates permission flow + triggers mic LED) rather than simulating state only
 - [Phase 01-03]: 150ms delay between NSPasteboard.setString and CGEventPost to prevent race condition where target app reads stale clipboard
+- [Phase 01-foundation]: PermissionsManaging protocol placed in PermissionsManager.swift to keep protocol near its implementation
+- [Phase 01-foundation]: weak var permissionsManager in AppCoordinator prevents retain cycle; AppDelegate retains strongly
+- [Phase 01-foundation]: nil permissionsManager guard preserves backward compatibility — existing unit tests with no permissionsManager set still reach .recording
 
 ### Pending Todos
 
@@ -86,6 +90,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T21:06:12.128Z
-Stopped at: Completed 01-foundation 01-03-PLAN.md
+Last session: 2026-03-15T21:19:52.370Z
+Stopped at: Completed 01-foundation 01-04-PLAN.md
 Resume file: None
