@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-foundation 01-02-PLAN.md
-last_updated: "2026-03-15T21:00:00.340Z"
+stopped_at: Completed 01-foundation 01-03-PLAN.md
+last_updated: "2026-03-15T21:06:12.130Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
   percent: 8
 ---
 
@@ -51,6 +51,7 @@ Progress: [█░░░░░░░░░] 8%
 
 *Updated after each plan completion*
 | Phase 01-foundation P02 | 4 min | 2 tasks | 5 files |
+| Phase 01-foundation P03 | 3 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - [Phase 01-02]: PermissionsChecking protocol with SystemPermissionsChecker default enables unit testing health check without touching real TCC
 - [Phase 01-02]: notDetermined microphone status treated as .ok at launch — permission requested on-the-fly on first recording, not blocking at startup
 - [Phase 01-02]: Phase 1 no live permission polling — user restarts app after granting permissions (simplest correct approach for Phase 1)
+- [Phase 01-03]: orderFront(nil) not makeKeyAndOrderFront(nil) for NSPanel overlay — prevents focus steal from target app which would break paste
+- [Phase 01-03]: AudioRecorder actually starts AVAudioEngine against real mic (validates permission flow + triggers mic LED) rather than simulating state only
+- [Phase 01-03]: 150ms delay between NSPasteboard.setString and CGEventPost to prevent race condition where target app reads stale clipboard
 
 ### Pending Todos
 
@@ -82,6 +86,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T21:00:00.338Z
-Stopped at: Completed 01-foundation 01-02-PLAN.md
+Last session: 2026-03-15T21:06:12.128Z
+Stopped at: Completed 01-foundation 01-03-PLAN.md
 Resume file: None

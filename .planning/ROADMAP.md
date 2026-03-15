@@ -12,7 +12,7 @@ Four phases following the hard dependency chain of this app: system integration 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - macOS app shell with hotkey, menubar, paste, and permissions — no ML
+- [x] **Phase 1: Foundation** - macOS app shell with hotkey, menubar, paste, and permissions — no ML (completed 2026-03-15)
 - [ ] **Phase 2: Audio + Transcription** - Full pipeline from microphone input to raw Spanish text at cursor
 - [ ] **Phase 3: Haiku Cleanup** - Adds Anthropic Haiku API post-processing to deliver clean, punctuated text end-to-end
 - [ ] **Phase 4: Settings, History, and Polish** - Configurable settings, transcription history, vocabulary corrections, and distribution readiness
@@ -78,7 +78,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 2/3 | In Progress|  |
+| 1. Foundation | 3/3 | Complete   | 2026-03-15 |
 | 2. Audio + Transcription | 0/TBD | Not started | - |
 | 3. Haiku Cleanup | 0/TBD | Not started | - |
 | 4. Settings, History, and Polish | 0/TBD | Not started | - |
