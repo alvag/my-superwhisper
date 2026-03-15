@@ -22,6 +22,12 @@
 		AA000013001 /* PermissionsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000013000 /* PermissionsManager.swift */; };
 		AA000014001 /* PermissionBlockedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000014000 /* PermissionBlockedView.swift */; };
 		AA000015001 /* PermissionsManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000015000 /* PermissionsManagerTests.swift */; };
+		AA000016001 /* TextInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000016000 /* TextInjector.swift */; };
+		AA000017001 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000017000 /* AudioRecorder.swift */; };
+		AA000018001 /* OverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000018000 /* OverlayWindowController.swift */; };
+		AA000019001 /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000019000 /* OverlayView.swift */; };
+		AA000022001 /* TextInjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000022000 /* TextInjectorTests.swift */; };
+		AA000023001 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000023000 /* AudioRecorderTests.swift */; };
 		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +47,12 @@
 		AA000013000 /* PermissionsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManager.swift; sourceTree = "<group>"; };
 		AA000014000 /* PermissionBlockedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionBlockedView.swift; sourceTree = "<group>"; };
 		AA000015000 /* PermissionsManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManagerTests.swift; sourceTree = "<group>"; };
+		AA000016000 /* TextInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjector.swift; sourceTree = "<group>"; };
+		AA000017000 /* AudioRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		AA000018000 /* OverlayWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayWindowController.swift; sourceTree = "<group>"; };
+		AA000019000 /* OverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayView.swift; sourceTree = "<group>"; };
+		AA000022000 /* TextInjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjectorTests.swift; sourceTree = "<group>"; };
+		AA000023000 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
 		AA000030000 /* MyWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000031000 /* MyWhisperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyWhisperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000032000 /* MyWhisper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyWhisper.entitlements; sourceTree = "<group>"; };
@@ -73,6 +85,7 @@
 				AA000052000 /* Coordinator */,
 				AA000053000 /* System */,
 				AA000054000 /* UI */,
+				AA000058000 /* Audio */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -104,6 +117,7 @@
 				AA000006000 /* HotkeyMonitor.swift */,
 				AA000007000 /* EscapeMonitor.swift */,
 				AA000013000 /* PermissionsManager.swift */,
+				AA000016000 /* TextInjector.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -114,6 +128,8 @@
 				AA000008000 /* MenubarController.swift */,
 				AA000009000 /* StatusMenuView.swift */,
 				AA000014000 /* PermissionBlockedView.swift */,
+				AA000018000 /* OverlayWindowController.swift */,
+				AA000019000 /* OverlayView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -125,8 +141,18 @@
 				AA000011000 /* HotkeyMonitorTests.swift */,
 				AA000012000 /* MenubarControllerTests.swift */,
 				AA000015000 /* PermissionsManagerTests.swift */,
+				AA000022000 /* TextInjectorTests.swift */,
+				AA000023000 /* AudioRecorderTests.swift */,
 			);
 			path = MyWhisperTests;
+			sourceTree = "<group>";
+		};
+		AA000058000 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				AA000017000 /* AudioRecorder.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		AA000056000 /* Products */ = {
@@ -262,6 +288,10 @@
 				AA000009001 /* StatusMenuView.swift in Sources */,
 				AA000013001 /* PermissionsManager.swift in Sources */,
 				AA000014001 /* PermissionBlockedView.swift in Sources */,
+				AA000016001 /* TextInjector.swift in Sources */,
+				AA000017001 /* AudioRecorder.swift in Sources */,
+				AA000018001 /* OverlayWindowController.swift in Sources */,
+				AA000019001 /* OverlayView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +303,8 @@
 				AA000011001 /* HotkeyMonitorTests.swift in Sources */,
 				AA000012001 /* MenubarControllerTests.swift in Sources */,
 				AA000015001 /* PermissionsManagerTests.swift in Sources */,
+				AA000022001 /* TextInjectorTests.swift in Sources */,
+				AA000023001 /* AudioRecorderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
