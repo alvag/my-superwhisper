@@ -1,0 +1,554 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA000001001 /* MyWhisperApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000001000 /* MyWhisperApp.swift */; };
+		AA000002001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002000 /* AppDelegate.swift */; };
+		AA000003001 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000003000 /* AppState.swift */; };
+		AA000004001 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000004000 /* AppCoordinator.swift */; };
+		AA000005001 /* AppCoordinatorDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000005000 /* AppCoordinatorDependencies.swift */; };
+		AA000006001 /* HotkeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000006000 /* HotkeyMonitor.swift */; };
+		AA000007001 /* EscapeMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000007000 /* EscapeMonitor.swift */; };
+		AA000008001 /* MenubarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000008000 /* MenubarController.swift */; };
+		AA000009001 /* StatusMenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000009000 /* StatusMenuView.swift */; };
+		AA000010001 /* AppCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000010000 /* AppCoordinatorTests.swift */; };
+		AA000011001 /* HotkeyMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000011000 /* HotkeyMonitorTests.swift */; };
+		AA000012001 /* MenubarControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000012000 /* MenubarControllerTests.swift */; };
+		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		AA000001000 /* MyWhisperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyWhisperApp.swift; sourceTree = "<group>"; };
+		AA000002000 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		AA000003000 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		AA000004000 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		AA000005000 /* AppCoordinatorDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorDependencies.swift; sourceTree = "<group>"; };
+		AA000006000 /* HotkeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitor.swift; sourceTree = "<group>"; };
+		AA000007000 /* EscapeMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EscapeMonitor.swift; sourceTree = "<group>"; };
+		AA000008000 /* MenubarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarController.swift; sourceTree = "<group>"; };
+		AA000009000 /* StatusMenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuView.swift; sourceTree = "<group>"; };
+		AA000010000 /* AppCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinatorTests.swift; sourceTree = "<group>"; };
+		AA000011000 /* HotkeyMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyMonitorTests.swift; sourceTree = "<group>"; };
+		AA000012000 /* MenubarControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenubarControllerTests.swift; sourceTree = "<group>"; };
+		AA000030000 /* MyWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000031000 /* MyWhisperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyWhisperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000032000 /* MyWhisper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyWhisper.entitlements; sourceTree = "<group>"; };
+		AA000033000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		AA000040000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000020001 /* HotKey in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000041000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		AA000050000 /* MyWhisper */ = {
+			isa = PBXGroup;
+			children = (
+				AA000051000 /* App */,
+				AA000052000 /* Coordinator */,
+				AA000053000 /* System */,
+				AA000054000 /* UI */,
+				AA000032000 /* MyWhisper.entitlements */,
+				AA000033000 /* Info.plist */,
+			);
+			path = MyWhisper;
+			sourceTree = "<group>";
+		};
+		AA000051000 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				AA000001000 /* MyWhisperApp.swift */,
+				AA000002000 /* AppDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		AA000052000 /* Coordinator */ = {
+			isa = PBXGroup;
+			children = (
+				AA000003000 /* AppState.swift */,
+				AA000004000 /* AppCoordinator.swift */,
+				AA000005000 /* AppCoordinatorDependencies.swift */,
+			);
+			path = Coordinator;
+			sourceTree = "<group>";
+		};
+		AA000053000 /* System */ = {
+			isa = PBXGroup;
+			children = (
+				AA000006000 /* HotkeyMonitor.swift */,
+				AA000007000 /* EscapeMonitor.swift */,
+			);
+			path = System;
+			sourceTree = "<group>";
+		};
+		AA000054000 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				AA000008000 /* MenubarController.swift */,
+				AA000009000 /* StatusMenuView.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		AA000055000 /* MyWhisperTests */ = {
+			isa = PBXGroup;
+			children = (
+				AA000010000 /* AppCoordinatorTests.swift */,
+				AA000011000 /* HotkeyMonitorTests.swift */,
+				AA000012000 /* MenubarControllerTests.swift */,
+			);
+			path = MyWhisperTests;
+			sourceTree = "<group>";
+		};
+		AA000056000 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				AA000030000 /* MyWhisper.app */,
+				AA000031000 /* MyWhisperTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		AA000057000 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		AA000099000 = {
+			isa = PBXGroup;
+			children = (
+				AA000050000 /* MyWhisper */,
+				AA000055000 /* MyWhisperTests */,
+				AA000056000 /* Products */,
+				AA000057000 /* Packages */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		AA000060000 /* MyWhisper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000070000 /* Build configuration list for PBXNativeTarget "MyWhisper" */;
+			buildPhases = (
+				AA000080000 /* Sources */,
+				AA000040000 /* Frameworks */,
+				AA000082000 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MyWhisper;
+			packageProductDependencies = (
+				AA000020000 /* HotKey */,
+			);
+			productName = MyWhisper;
+			productReference = AA000030000 /* MyWhisper.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AA000061000 /* MyWhisperTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA000071000 /* Build configuration list for PBXNativeTarget "MyWhisperTests" */;
+			buildPhases = (
+				AA000081000 /* Sources */,
+				AA000041000 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				AA000090000 /* PBXTargetDependency */,
+			);
+			name = MyWhisperTests;
+			productName = MyWhisperTests;
+			productReference = AA000031000 /* MyWhisperTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AA000100000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					AA000060000 = {
+						CreatedOnToolsVersion = 15.3;
+					};
+					AA000061000 = {
+						CreatedOnToolsVersion = 15.3;
+						TestTargetID = AA000060000;
+					};
+				};
+			};
+			buildConfigurationList = AA000072000 /* Build configuration list for PBXProject "MyWhisper" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = AA000099000;
+			packageReferences = (
+				AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */,
+			);
+			productRefGroup = AA000056000 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				AA000060000 /* MyWhisper */,
+				AA000061000 /* MyWhisperTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA000082000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		AA000080000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000001001 /* MyWhisperApp.swift in Sources */,
+				AA000002001 /* AppDelegate.swift in Sources */,
+				AA000003001 /* AppState.swift in Sources */,
+				AA000004001 /* AppCoordinator.swift in Sources */,
+				AA000005001 /* AppCoordinatorDependencies.swift in Sources */,
+				AA000006001 /* HotkeyMonitor.swift in Sources */,
+				AA000007001 /* EscapeMonitor.swift in Sources */,
+				AA000008001 /* MenubarController.swift in Sources */,
+				AA000009001 /* StatusMenuView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AA000081000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA000010001 /* AppCoordinatorTests.swift in Sources */,
+				AA000011001 /* HotkeyMonitorTests.swift in Sources */,
+				AA000012001 /* MenubarControllerTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		AA000090000 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AA000060000 /* MyWhisper */;
+			targetProxy = AA000091000 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin PBXContainerItemProxy section */
+		AA000091000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000100000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA000060000;
+			remoteInfo = MyWhisper;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin XCBuildConfiguration section */
+		AA000073000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		AA000074000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		AA000075000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MyWhisper/MyWhisper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MyWhisper/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mywhisper.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		AA000076000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MyWhisper/MyWhisper.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MyWhisper/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mywhisper.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		AA000077000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mywhisper.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyWhisper.app/Contents/MacOS/MyWhisper";
+			};
+			name = Debug;
+		};
+		AA000078000 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mywhisper.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MyWhisper.app/Contents/MacOS/MyWhisper";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		AA000070000 /* Build configuration list for PBXNativeTarget "MyWhisper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000075000 /* Debug */,
+				AA000076000 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000071000 /* Build configuration list for PBXNativeTarget "MyWhisperTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000077000 /* Debug */,
+				AA000078000 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		AA000072000 /* Build configuration list for PBXProject "MyWhisper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AA000073000 /* Debug */,
+				AA000074000 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/soffes/HotKey";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000020000 /* HotKey */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */;
+			productName = HotKey;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+	};
+	rootObject = AA000100000 /* Project object */;
+}
