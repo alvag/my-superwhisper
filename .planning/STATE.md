@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: "Completed 01-foundation 01-01-PLAN.md"
-last_updated: "2026-03-15T20:48:00Z"
-last_activity: 2026-03-15 — Plan 01-01 complete, Xcode project scaffold + FSM core
+status: executing
+stopped_at: Completed 01-foundation 01-02-PLAN.md
+last_updated: "2026-03-15T21:00:00.340Z"
+last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 8
 ---
 
@@ -50,6 +50,7 @@ Progress: [█░░░░░░░░░] 8%
 - Trend: —
 
 *Updated after each plan completion*
+| Phase 01-foundation P02 | 4 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [01-01]: Used internal(set) var state in AppCoordinator (not private(set)) to allow @testable import test code to directly set state for unit tests
 - [01-01]: Protocol stubs (AudioRecorderProtocol, TextInjectorProtocol, OverlayWindowControllerProtocol) established as injection points — Plans 03/04 provide concrete implementations
 - [01-01]: HotKey registered last in applicationDidFinishLaunching — after all coordinator dependencies are wired, preventing race on first keypress
+- [Phase 01-02]: PermissionsChecking protocol with SystemPermissionsChecker default enables unit testing health check without touching real TCC
+- [Phase 01-02]: notDetermined microphone status treated as .ok at launch — permission requested on-the-fly on first recording, not blocking at startup
+- [Phase 01-02]: Phase 1 no live permission polling — user restarts app after granting permissions (simplest correct approach for Phase 1)
 
 ### Pending Todos
 
@@ -78,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T20:48:00Z
-Stopped at: Completed 01-foundation 01-01-PLAN.md
-Resume file: .planning/phases/01-foundation/01-02-PLAN.md
+Last session: 2026-03-15T21:00:00.338Z
+Stopped at: Completed 01-foundation 01-02-PLAN.md
+Resume file: None
