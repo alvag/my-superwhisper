@@ -9,10 +9,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Recording
 
-- [ ] **REC-01**: User can press a global hotkey to start recording from any application
+- [x] **REC-01**: User can press a global hotkey to start recording from any application
 - [ ] **REC-02**: User can press the same hotkey again to stop recording and trigger transcription
 - [ ] **REC-03**: User sees an animated waveform visualization while recording is active
-- [ ] **REC-04**: User can press Escape to cancel recording without pasting any text
+- [x] **REC-04**: User can press Escape to cancel recording without pasting any text
 - [ ] **REC-05**: User can configure which hotkey activates recording (default: Option+Space, not Ctrl+Space due to macOS conflict)
 
 ### Audio
@@ -49,16 +49,16 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### macOS Integration
 
-- [ ] **MAC-01**: App runs as a menubar application with status icon showing current state (idle/recording/processing/done)
+- [x] **MAC-01**: App runs as a menubar application with status icon showing current state (idle/recording/processing/done)
 - [ ] **MAC-02**: App prompts for Accessibility and Microphone permissions on first launch with clear explanations
 - [ ] **MAC-03**: App checks permission health on every launch (permissions can reset after OS updates)
 - [ ] **MAC-04**: User can select which microphone to use from a list of available audio inputs
 - [ ] **MAC-05**: App consumes less than 200MB RAM when idle (only STT model in memory, no local LLM)
-- [ ] **MAC-06**: App requires macOS 14+ on Apple Silicon (M1 or later)
+- [x] **MAC-06**: App requires macOS 14+ on Apple Silicon (M1 or later)
 
 ### Privacy & API
 
-- [ ] **PRV-01**: Audio is transcribed 100% locally — raw audio never leaves the machine
+- [x] **PRV-01**: Audio is transcribed 100% locally — raw audio never leaves the machine
 - [ ] **PRV-02**: Only transcribed text (not audio) is sent to Anthropic's Haiku API for cleanup
 - [ ] **PRV-03**: User can configure their Anthropic API key in settings
 - [ ] **PRV-04**: App gracefully handles API errors (network down, invalid key) with clear user feedback
@@ -109,10 +109,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Phase 1 | Pending |
+| REC-01 | Phase 1 | Done (01-01) |
 | REC-02 | Phase 2 | Pending |
 | REC-03 | Phase 2 | Pending |
-| REC-04 | Phase 1 | Pending |
+| REC-04 | Phase 1 | Done (01-01) |
 | REC-05 | Phase 4 | Pending |
 | AUD-01 | Phase 2 | Pending |
 | AUD-02 | Phase 2 | Pending |
@@ -131,13 +131,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OUT-02 | Phase 1 | Pending |
 | OUT-03 | Phase 4 | Pending |
 | OUT-04 | Phase 4 | Pending |
-| MAC-01 | Phase 1 | Pending |
+| MAC-01 | Phase 1 | Done (01-01) |
 | MAC-02 | Phase 1 | Pending |
 | MAC-03 | Phase 1 | Pending |
 | MAC-04 | Phase 4 | Pending |
 | MAC-05 | Phase 4 | Pending |
-| MAC-06 | Phase 1 | Pending |
-| PRV-01 | Phase 1 | Pending |
+| MAC-06 | Phase 1 | Done (01-01) |
+| PRV-01 | Phase 1 | Done (01-01) |
 | PRV-02 | Phase 3 | Pending |
 | PRV-03 | Phase 3 | Pending |
 | PRV-04 | Phase 3 | Pending |

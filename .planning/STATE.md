@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-15T20:19:51.835Z"
-last_activity: 2026-03-15 — Roadmap created, ready to begin Phase 1 planning
+status: in-progress
+stopped_at: "Completed 01-foundation 01-01-PLAN.md"
+last_updated: "2026-03-15T20:48:00Z"
+last_activity: 2026-03-15 — Plan 01-01 complete, Xcode project scaffold + FSM core
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 8
 ---
 
 # Project State
@@ -26,27 +26,27 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 1 of 4 (Foundation)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-15 — Roadmap created, ready to begin Phase 1 planning
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 8%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 7 min
+- Total execution time: 0.12 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-foundation | 1 | 7 min | 7 min |
 
 **Recent Trend:**
-- Last 5 plans: —
+- Last 5 plans: 7 min
 - Trend: —
 
 *Updated after each plan completion*
@@ -61,6 +61,9 @@ Recent decisions affecting current work:
 - [Pre-Phase 1]: Do NOT use Ctrl+Space as default hotkey — conflicts with macOS Input Source switching for bilingual Spanish/English users. Use a non-conflicting default (e.g., Option+Space).
 - [Pre-Phase 1]: App must be non-sandboxed (Developer ID distribution) — CGEventPost for paste simulation is blocked in sandboxed apps, making Mac App Store distribution impossible.
 - [Pre-Phase 1]: Stack confirmed: Swift/SwiftUI + WhisperKit (STT) + Anthropic Haiku API (text cleanup). No local LLM needed — simplifies architecture significantly.
+- [01-01]: Used internal(set) var state in AppCoordinator (not private(set)) to allow @testable import test code to directly set state for unit tests
+- [01-01]: Protocol stubs (AudioRecorderProtocol, TextInjectorProtocol, OverlayWindowControllerProtocol) established as injection points — Plans 03/04 provide concrete implementations
+- [01-01]: HotKey registered last in applicationDidFinishLaunching — after all coordinator dependencies are wired, preventing race on first keypress
 
 ### Pending Todos
 
@@ -68,12 +71,13 @@ None yet.
 
 ### Blockers/Concerns
 
+- [Phase 1 ongoing]: Xcode license not accepted — `sudo xcodebuild -license accept` needs user password. Build verification via xcodebuild is blocked until license is accepted.
 - [Phase 2]: VAD library selection unresolved — silero-vad requires Python or ONNX; WebRTC VAD requires C bridging. Must decide before Phase 2 starts to avoid rework.
 - [Phase 3]: Spanish Haiku cleanup prompt needs testing with real speech samples to ensure filler removal doesn't change meaning.
 - [Phase 3]: Anthropic API key management UX — needs secure storage (macOS Keychain) and first-run onboarding.
 
 ## Session Continuity
 
-Last session: 2026-03-15T20:19:51.833Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-03-15T20:48:00Z
+Stopped at: Completed 01-foundation 01-01-PLAN.md
+Resume file: .planning/phases/01-foundation/01-02-PLAN.md
