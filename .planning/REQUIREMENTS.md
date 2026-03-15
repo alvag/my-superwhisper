@@ -1,7 +1,7 @@
 # Requirements: My SuperWhisper
 
 **Defined:** 2026-03-15
-**Core Value:** Frictionless voice-to-text that produces clean, well-formatted Spanish text locally — press a key, speak, press again, and polished text appears where you're typing.
+**Core Value:** Frictionless voice-to-text that produces clean, well-formatted Spanish text — press a key, speak, press again, and polished text appears where you're typing. Local STT + Haiku cleanup.
 
 ## v1 Requirements
 
@@ -29,11 +29,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Text Cleanup
 
-- [ ] **CLN-01**: Local LLM adds correct punctuation (periods, commas, question/exclamation marks)
-- [ ] **CLN-02**: Local LLM adds proper capitalization and paragraph breaks
-- [ ] **CLN-03**: Local LLM removes Spanish filler words ("eh", "este", "o sea", "bueno", "pues") and verbal repetitions
-- [ ] **CLN-04**: Local LLM preserves the user's original meaning — no paraphrasing or content addition
-- [ ] **CLN-05**: LLM model stays warm in memory for fast inference (<2s for typical transcription cleanup)
+- [ ] **CLN-01**: Haiku API adds correct punctuation (periods, commas, question/exclamation marks)
+- [ ] **CLN-02**: Haiku API adds proper capitalization and paragraph breaks
+- [ ] **CLN-03**: Haiku API removes Spanish filler words ("eh", "este", "o sea", "bueno", "pues") and verbal repetitions
+- [ ] **CLN-04**: Haiku API preserves the user's original meaning — no paraphrasing or content addition
+- [ ] **CLN-05**: Haiku API cleanup completes in <2s for typical transcription length
 
 ### Custom Vocabulary
 
@@ -53,14 +53,15 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **MAC-02**: App prompts for Accessibility and Microphone permissions on first launch with clear explanations
 - [ ] **MAC-03**: App checks permission health on every launch (permissions can reset after OS updates)
 - [ ] **MAC-04**: User can select which microphone to use from a list of available audio inputs
-- [ ] **MAC-05**: App consumes less than 100MB RAM when idle (models can be unloaded or memory-mapped)
+- [ ] **MAC-05**: App consumes less than 200MB RAM when idle (only STT model in memory, no local LLM)
 - [ ] **MAC-06**: App requires macOS 14+ on Apple Silicon (M1 or later)
 
-### Privacy
+### Privacy & API
 
-- [ ] **PRV-01**: All processing (STT + LLM) runs 100% locally — zero network calls for core functionality
-- [ ] **PRV-02**: No audio or transcription data is sent to any external service
-- [ ] **PRV-03**: App works fully offline after initial model download
+- [ ] **PRV-01**: Audio is transcribed 100% locally — raw audio never leaves the machine
+- [ ] **PRV-02**: Only transcribed text (not audio) is sent to Anthropic's Haiku API for cleanup
+- [ ] **PRV-03**: User can configure their Anthropic API key in settings
+- [ ] **PRV-04**: App gracefully handles API errors (network down, invalid key) with clear user feedback
 
 ## v2 Requirements
 
@@ -81,6 +82,11 @@ Deferred to future release. Tracked but not in current roadmap.
 - **ADV-01**: Reformulation modes (formal email, structured notes)
 - **ADV-02**: Keyboard-driven history navigation
 
+### Offline
+
+- **OFF-01**: Local LLM fallback for text cleanup when offline (Ollama/MLX)
+- **OFF-02**: Full offline operation after initial model download
+
 ## Out of Scope
 
 Explicitly excluded. Documented to prevent scope creep.
@@ -91,7 +97,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | Voice commands / macros | Separate always-listening model, massively increases scope |
 | Audio file import / transcription | Different UX and pipeline, different product |
 | Meeting recording & summarization | Privacy concerns, different product mode entirely |
-| Cloud fallback | Breaks privacy guarantee, adds network dependency |
+| Cloud STT | Audio must stay local — only text goes to API |
 | Continuous/always-on dictation | High CPU/memory, accidental transcription risk |
 | Mac App Store distribution | CGEventPost for paste is blocked in sandboxed apps |
 | iOS/iPad version | macOS only for v1 |
@@ -103,43 +109,44 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | — | Pending |
-| REC-02 | — | Pending |
-| REC-03 | — | Pending |
-| REC-04 | — | Pending |
-| REC-05 | — | Pending |
-| AUD-01 | — | Pending |
-| AUD-02 | — | Pending |
-| AUD-03 | — | Pending |
-| STT-01 | — | Pending |
-| STT-02 | — | Pending |
-| STT-03 | — | Pending |
-| CLN-01 | — | Pending |
-| CLN-02 | — | Pending |
-| CLN-03 | — | Pending |
-| CLN-04 | — | Pending |
-| CLN-05 | — | Pending |
-| VOC-01 | — | Pending |
-| VOC-02 | — | Pending |
-| OUT-01 | — | Pending |
-| OUT-02 | — | Pending |
-| OUT-03 | — | Pending |
-| OUT-04 | — | Pending |
-| MAC-01 | — | Pending |
-| MAC-02 | — | Pending |
-| MAC-03 | — | Pending |
-| MAC-04 | — | Pending |
-| MAC-05 | — | Pending |
-| MAC-06 | — | Pending |
-| PRV-01 | — | Pending |
-| PRV-02 | — | Pending |
-| PRV-03 | — | Pending |
+| REC-01 | Phase 1 | Pending |
+| REC-02 | Phase 2 | Pending |
+| REC-03 | Phase 2 | Pending |
+| REC-04 | Phase 1 | Pending |
+| REC-05 | Phase 4 | Pending |
+| AUD-01 | Phase 2 | Pending |
+| AUD-02 | Phase 2 | Pending |
+| AUD-03 | Phase 2 | Pending |
+| STT-01 | Phase 2 | Pending |
+| STT-02 | Phase 2 | Pending |
+| STT-03 | Phase 2 | Pending |
+| CLN-01 | Phase 3 | Pending |
+| CLN-02 | Phase 3 | Pending |
+| CLN-03 | Phase 3 | Pending |
+| CLN-04 | Phase 3 | Pending |
+| CLN-05 | Phase 3 | Pending |
+| VOC-01 | Phase 4 | Pending |
+| VOC-02 | Phase 4 | Pending |
+| OUT-01 | Phase 1 | Pending |
+| OUT-02 | Phase 1 | Pending |
+| OUT-03 | Phase 4 | Pending |
+| OUT-04 | Phase 4 | Pending |
+| MAC-01 | Phase 1 | Pending |
+| MAC-02 | Phase 1 | Pending |
+| MAC-03 | Phase 1 | Pending |
+| MAC-04 | Phase 4 | Pending |
+| MAC-05 | Phase 4 | Pending |
+| MAC-06 | Phase 1 | Pending |
+| PRV-01 | Phase 1 | Pending |
+| PRV-02 | Phase 3 | Pending |
+| PRV-03 | Phase 3 | Pending |
+| PRV-04 | Phase 3 | Pending |
 
 **Coverage:**
-- v1 requirements: 31 total
-- Mapped to phases: 0
-- Unmapped: 31 ⚠️
+- v1 requirements: 32 total
+- Mapped to phases: 32
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after initial definition*
+*Last updated: 2026-03-15 after Haiku API decision — 32 requirements mapped*
