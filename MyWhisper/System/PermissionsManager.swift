@@ -30,6 +30,12 @@ struct SystemPermissionsChecker: PermissionsChecking {
     }
 }
 
+// MARK: - PermissionsManaging Protocol
+
+protocol PermissionsManaging: AnyObject {
+    func requestMicrophone() async -> Bool
+}
+
 // MARK: - Manager
 
 final class PermissionsManager {
@@ -80,3 +86,7 @@ final class PermissionsManager {
         NSWorkspace.shared.open(url)
     }
 }
+
+// MARK: - PermissionsManaging Conformance
+
+extension PermissionsManager: PermissionsManaging {}

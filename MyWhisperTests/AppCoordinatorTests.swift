@@ -1,6 +1,14 @@
 import XCTest
 @testable import MyWhisper
 
+// MARK: - Mock for permission testing
+
+final class MockPermissionsManaging: PermissionsManaging {
+    var shouldGrantMicrophone: Bool
+    init(grant: Bool) { self.shouldGrantMicrophone = grant }
+    func requestMicrophone() async -> Bool { shouldGrantMicrophone }
+}
+
 @MainActor
 final class AppCoordinatorTests: XCTestCase {
     var coordinator: AppCoordinator!
@@ -37,5 +45,28 @@ final class AppCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .recording)
         coordinator.handleEscape()
         XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    // MARK: - On-the-fly permission tests (MAC-02)
+
+    func testHotkeyDeniedMicrophoneTransitionsToError() async {
+        let mock = MockPermissionsManaging(grant: false)
+        coordinator.permissionsManager = mock
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .error("microphone"))
+    }
+
+    func testHotkeyGrantedMicrophoneProceedsToRecording() async {
+        let mock = MockPermissionsManaging(grant: true)
+        coordinator.permissionsManager = mock
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .recording)
+    }
+
+    func testHotkeyNilPermissionsManagerProceedsToRecording() async {
+        // permissionsManager is nil — existing behavior must not break
+        coordinator.permissionsManager = nil
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .recording)
     }
 }

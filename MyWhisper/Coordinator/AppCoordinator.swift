@@ -12,10 +12,19 @@ final class AppCoordinator {
     var audioRecorder: (any AudioRecorderProtocol)?
     var textInjector: (any TextInjectorProtocol)?
     var escapeMonitor: EscapeMonitor?
+    weak var permissionsManager: (any PermissionsManaging)?
 
     func handleHotkey() async {
         switch state {
         case .idle:
+            // On-the-fly microphone permission (MAC-02)
+            if let pm = permissionsManager {
+                let granted = await pm.requestMicrophone()
+                if !granted {
+                    transitionTo(.error("microphone"))
+                    return
+                }
+            }
             transitionTo(.recording)
             escapeMonitor?.startMonitoring()
             overlayController?.show()
