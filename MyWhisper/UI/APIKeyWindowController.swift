@@ -38,7 +38,6 @@ final class APIKeyWindowController: NSObject, NSWindowDelegate {
         panel.delegate = self
 
         let contentView = panel.contentView!
-        contentView.translatesAutoresizingMaskIntoConstraints = false
 
         // Label
         let label = NSTextField(labelWithString: "Introduce tu clave de API de Anthropic:")
