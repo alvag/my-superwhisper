@@ -36,6 +36,7 @@
 		AA000027001 /* STTEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000027000 /* STTEngine.swift */; };
 		AA000035001 /* STTEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000035000 /* STTEngineTests.swift */; };
 		AA000034001 /* OverlayViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000034000 /* OverlayViewTests.swift */; };
+		AA000036001 /* NotificationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000036000 /* NotificationHelper.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		AA000028000 /* VAD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAD.swift; sourceTree = "<group>"; };
 		AA000029000 /* VADTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADTests.swift; sourceTree = "<group>"; };
 		AA000034000 /* OverlayViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayViewTests.swift; sourceTree = "<group>"; };
+		AA000036000 /* NotificationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHelper.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,6 +145,7 @@
 				AA000007000 /* EscapeMonitor.swift */,
 				AA000013000 /* PermissionsManager.swift */,
 				AA000016000 /* TextInjector.swift */,
+				AA000036000 /* NotificationHelper.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -335,6 +338,7 @@
 				AA000024001 /* STTError.swift in Sources */,
 				AA000028001 /* VAD.swift in Sources */,
 				AA000027001 /* STTEngine.swift in Sources */,
+				AA000036001 /* NotificationHelper.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

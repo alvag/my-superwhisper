@@ -13,29 +13,72 @@ final class AppCoordinator {
     var textInjector: (any TextInjectorProtocol)?
     var escapeMonitor: EscapeMonitor?
     weak var permissionsManager: (any PermissionsManaging)?
+    var sttEngine: (any STTEngineProtocol)?
+
+    private var audioLevelTimer: Timer?
 
     func handleHotkey() async {
         switch state {
         case .idle:
             // On-the-fly microphone permission (MAC-02)
-            // Request but don't block — user can still complete the flow
             if let pm = permissionsManager {
-                _ = await pm.requestMicrophone()
+                let granted = await pm.requestMicrophone()
+                if !granted {
+                    transitionTo(.error("microphone"))
+                    return
+                }
+            }
+            // Start recording
+            do {
+                try audioRecorder?.start()
+            } catch {
+                transitionTo(.error("microphone"))
+                return
             }
             transitionTo(.recording)
             escapeMonitor?.startMonitoring()
             overlayController?.show()
-            try? audioRecorder?.start()
+            startAudioLevelPolling()
+
         case .recording:
             escapeMonitor?.stopMonitoring()
-            overlayController?.hide()
-            _ = audioRecorder?.stop()
+            stopAudioLevelPolling()
+
+            // Get accumulated audio buffer
+            let buffer = audioRecorder?.stop() ?? []
+
+            // VAD gate -- silence check (AUD-03)
+            guard VAD.hasSpeech(in: buffer) else {
+                overlayController?.hide()
+                NotificationHelper.show(title: "No se detecto voz")
+                transitionTo(.idle)
+                return
+            }
+
+            // Switch overlay from waveform to spinner
+            overlayController?.showProcessing()
             transitionTo(.processing)
-            // Phase 1: inject placeholder text; Phase 2+ replaces this
-            await textInjector?.inject("Texto de prueba")
-            transitionTo(.idle)
+
+            // Transcribe via WhisperKit (STT-01)
+            do {
+                guard let text = try await sttEngine?.transcribe(buffer) else {
+                    throw STTError.notLoaded
+                }
+                overlayController?.hide()
+                await textInjector?.inject(text)
+                transitionTo(.idle)
+            } catch {
+                overlayController?.hide()
+                NotificationHelper.show(
+                    title: "Error de transcripcion",
+                    body: error.localizedDescription
+                )
+                transitionTo(.idle)
+            }
+
         case .processing:
             break // Ignored per spec
+
         case .error:
             transitionTo(.idle)
         }
@@ -44,6 +87,7 @@ final class AppCoordinator {
     func handleEscape() {
         guard state == .recording else { return }
         escapeMonitor?.stopMonitoring()
+        stopAudioLevelPolling()
         overlayController?.hide()
         audioRecorder?.cancel()
         NSSound.beep()
@@ -53,5 +97,22 @@ final class AppCoordinator {
     private func transitionTo(_ newState: AppState) {
         state = newState
         menubarController?.update(state: newState)
+    }
+
+    // MARK: - Audio Level Polling
+
+    private func startAudioLevelPolling() {
+        // Poll audioLevel at ~30fps for overlay visualization
+        audioLevelTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self, let recorder = self.audioRecorder else { return }
+                self.overlayController?.updateAudioLevel(recorder.audioLevel)
+            }
+        }
+    }
+
+    private func stopAudioLevelPolling() {
+        audioLevelTimer?.invalidate()
+        audioLevelTimer = nil
     }
 }

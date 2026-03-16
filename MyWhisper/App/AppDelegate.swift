@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var audioRecorder: AudioRecorder?
     private var textInjector: TextInjector?
     private var overlayController: OverlayWindowController?
+    private var sttEngine: STTEngine?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -28,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let audioRecorder = AudioRecorder()
         let textInjector = TextInjector(permissionsManager: permissionsManager)
         let overlayController = OverlayWindowController()
+        let sttEngine = STTEngine()
 
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
@@ -36,15 +38,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.textInjector = textInjector
         coordinator.overlayController = overlayController
         coordinator.permissionsManager = permissionsManager
+        coordinator.sttEngine = sttEngine
 
         // Store strong references
         self.audioRecorder = audioRecorder
         self.textInjector = textInjector
         self.overlayController = overlayController
+        self.sttEngine = sttEngine
 
         // Build and attach menu
         statusMenuController = StatusMenuController(coordinator: coordinator)
         menubarController.setMenu(statusMenuController.buildMenu())
+
+        // Request provisional notification authorization (silent, no dialog)
+        NotificationHelper.requestAuthorization()
 
         // Register hotkey last (after coordinator is fully wired)
         hotkeyMonitor = HotkeyMonitor(coordinator: coordinator)
@@ -54,6 +61,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let permissionStatus = permissionsManager.checkAllOnLaunch()
         if case .blocked(let reason) = permissionStatus {
             showPermissionBlockedWindow(reason: reason, permissionsManager: permissionsManager)
+        }
+
+        // Pre-load STT model (STT-02) -- background task, non-blocking
+        Task {
+            do {
+                try await sttEngine.prepareModel()
+            } catch {
+                print("[AppDelegate] STT model pre-load failed: \(error)")
+                // Non-fatal -- model will load on first transcription attempt
+            }
         }
     }
 
