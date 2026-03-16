@@ -62,6 +62,24 @@ final class MockTextInjector: TextInjectorProtocol {
     func inject(_ text: String) async { lastInjectedText = text }
 }
 
+final class MockHaikuCleanup: HaikuCleanupProtocol, @unchecked Sendable {
+    var mockCleanedText: String = ""
+    var shouldThrow: HaikuCleanupError?
+    var cleanCalled = false
+    var hasAPIKeyValue = true
+
+    func clean(_ rawText: String) async throws -> String {
+        cleanCalled = true
+        if let error = shouldThrow { throw error }
+        return mockCleanedText
+    }
+
+    var hasAPIKey: Bool { hasAPIKeyValue }
+
+    func saveAPIKey(_ key: String) async throws {}
+    func removeAPIKey() async throws {}
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -71,6 +89,7 @@ final class AppCoordinatorTests: XCTestCase {
     var mockSTT: MockSTTEngine!
     var mockOverlay: MockOverlayController!
     var mockInjector: MockTextInjector!
+    var mockHaiku: MockHaikuCleanup!
 
     override func setUp() {
         super.setUp()
@@ -79,11 +98,13 @@ final class AppCoordinatorTests: XCTestCase {
         mockSTT = MockSTTEngine()
         mockOverlay = MockOverlayController()
         mockInjector = MockTextInjector()
+        mockHaiku = MockHaikuCleanup()
 
         coordinator.audioRecorder = mockRecorder
         coordinator.sttEngine = mockSTT
         coordinator.overlayController = mockOverlay
         coordinator.textInjector = mockInjector
+        coordinator.haikuCleanup = mockHaiku
     }
 
     // MARK: - Basic FSM
@@ -114,18 +135,17 @@ final class AppCoordinatorTests: XCTestCase {
 
     func testHotkeyStopsRecordingTranscribesAndPastes() async {
         // Provide a speech-level buffer (RMS > 0.01)
-        mockRecorder.mockBuffer = (0..<16000).map { i in
-            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
-        }
+        mockRecorder.mockBuffer = speechBuffer()
         mockSTT.mockTranscription = "Hola esto es una prueba"
+        mockHaiku.mockCleanedText = "Hola, esto es una prueba."
 
         await coordinator.handleHotkey() // start
         XCTAssertEqual(coordinator.state, .recording)
 
-        await coordinator.handleHotkey() // stop -> transcribe -> paste
+        await coordinator.handleHotkey() // stop -> transcribe -> Haiku -> paste
         XCTAssertEqual(coordinator.state, .idle)
         XCTAssertTrue(mockSTT.transcribeCalled)
-        XCTAssertEqual(mockInjector.lastInjectedText, "Hola esto es una prueba")
+        XCTAssertEqual(mockInjector.lastInjectedText, "Hola, esto es una prueba.")
         XCTAssertFalse(mockOverlay.isShowing)
     }
 
@@ -146,9 +166,7 @@ final class AppCoordinatorTests: XCTestCase {
     // MARK: - STT Error Handling
 
     func testTranscriptionErrorReturnsToIdle() async {
-        mockRecorder.mockBuffer = (0..<16000).map { i in
-            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
-        }
+        mockRecorder.mockBuffer = speechBuffer()
         mockSTT.shouldThrow = true
 
         await coordinator.handleHotkey() // start
@@ -161,9 +179,7 @@ final class AppCoordinatorTests: XCTestCase {
     // MARK: - Overlay Mode Switching (REC-03)
 
     func testOverlayShowsProcessingDuringTranscription() async {
-        mockRecorder.mockBuffer = (0..<16000).map { i in
-            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
-        }
+        mockRecorder.mockBuffer = speechBuffer()
 
         await coordinator.handleHotkey() // start
         XCTAssertTrue(mockOverlay.isShowing)
@@ -202,5 +218,62 @@ final class AppCoordinatorTests: XCTestCase {
         mockRecorder.shouldThrowOnStart = true
         await coordinator.handleHotkey()
         XCTAssertEqual(coordinator.state, .error("microphone"))
+    }
+
+    // MARK: - Haiku Cleanup Integration (CLN-01/02/03/04)
+
+    func testHaikuCleanupCalledAfterTranscription() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "eh hola esto es una prueba"
+        mockHaiku.mockCleanedText = "Hola, esto es una prueba."
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> Haiku -> paste
+
+        XCTAssertTrue(mockHaiku.cleanCalled)
+        XCTAssertEqual(mockInjector.lastInjectedText, "Hola, esto es una prueba.")
+    }
+
+    func testHaikuAuthFailurePastesRawText() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "texto sin limpiar"
+        mockHaiku.shouldThrow = .authFailed
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> Haiku fails -> paste raw
+
+        XCTAssertEqual(mockInjector.lastInjectedText, "texto sin limpiar")
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testHaikuNetworkErrorPastesRawText() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "texto sin limpiar"
+        mockHaiku.shouldThrow = .networkError(URLError(.timedOut))
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> Haiku fails -> paste raw
+
+        XCTAssertEqual(mockInjector.lastInjectedText, "texto sin limpiar")
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testNilHaikuCleanupPastesRawText() async {
+        coordinator.haikuCleanup = nil
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "texto crudo"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> no Haiku -> paste raw
+
+        XCTAssertEqual(mockInjector.lastInjectedText, "texto crudo")
+    }
+
+    // MARK: - Helpers
+
+    private func speechBuffer() -> [Float] {
+        (0..<16000).map { i in
+            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
+        }
     }
 }

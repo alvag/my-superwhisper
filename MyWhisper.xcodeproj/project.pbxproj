@@ -43,6 +43,7 @@
 		AA000040002 /* HaikuCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000040003 /* HaikuCleanupService.swift */; };
 		AA000041002 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000041003 /* KeychainServiceTests.swift */; };
 		AA000042001 /* HaikuCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000042000 /* HaikuCleanupServiceTests.swift */; };
+		AA000043001 /* APIKeyWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000043002 /* APIKeyWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -94,6 +95,7 @@
 		AA000040003 /* HaikuCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupService.swift; sourceTree = "<group>"; };
 		AA000041003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		AA000042000 /* HaikuCleanupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupServiceTests.swift; sourceTree = "<group>"; };
+		AA000043002 /* APIKeyWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyWindowController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +174,7 @@
 				AA000014000 /* PermissionBlockedView.swift */,
 				AA000018000 /* OverlayWindowController.swift */,
 				AA000019000 /* OverlayView.swift */,
+				AA000043002 /* APIKeyWindowController.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -369,6 +372,7 @@
 				AA000038001 /* HaikuCleanupProtocol.swift in Sources */,
 				AA000039001 /* HaikuCleanupError.swift in Sources */,
 				AA000040002 /* HaikuCleanupService.swift in Sources */,
+				AA000043001 /* APIKeyWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

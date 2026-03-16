@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var textInjector: TextInjector?
     private var overlayController: OverlayWindowController?
     private var sttEngine: STTEngine?
+    private var haikuCleanup: HaikuCleanupService?
+    private var apiKeyWindowController: APIKeyWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -30,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let textInjector = TextInjector(permissionsManager: permissionsManager)
         let overlayController = OverlayWindowController()
         let sttEngine = STTEngine()
+        let haikuCleanup = HaikuCleanupService()
+        let apiKeyWindowController = APIKeyWindowController(haikuCleanup: haikuCleanup)
 
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
@@ -39,15 +43,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.overlayController = overlayController
         coordinator.permissionsManager = permissionsManager
         coordinator.sttEngine = sttEngine
+        coordinator.haikuCleanup = haikuCleanup
+        coordinator.apiKeyWindowController = apiKeyWindowController
 
         // Store strong references
         self.audioRecorder = audioRecorder
         self.textInjector = textInjector
         self.overlayController = overlayController
         self.sttEngine = sttEngine
+        self.haikuCleanup = haikuCleanup
+        self.apiKeyWindowController = apiKeyWindowController
 
         // Build and attach menu
-        statusMenuController = StatusMenuController(coordinator: coordinator)
+        statusMenuController = StatusMenuController(coordinator: coordinator, haikuCleanup: haikuCleanup)
         menubarController.setMenu(statusMenuController.buildMenu())
 
         // Request provisional notification authorization (silent, no dialog)

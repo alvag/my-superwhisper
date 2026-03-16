@@ -35,9 +35,11 @@ final class StatusMenuController: NSObject {
     }
 
     @objc private func openAPIKeyPanel() {
-        let controller = APIKeyWindowController(haikuCleanup: haikuCleanup)
-        controller.show()
-        apiKeyWindowController = controller
+        Task { @MainActor in
+            let controller = APIKeyWindowController(haikuCleanup: self.haikuCleanup)
+            controller.show()
+            self.apiKeyWindowController = controller
+        }
     }
 
     @objc private func openSettings() {

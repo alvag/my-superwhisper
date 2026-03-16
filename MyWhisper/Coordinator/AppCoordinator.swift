@@ -14,6 +14,9 @@ final class AppCoordinator {
     var escapeMonitor: EscapeMonitor?
     weak var permissionsManager: (any PermissionsManaging)?
     var sttEngine: (any STTEngineProtocol)?
+    var haikuCleanup: (any HaikuCleanupProtocol)?
+    var apiKeyWindowController: APIKeyWindowController?
+    private var apiKeyMarkedInvalid = false
 
     private var audioLevelTimer: Timer?
 
@@ -28,6 +31,22 @@ final class AppCoordinator {
                     return
                 }
             }
+
+            // API key gate — prompt on-the-fly if no key configured
+            if let haiku = haikuCleanup {
+                let hasKey = await haiku.hasAPIKey
+                if !hasKey || apiKeyMarkedInvalid {
+                    apiKeyMarkedInvalid = false
+                    apiKeyWindowController?.show { [weak self] in
+                        // Key saved — user can try recording again
+                        Task { @MainActor in
+                            await self?.handleHotkey()
+                        }
+                    }
+                    return  // Don't start recording yet
+                }
+            }
+
             // Start recording
             do {
                 try audioRecorder?.start()
@@ -61,11 +80,49 @@ final class AppCoordinator {
 
             // Transcribe via WhisperKit (STT-01)
             do {
-                guard let text = try await sttEngine?.transcribe(buffer) else {
+                guard let rawText = try await sttEngine?.transcribe(buffer) else {
                     throw STTError.notLoaded
                 }
+
+                // Haiku cleanup (CLN-01/02/03/04) — fallback to raw on any error
+                let finalText: String
+                if let haiku = haikuCleanup {
+                    do {
+                        finalText = try await haiku.clean(rawText)
+                    } catch let error as HaikuCleanupError {
+                        switch error {
+                        case .authFailed:
+                            NotificationHelper.show(
+                                title: "Clave de API invalida",
+                                body: "Texto pegado sin limpiar"
+                            )
+                            apiKeyMarkedInvalid = true
+                        case .noAPIKey:
+                            NotificationHelper.show(
+                                title: "Sin clave de API",
+                                body: "Texto pegado sin limpiar"
+                            )
+                            apiKeyMarkedInvalid = true
+                        default:
+                            NotificationHelper.show(
+                                title: "Texto pegado sin limpiar",
+                                body: "Error de conexion"
+                            )
+                        }
+                        finalText = rawText
+                    } catch {
+                        NotificationHelper.show(
+                            title: "Texto pegado sin limpiar",
+                            body: "Error de conexion"
+                        )
+                        finalText = rawText
+                    }
+                } else {
+                    finalText = rawText
+                }
+
                 overlayController?.hide()
-                await textInjector?.inject(text)
+                await textInjector?.inject(finalText)
                 transitionTo(.idle)
             } catch {
                 overlayController?.hide()
@@ -82,6 +139,10 @@ final class AppCoordinator {
         case .error:
             transitionTo(.idle)
         }
+    }
+
+    private func markAPIKeyInvalid() {
+        apiKeyMarkedInvalid = true
     }
 
     func handleEscape() {
