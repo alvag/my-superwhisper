@@ -105,3 +105,14 @@ None - no external service configuration required.
 ---
 *Phase: 01-foundation*
 *Completed: 2026-03-15*
+
+## Self-Check: PASSED
+
+- FOUND: MyWhisper/Coordinator/AppCoordinator.swift
+- FOUND: MyWhisper/System/PermissionsManager.swift
+- FOUND: MyWhisper/App/AppDelegate.swift
+- FOUND: MyWhisperTests/AppCoordinatorTests.swift
+- FOUND: .planning/phases/01-foundation/01-04-SUMMARY.md
+- Commit ca03b44: FOUND (feat: AppCoordinator permission wiring + tests)
+- Commit 5adadc2: FOUND (feat: AppDelegate wiring)
+- All 21 tests: PASSED

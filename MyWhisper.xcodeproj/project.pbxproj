@@ -26,10 +26,20 @@
 		AA000017001 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000017000 /* AudioRecorder.swift */; };
 		AA000018001 /* OverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000018000 /* OverlayWindowController.swift */; };
 		AA000019001 /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000019000 /* OverlayView.swift */; };
+		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
 		AA000022001 /* TextInjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000022000 /* TextInjectorTests.swift */; };
 		AA000023001 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000023000 /* AudioRecorderTests.swift */; };
-		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		AA000091000 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AA000100000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AA000060000;
+			remoteInfo = MyWhisper;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		AA000001000 /* MyWhisperApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyWhisperApp.swift; sourceTree = "<group>"; };
@@ -147,14 +157,6 @@
 			path = MyWhisperTests;
 			sourceTree = "<group>";
 		};
-		AA000058000 /* Audio */ = {
-			isa = PBXGroup;
-			children = (
-				AA000017000 /* AudioRecorder.swift */,
-			);
-			path = Audio;
-			sourceTree = "<group>";
-		};
 		AA000056000 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -169,6 +171,14 @@
 			children = (
 			);
 			name = Packages;
+			sourceTree = "<group>";
+		};
+		AA000058000 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				AA000017000 /* AudioRecorder.swift */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		AA000099000 = {
@@ -318,16 +328,6 @@
 		};
 /* End PBXTargetDependency section */
 
-/* Begin PBXContainerItemProxy section */
-		AA000091000 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = AA000100000 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = AA000060000;
-			remoteInfo = MyWhisper;
-		};
-/* End PBXContainerItemProxy section */
-
 /* Begin XCBuildConfiguration section */
 		AA000073000 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -456,7 +456,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 3ZW9VC9KHC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyWhisper/Info.plist;
@@ -485,7 +485,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = 3ZW9VC9KHC;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MyWhisper/Info.plist;
@@ -592,7 +592,6 @@
 			productName = HotKey;
 		};
 /* End XCSwiftPackageProductDependency section */
-
 	};
 	rootObject = AA000100000 /* Project object */;
 }
