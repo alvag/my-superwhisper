@@ -25,11 +25,11 @@ final class AppCoordinator {
             transitionTo(.recording)
             escapeMonitor?.startMonitoring()
             overlayController?.show()
-            audioRecorder?.startStub()
+            try? audioRecorder?.start()
         case .recording:
             escapeMonitor?.stopMonitoring()
             overlayController?.hide()
-            audioRecorder?.stopStub()
+            _ = audioRecorder?.stop()
             transitionTo(.processing)
             // Phase 1: inject placeholder text; Phase 2+ replaces this
             await textInjector?.inject("Texto de prueba")
@@ -45,7 +45,7 @@ final class AppCoordinator {
         guard state == .recording else { return }
         escapeMonitor?.stopMonitoring()
         overlayController?.hide()
-        audioRecorder?.cancelStub()
+        audioRecorder?.cancel()
         NSSound.beep()
         transitionTo(.idle)
     }
