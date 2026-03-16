@@ -16,6 +16,8 @@ final class AppCoordinator {
     var sttEngine: (any STTEngineProtocol)?
     var haikuCleanup: (any HaikuCleanupProtocol)?
     var apiKeyWindowController: APIKeyWindowController?
+    var vocabularyService: VocabularyService?
+    var historyService: TranscriptionHistoryService?
     private var apiKeyMarkedInvalid = false
 
     private var audioLevelTimer: Timer?
@@ -121,8 +123,20 @@ final class AppCoordinator {
                     finalText = rawText
                 }
 
+                // Apply vocabulary corrections AFTER Haiku cleanup (VOC-02)
+                let correctedText: String
+                if let vocab = vocabularyService {
+                    correctedText = vocab.apply(to: finalText)
+                } else {
+                    correctedText = finalText
+                }
+
                 overlayController?.hide()
-                await textInjector?.inject(finalText)
+                await textInjector?.inject(correctedText)
+
+                // Save to transcription history (OUT-03)
+                historyService?.append(correctedText)
+
                 transitionTo(.idle)
             } catch {
                 overlayController?.hide()

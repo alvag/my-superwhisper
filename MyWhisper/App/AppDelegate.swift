@@ -15,6 +15,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sttEngine: STTEngine?
     private var haikuCleanup: HaikuCleanupService?
     private var apiKeyWindowController: APIKeyWindowController?
+    private var vocabularyService: VocabularyService?
+    private var historyService: TranscriptionHistoryService?
+    private var microphoneService: MicrophoneDeviceService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -34,6 +37,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sttEngine = STTEngine()
         let haikuCleanup = HaikuCleanupService()
         let apiKeyWindowController = APIKeyWindowController(haikuCleanup: haikuCleanup)
+        let vocabularyService = VocabularyService()
+        let historyService = TranscriptionHistoryService()
+        let microphoneService = MicrophoneDeviceService()
 
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
@@ -45,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.sttEngine = sttEngine
         coordinator.haikuCleanup = haikuCleanup
         coordinator.apiKeyWindowController = apiKeyWindowController
+        coordinator.vocabularyService = vocabularyService
+        coordinator.historyService = historyService
 
         // Store strong references
         self.audioRecorder = audioRecorder
@@ -53,6 +61,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.sttEngine = sttEngine
         self.haikuCleanup = haikuCleanup
         self.apiKeyWindowController = apiKeyWindowController
+        self.vocabularyService = vocabularyService
+        self.historyService = historyService
+        self.microphoneService = microphoneService
 
         // Build and attach menu
         statusMenuController = StatusMenuController(coordinator: coordinator, haikuCleanup: haikuCleanup)

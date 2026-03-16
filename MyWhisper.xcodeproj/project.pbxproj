@@ -26,7 +26,14 @@
 		AA000017001 /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000017000 /* AudioRecorder.swift */; };
 		AA000018001 /* OverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000018000 /* OverlayWindowController.swift */; };
 		AA000019001 /* OverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000019000 /* OverlayView.swift */; };
-		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
+		AA000020001 /* KeyboardShortcuts in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* KeyboardShortcuts */; };
+		AA000044001 /* VocabularyEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000044000 /* VocabularyEntry.swift */; };
+		AA000045001 /* VocabularyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000045000 /* VocabularyService.swift */; };
+		AA000046001 /* TranscriptionHistoryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000046000 /* TranscriptionHistoryService.swift */; };
+		AA000047001 /* MicrophoneDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000047000 /* MicrophoneDeviceService.swift */; };
+		AA000048001 /* VocabularyServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000048000 /* VocabularyServiceTests.swift */; };
+		AA000049001 /* TranscriptionHistoryServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000049000 /* TranscriptionHistoryServiceTests.swift */; };
+		AA000050001 /* MicrophoneDeviceServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000050002 /* MicrophoneDeviceServiceTests.swift */; };
 		AA000022001 /* TextInjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000022000 /* TextInjectorTests.swift */; };
 		AA000023001 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000023000 /* AudioRecorderTests.swift */; };
 		AA000024001 /* STTError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000024000 /* STTError.swift */; };
@@ -96,6 +103,13 @@
 		AA000041003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		AA000042000 /* HaikuCleanupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupServiceTests.swift; sourceTree = "<group>"; };
 		AA000043002 /* APIKeyWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyWindowController.swift; sourceTree = "<group>"; };
+		AA000044000 /* VocabularyEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyEntry.swift; sourceTree = "<group>"; };
+		AA000045000 /* VocabularyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyService.swift; sourceTree = "<group>"; };
+		AA000046000 /* TranscriptionHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryService.swift; sourceTree = "<group>"; };
+		AA000047000 /* MicrophoneDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneDeviceService.swift; sourceTree = "<group>"; };
+		AA000048000 /* VocabularyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyServiceTests.swift; sourceTree = "<group>"; };
+		AA000049000 /* TranscriptionHistoryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryServiceTests.swift; sourceTree = "<group>"; };
+		AA000050002 /* MicrophoneDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneDeviceServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -103,7 +117,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AA000020001 /* HotKey in Frameworks */,
+				AA000020001 /* KeyboardShortcuts in Frameworks */,
 				AA000025001 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -128,6 +142,8 @@
 				AA000058000 /* Audio */,
 				AA000059000 /* STT */,
 				AA000043000 /* Cleanup */,
+				AA000060001 /* Vocabulary */,
+				AA000061001 /* History */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -193,6 +209,9 @@
 				AA000034000 /* OverlayViewTests.swift */,
 				AA000041003 /* KeychainServiceTests.swift */,
 				AA000042000 /* HaikuCleanupServiceTests.swift */,
+				AA000048000 /* VocabularyServiceTests.swift */,
+				AA000049000 /* TranscriptionHistoryServiceTests.swift */,
+				AA000050002 /* MicrophoneDeviceServiceTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -218,8 +237,26 @@
 			children = (
 				AA000017000 /* AudioRecorder.swift */,
 				AA000028000 /* VAD.swift */,
+				AA000047000 /* MicrophoneDeviceService.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		AA000060001 /* Vocabulary */ = {
+			isa = PBXGroup;
+			children = (
+				AA000044000 /* VocabularyEntry.swift */,
+				AA000045000 /* VocabularyService.swift */,
+			);
+			path = Vocabulary;
+			sourceTree = "<group>";
+		};
+		AA000061001 /* History */ = {
+			isa = PBXGroup;
+			children = (
+				AA000046000 /* TranscriptionHistoryService.swift */,
+			);
+			path = History;
 			sourceTree = "<group>";
 		};
 		AA000059000 /* STT */ = {
@@ -268,7 +305,7 @@
 			);
 			name = MyWhisper;
 			packageProductDependencies = (
-				AA000020000 /* HotKey */,
+				AA000020000 /* KeyboardShortcuts */,
 				AA000025000 /* WhisperKit */,
 			);
 			productName = MyWhisper;
@@ -321,7 +358,7 @@
 			);
 			mainGroup = AA000099000;
 			packageReferences = (
-				AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */,
+				AA000021000 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */,
 				AA000026000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			productRefGroup = AA000056000 /* Products */;
@@ -373,6 +410,10 @@
 				AA000039001 /* HaikuCleanupError.swift in Sources */,
 				AA000040002 /* HaikuCleanupService.swift in Sources */,
 				AA000043001 /* APIKeyWindowController.swift in Sources */,
+				AA000044001 /* VocabularyEntry.swift in Sources */,
+				AA000045001 /* VocabularyService.swift in Sources */,
+				AA000046001 /* TranscriptionHistoryService.swift in Sources */,
+				AA000047001 /* MicrophoneDeviceService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -391,6 +432,9 @@
 				AA000034001 /* OverlayViewTests.swift in Sources */,
 				AA000041002 /* KeychainServiceTests.swift in Sources */,
 				AA000042001 /* HaikuCleanupServiceTests.swift in Sources */,
+				AA000048001 /* VocabularyServiceTests.swift in Sources */,
+				AA000049001 /* TranscriptionHistoryServiceTests.swift in Sources */,
+				AA000050001 /* MicrophoneDeviceServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -651,12 +695,12 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */ = {
+		AA000021000 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/soffes/HotKey";
+			repositoryURL = "https://github.com/sindresorhus/KeyboardShortcuts";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.2.1;
+				minimumVersion = 2.4.0;
 			};
 		};
 		AA000026000 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
@@ -670,10 +714,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		AA000020000 /* HotKey */ = {
+		AA000020000 /* KeyboardShortcuts */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */;
-			productName = HotKey;
+			package = AA000021000 /* XCRemoteSwiftPackageReference "KeyboardShortcuts" */;
+			productName = KeyboardShortcuts;
 		};
 		AA000025000 /* WhisperKit */ = {
 			isa = XCSwiftPackageProductDependency;
