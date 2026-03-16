@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 planned — 4 plans in 3 waves
-last_updated: "2026-03-16T12:51:18.479Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-16T13:14:15.550Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 13
-  completed_plans: 9
+  completed_plans: 10
   percent: 8
 ---
 
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 02-audio-transcription P03 | 15 | 3 tasks | 10 files |
 | Phase 03-haiku-cleanup P01 | 6min | 2 tasks | 7 files |
 | Phase 03-haiku-cleanup P02 | 6min | 2 tasks | 6 files |
+| Phase 04-settings-history-and-polish P01 | 8 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,9 @@ Recent decisions affecting current work:
 - [Phase 03-haiku-cleanup]: StatusMenuController inherits NSObject to support @objc selectors for NSMenuItem.target actions
 - [Phase 03-haiku-cleanup]: openAPIKeyPanel wrapped in Task { @MainActor } because @objc methods are nonisolated — APIKeyWindowController requires @MainActor
 - [Phase 03-haiku-cleanup]: apiKeyMarkedInvalid flag deferred to next hotkey press — avoids disrupting in-flight recording if auth error surfaces during cleanup
+- [Phase 04-01]: UserDefaults injectable in all new services via init(defaults:) for test isolation with in-memory suites
+- [Phase 04-01]: KeyboardShortcuts replaces HotKey — pbxproj updated manually since Package.resolved is gitignored
+- [Phase 04-01]: Vocabulary corrections applied post-Haiku; history saved after correctedText (not rawText)
 
 ### Pending Todos
 
@@ -115,6 +119,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T12:51:18.476Z
-Stopped at: Phase 4 planned — 4 plans in 3 waves
-Resume file: .planning/phases/04-settings-history-and-polish/04-01-PLAN.md
+Last session: 2026-03-16T13:14:15.548Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None

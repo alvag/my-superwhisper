@@ -13,7 +13,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **REC-02**: User can press the same hotkey again to stop recording and trigger transcription
 - [x] **REC-03**: User sees an animated waveform visualization while recording is active
 - [x] **REC-04**: User can press Escape to cancel recording without pasting any text
-- [ ] **REC-05**: User can configure which hotkey activates recording (default: Option+Space, not Ctrl+Space due to macOS conflict)
+- [x] **REC-05**: User can configure which hotkey activates recording (default: Option+Space, not Ctrl+Space due to macOS conflict)
 
 ### Audio
 
@@ -37,14 +37,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Custom Vocabulary
 
-- [ ] **VOC-01**: User can define a correction dictionary (misspelled names, technical terms, brand names)
-- [ ] **VOC-02**: Corrections are applied after LLM cleanup to fix persistent misrecognitions
+- [x] **VOC-01**: User can define a correction dictionary (misspelled names, technical terms, brand names)
+- [x] **VOC-02**: Corrections are applied after LLM cleanup to fix persistent misrecognitions
 
 ### Output
 
 - [x] **OUT-01**: Clean text is automatically pasted at the current cursor position (simulates Cmd+V)
 - [x] **OUT-02**: Auto-paste works system-wide in any macOS application (Slack, VS Code, browsers, Notes, etc.)
-- [ ] **OUT-03**: User can view a history of recent transcriptions (last 10-20) to recover text
+- [x] **OUT-03**: User can view a history of recent transcriptions (last 10-20) to recover text
 - [ ] **OUT-04**: User can copy any item from the transcription history to clipboard
 
 ### macOS Integration
@@ -52,7 +52,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **MAC-01**: App runs as a menubar application with status icon showing current state (idle/recording/processing/done)
 - [x] **MAC-02**: App prompts for Accessibility and Microphone permissions on first launch with clear explanations
 - [x] **MAC-03**: App checks permission health on every launch (permissions can reset after OS updates)
-- [ ] **MAC-04**: User can select which microphone to use from a list of available audio inputs
+- [x] **MAC-04**: User can select which microphone to use from a list of available audio inputs
 - [ ] **MAC-05**: App consumes less than 200MB RAM when idle (only STT model in memory, no local LLM)
 - [x] **MAC-06**: App requires macOS 14+ on Apple Silicon (M1 or later)
 
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REC-02 | Phase 2 | Complete |
 | REC-03 | Phase 2 | Complete |
 | REC-04 | Phase 1 | Done (01-01) |
-| REC-05 | Phase 4 | Pending |
+| REC-05 | Phase 4 | Complete |
 | AUD-01 | Phase 2 | Complete |
 | AUD-02 | Phase 2 | Complete |
 | AUD-03 | Phase 2 | Complete |
@@ -125,16 +125,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLN-03 | Phase 3 | Complete |
 | CLN-04 | Phase 3 | Complete |
 | CLN-05 | Phase 3 | Complete |
-| VOC-01 | Phase 4 | Pending |
-| VOC-02 | Phase 4 | Pending |
+| VOC-01 | Phase 4 | Complete |
+| VOC-02 | Phase 4 | Complete |
 | OUT-01 | Phase 1 | Complete |
 | OUT-02 | Phase 1 | Complete |
-| OUT-03 | Phase 4 | Pending |
+| OUT-03 | Phase 4 | Complete |
 | OUT-04 | Phase 4 | Pending |
 | MAC-01 | Phase 1 | Done (01-01) |
 | MAC-02 | Phase 1 | Complete |
 | MAC-03 | Phase 1 | Complete |
-| MAC-04 | Phase 4 | Pending |
+| MAC-04 | Phase 4 | Complete |
 | MAC-05 | Phase 4 | Pending |
 | MAC-06 | Phase 1 | Done (01-01) |
 | PRV-01 | Phase 1 | Done (01-01) |

@@ -97,4 +97,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Foundation | 4/4 | Complete    | 2026-03-16 |
 | 2. Audio + Transcription | 3/3 | Complete   | 2026-03-16 |
 | 3. Haiku Cleanup | 0/2 | Not started | - |
-| 4. Settings, History, and Polish | 0/4 | Not started | - |
+| 4. Settings, History, and Polish | 1/4 | In Progress|  |
