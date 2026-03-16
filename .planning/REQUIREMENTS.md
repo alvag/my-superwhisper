@@ -53,7 +53,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **MAC-02**: App prompts for Accessibility and Microphone permissions on first launch with clear explanations
 - [x] **MAC-03**: App checks permission health on every launch (permissions can reset after OS updates)
 - [x] **MAC-04**: User can select which microphone to use from a list of available audio inputs
-- [ ] **MAC-05**: App consumes less than 200MB RAM when idle (only STT model in memory, no local LLM)
+- [x] **MAC-05**: App consumes less than 200MB RAM when idle (only STT model in memory, no local LLM)
 - [x] **MAC-06**: App requires macOS 14+ on Apple Silicon (M1 or later)
 
 ### Privacy & API
@@ -135,7 +135,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAC-02 | Phase 1 | Complete |
 | MAC-03 | Phase 1 | Complete |
 | MAC-04 | Phase 4 | Complete |
-| MAC-05 | Phase 4 | Pending |
+| MAC-05 | Phase 4 | Complete |
 | MAC-06 | Phase 1 | Done (01-01) |
 | PRV-01 | Phase 1 | Done (01-01) |
 | PRV-02 | Phase 3 | Complete |
