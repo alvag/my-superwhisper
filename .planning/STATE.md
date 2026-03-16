@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-16T10:59:10.996Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-16T11:07:53.828Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
   percent: 8
 ---
 
@@ -58,6 +58,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 02-audio-transcription P03 | 15 | 2 tasks | 6 files |
 | Phase 02-audio-transcription P03 | 15 | 3 tasks | 10 files |
 | Phase 03-haiku-cleanup P01 | 6min | 2 tasks | 7 files |
+| Phase 03-haiku-cleanup P02 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -97,6 +98,9 @@ Recent decisions affecting current work:
 - [Phase 03-haiku-cleanup]: HaikuCleanupService uses URLSessionConfiguration with timeoutIntervalForRequest=5 AND timeoutIntervalForResource=5 to cover both DNS hang and response timeout
 - [Phase 03-haiku-cleanup]: saveAPIKey validates with max_tokens=5 tiny request before Keychain.save() to prevent bad keys from being persisted
 - [Phase 03-haiku-cleanup]: MockURLProtocol registered via URLSessionConfiguration.ephemeral.protocolClasses for clean per-test URLSession isolation
+- [Phase 03-haiku-cleanup]: StatusMenuController inherits NSObject to support @objc selectors for NSMenuItem.target actions
+- [Phase 03-haiku-cleanup]: openAPIKeyPanel wrapped in Task { @MainActor } because @objc methods are nonisolated — APIKeyWindowController requires @MainActor
+- [Phase 03-haiku-cleanup]: apiKeyMarkedInvalid flag deferred to next hotkey press — avoids disrupting in-flight recording if auth error surfaces during cleanup
 
 ### Pending Todos
 
@@ -111,6 +115,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T10:59:10.993Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-16T11:07:53.825Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None
