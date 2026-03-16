@@ -78,7 +78,7 @@ Plans:
   2. User can select which microphone to use from a list of available audio inputs in settings
   3. User can view the last 10-20 transcriptions in a history panel and copy any entry to the clipboard
   4. User can define custom word corrections (e.g., a brand name the STT consistently misspells) that are applied to every transcription
-  5. App consumes less than 100MB RAM when idle (no active recording or processing)
+  5. App consumes less than 200MB RAM when idle (no active recording or processing) — per MAC-05
 **Plans**: TBD
 
 ## Progress
