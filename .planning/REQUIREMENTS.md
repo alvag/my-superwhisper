@@ -11,15 +11,15 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **REC-01**: User can press a global hotkey to start recording from any application
 - [ ] **REC-02**: User can press the same hotkey again to stop recording and trigger transcription
-- [ ] **REC-03**: User sees an animated waveform visualization while recording is active
+- [x] **REC-03**: User sees an animated waveform visualization while recording is active
 - [x] **REC-04**: User can press Escape to cancel recording without pasting any text
 - [ ] **REC-05**: User can configure which hotkey activates recording (default: Option+Space, not Ctrl+Space due to macOS conflict)
 
 ### Audio
 
-- [ ] **AUD-01**: App captures audio from the default or selected microphone while recording
-- [ ] **AUD-02**: Audio is resampled to 16kHz mono Float32 for STT model input
-- [ ] **AUD-03**: Voice Activity Detection (VAD) filters silence before sending to STT to prevent hallucination
+- [x] **AUD-01**: App captures audio from the default or selected microphone while recording
+- [x] **AUD-02**: Audio is resampled to 16kHz mono Float32 for STT model input
+- [x] **AUD-03**: Voice Activity Detection (VAD) filters silence before sending to STT to prevent hallucination
 
 ### Transcription
 
@@ -111,12 +111,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | REC-01 | Phase 1 | Done (01-01) |
 | REC-02 | Phase 2 | Pending |
-| REC-03 | Phase 2 | Pending |
+| REC-03 | Phase 2 | Complete |
 | REC-04 | Phase 1 | Done (01-01) |
 | REC-05 | Phase 4 | Pending |
-| AUD-01 | Phase 2 | Pending |
-| AUD-02 | Phase 2 | Pending |
-| AUD-03 | Phase 2 | Pending |
+| AUD-01 | Phase 2 | Complete |
+| AUD-02 | Phase 2 | Complete |
+| AUD-03 | Phase 2 | Complete |
 | STT-01 | Phase 2 | Complete |
 | STT-02 | Phase 2 | Complete |
 | STT-03 | Phase 2 | Complete |

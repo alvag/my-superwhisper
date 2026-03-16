@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-16T02:38:03.341Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-16T02:40:11.004Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
+  completed_plans: 6
   percent: 8
 ---
 
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 01-foundation P03 | 3 min | 2 tasks | 8 files |
 | Phase 01-foundation P04 | 2min | 2 tasks | 4 files |
 | Phase 02-audio-transcription P02-02 | 12 min | 2 tasks | 6 files |
+| Phase 02-audio-transcription P01 | 13 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,10 @@ Recent decisions affecting current work:
 - [Phase 02-audio-transcription]: WhisperKit.download() returns URL, not String — convert via .path for WhisperKitConfig.modelFolder
 - [Phase 02-audio-transcription]: Both prewarmModels() and loadModels() called — prewarm alone is insufficient for model readiness
 - [Phase 02-audio-transcription]: Spanish forced via language=es in DecodingOptions with noSpeechThreshold=0.6 as secondary silence guard
+- [Phase 02-audio-transcription]: nonisolated(unsafe) for _audioLevel Float: written from audio callback thread, read from main thread — acceptable for single visualization value
+- [Phase 02-audio-transcription]: Hardware format tap: installTap uses inputNode.outputFormat(forBus:0), never hardcoded 16kHz — 16kHz target only for AVAudioConverter output
+- [Phase 02-audio-transcription]: barHeight(for:) is internal not private in AudioBarsView to allow unit testing without SwiftUI snapshot infrastructure
+- [Phase 02-audio-transcription]: NSHostingView replacement strategy for updateHostingView(): replace entire view on each audio level update — KISS approach viable at 16-33 fps
 
 ### Pending Todos
 
@@ -94,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T02:38:03.339Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-03-16T02:40:11.002Z
+Stopped at: Completed 02-01-PLAN.md
 Resume file: None
