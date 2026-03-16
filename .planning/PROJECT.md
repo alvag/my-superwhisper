@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A local-first voice-to-text macOS menubar application for Apple Silicon. The user presses a global hotkey (Option+Space) to start recording speech, speaks freely, then presses the hotkey again to stop. The audio is transcribed locally using a high-quality speech-to-text model, then cleaned up by Anthropic's Haiku model via API (punctuation, formatting, filler word removal), and the final text is automatically pasted at the cursor position. Transcription is 100% local — text cleanup uses Haiku API for quality and simplicity (no local LLM to manage).
+A local-first voice-to-text macOS menubar application for Apple Silicon. Press a configurable global hotkey (default Option+Space) to start recording, speak freely, press again to stop. Audio is transcribed locally via WhisperKit (large-v3, Spanish), cleaned up by Anthropic Haiku API (punctuation, filler removal), and the polished text is auto-pasted at the cursor. 3,445 lines of Swift, fully functional with settings, history, vocabulary corrections, and distribution pipeline.
 
 ## Core Value
 
@@ -12,21 +12,26 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Global hotkey (Option+Space) toggles recording on/off from anywhere in macOS — v1.0
+- ✓ Audio capture from default or selected microphone while recording — v1.0
+- ✓ Visual indicator in menubar showing recording state (idle/recording/processing) — v1.0
+- ✓ Animated waveform visualization during recording — v1.0
+- ✓ Local speech-to-text transcription (WhisperKit large-v3) optimized for Spanish on Apple Silicon — v1.0
+- ✓ Haiku API post-processing: punctuation, capitalization, paragraph breaks — v1.0
+- ✓ Haiku API post-processing: filler word removal ("eh", "este", "o sea") — v1.0
+- ✓ Auto-paste transcribed+cleaned text at cursor (Cmd+V simulation) — v1.0
+- ✓ Configurable hotkey via KeyboardShortcuts click-to-record — v1.0
+- ✓ Microphone selection from available audio inputs — v1.0
+- ✓ Transcription history (last 20, click-to-copy) — v1.0
+- ✓ Custom vocabulary corrections (case-insensitive, post-Haiku) — v1.0
+- ✓ API key management with Keychain storage and validation — v1.0
+- ✓ Permission health check on every launch — v1.0
+- ✓ Graceful error handling with fallback to raw text — v1.0
+- ✓ Idle RAM ~27MB (MAC-05 <200MB) — v1.0
 
 ### Active
 
-- [ ] Global hotkey (Ctrl+Space) toggles recording on/off from anywhere in macOS
-- [ ] Audio capture from default microphone while recording is active
-- [ ] Visual indicator in menubar showing recording state (idle/recording/processing)
-- [ ] Local speech-to-text transcription optimized for Spanish on Apple Silicon
-- [ ] Haiku API post-processing: add punctuation, capitalization, paragraph breaks
-- [ ] Haiku API post-processing: remove filler words ("eh", "este", "o sea", repetitions)
-- [ ] Auto-paste transcribed+cleaned text at current cursor position (simulate Cmd+V)
-- [ ] Menubar app with status icon, basic settings, and activity log
-- [ ] STT runs locally; text cleanup uses Haiku API (requires internet for cleanup only)
-- [ ] Configurable hotkey (default Option+Space)
-- [ ] Reasonable processing time (quality over speed — 3-5s acceptable)
+(None — v1.0 shipped. Define for v2 via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -37,35 +42,40 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 - Custom voice commands or macros
 - Text-to-speech / voice synthesis
 - Reformulation/professional rewriting modes — only punctuation + filler removal for v1
+- Mac App Store distribution — CGEventPost blocked in sandboxed apps
 
 ## Context
 
+- **Shipped:** v1.0 on 2026-03-16 (3,445 LOC Swift, 4 phases, 13 plans)
 - Target hardware: Apple Silicon Macs (M1/M2/M3/M4) with Neural Engine and unified memory
-- Inspired by SuperWhisper and WhisperFlow — commercial apps that do similar but use cloud or Whisper
+- Stack: Swift/SwiftUI, WhisperKit (local STT), Anthropic Haiku API (text cleanup), KeyboardShortcuts (hotkey), CoreAudio (mic selection)
 - User primarily dictates in Spanish
-- STT model to be determined by research (Nvidia Parakeet, Whisper.cpp, faster-whisper, or others optimized for Apple Silicon)
-- LLM cleanup: Anthropic Haiku via API — no local LLM needed, simplifies architecture significantly
-- App framework to be determined by research (Swift/SwiftUI native, Tauri, or Electron)
-- Quality of final text is prioritized over raw speed — user accepts 3-5 second processing time
-- The app needs macOS accessibility permissions for global hotkey capture and simulated keystrokes
+- Quality of final text prioritized over raw speed — pipeline completes in ~3-5 seconds
+- Non-sandboxed (Developer ID distribution) — required for CGEventPost paste simulation
+- Distribution: DMG signed with Developer ID + Apple notarization via `scripts/build-dmg.sh`
 
 ## Constraints
 
-- **Platform**: macOS only, Apple Silicon (M1+) — must leverage Metal/Neural Engine
+- **Platform**: macOS only, Apple Silicon (M1+) — leverages Metal/Neural Engine via WhisperKit
 - **Privacy**: Audio never leaves the machine (local STT). Only transcribed text goes to Haiku API for cleanup
 - **Language**: Spanish as primary and only supported language in v1
-- **UX**: Must feel instant-ish — total pipeline (transcribe + clean + paste) under 5 seconds for typical utterances (30-60 seconds of speech)
-- **Resources**: Should not consume excessive RAM/CPU when idle — lightweight background process
+- **UX**: Total pipeline (transcribe + clean + paste) under 5 seconds for 30-60s speech
+- **Resources**: Idle RSS ~27MB; WhisperKit model memory managed by Neural Engine
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Local STT + Haiku cleanup | Audio stays local for privacy; text cleanup via Haiku API for quality and simplicity — no local LLM to manage | — Pending |
-| Menubar app style | Unobtrusive, always accessible, macOS-native feel | — Pending |
-| Auto-paste behavior | Minimum friction — text appears where you need it | — Pending |
-| Spanish-only v1 | Focused scope, optimize for one language well | — Pending |
-| Quality over speed | User prefers clean text even if it takes a few seconds more | — Pending |
+| Local STT + Haiku cleanup | Audio stays local for privacy; text cleanup via Haiku API for quality and simplicity | ✓ Good — clean text, simple architecture |
+| WhisperKit large-v3 | Best Spanish accuracy on Apple Silicon, CoreML optimized | ✓ Good — <3s transcription for 30-60s audio |
+| Menubar app style | Unobtrusive, always accessible, macOS-native feel | ✓ Good |
+| Auto-paste via CGEventPost | Minimum friction — text appears where you need it | ✓ Good — works system-wide |
+| KeyboardShortcuts (sindresorhus) | Click-to-record UX, conflict detection, UserDefaults persistence | ✓ Good — replaced HotKey in Phase 4 |
+| Spanish-only v1 | Focused scope, optimize for one language well | ✓ Good |
+| Quality over speed | User prefers clean text even if it takes a few seconds more | ✓ Good |
+| UserDefaults for settings/history/vocabulary | Simple, sufficient for v1 data sizes (20 history entries, small vocab list) | ✓ Good |
+| Developer ID distribution (not App Store) | CGEventPost blocked in sandboxed apps | ✓ Required |
+| Haiku fallback to raw text | User always gets text — degraded quality beats no output | ✓ Good |
 
 ---
-*Last updated: 2026-03-15 after Haiku API decision for LLM cleanup*
+*Last updated: 2026-03-16 after v1.0 milestone*

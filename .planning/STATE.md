@@ -4,7 +4,7 @@ milestone: v1.0
 milestone_name: milestone
 status: executing
 stopped_at: Completed 04-03-PLAN.md — Phase 4 fully complete, human verification approved
-last_updated: "2026-03-16T16:09:43.538Z"
+last_updated: "2026-03-16T16:19:17.225Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
@@ -18,10 +18,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-15)
+See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Frictionless voice-to-text that produces clean, well-formatted Spanish text — press a key, speak, press again, and polished text appears where you're typing. Local STT + Haiku cleanup.
-**Current focus:** Phase 1 — Foundation
+**Current focus:** v1.0 shipped — planning next milestone
 
 ## Current Position
 
