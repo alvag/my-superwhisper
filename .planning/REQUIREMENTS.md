@@ -5,7 +5,7 @@
 
 ## v1 Requirements
 
-Requirements for initial release. Each maps to roadmap phases.
+Requirements for initial release (v1.0 shipped). All complete.
 
 ### Recording
 
@@ -63,6 +63,22 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **PRV-03**: User can configure their Anthropic API key in settings
 - [x] **PRV-04**: App gracefully handles API errors (network down, invalid key) with clear user feedback
 
+## v1.1 Requirements
+
+Requirements for Pause Playback milestone.
+
+### Media Control
+
+- [ ] **MEDIA-01**: App pausa automáticamente la reproducción de medios al iniciar grabación
+- [ ] **MEDIA-02**: App reanuda automáticamente la reproducción al terminar grabación (solo si fue pausada por la app)
+- [ ] **MEDIA-03**: Delay de 150ms entre pausa de medios e inicio de captura de audio (fade-out de apps como Spotify)
+- [ ] **MEDIA-04**: Control de medios funciona con apps del sistema y terceros (Spotify, Apple Music, VLC, navegadores)
+
+### Settings
+
+- [ ] **SETT-01**: Toggle en panel de Settings para activar/desactivar Pause Playback
+- [ ] **SETT-02**: Preferencia persiste en UserDefaults entre sesiones
+
 ## v2 Requirements
 
 Deferred to future release. Tracked but not in current roadmap.
@@ -93,6 +109,10 @@ Explicitly excluded. Documented to prevent scope creep.
 
 | Feature | Reason |
 |---------|--------|
+| Per-app media control list | User explicitly excluded — single toggle is sufficient |
+| NowPlaying state detection | Requires private MediaRemote framework, broken on macOS 15.4+ |
+| Bluetooth SCO profile management | macOS system behavior, not controllable from app code |
+| Media key routing priority control | macOS determines routing — accept as documented limitation |
 | Real-time streaming transcription | Doubles complexity, degrades accuracy vs batch, local models don't support it well |
 | Voice commands / macros | Separate always-listening model, massively increases scope |
 | Audio file import / transcription | Different UX and pipeline, different product |
@@ -107,12 +127,14 @@ Explicitly excluded. Documented to prevent scope creep.
 
 Which phases cover which requirements. Updated during roadmap creation.
 
+### v1.0
+
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REC-01 | Phase 1 | Done (01-01) |
+| REC-01 | Phase 1 | Complete |
 | REC-02 | Phase 2 | Complete |
 | REC-03 | Phase 2 | Complete |
-| REC-04 | Phase 1 | Done (01-01) |
+| REC-04 | Phase 1 | Complete |
 | REC-05 | Phase 4 | Complete |
 | AUD-01 | Phase 2 | Complete |
 | AUD-02 | Phase 2 | Complete |
@@ -131,22 +153,34 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OUT-02 | Phase 1 | Complete |
 | OUT-03 | Phase 4 | Complete |
 | OUT-04 | Phase 4 | Complete |
-| MAC-01 | Phase 1 | Done (01-01) |
+| MAC-01 | Phase 1 | Complete |
 | MAC-02 | Phase 1 | Complete |
 | MAC-03 | Phase 1 | Complete |
 | MAC-04 | Phase 4 | Complete |
 | MAC-05 | Phase 4 | Complete |
-| MAC-06 | Phase 1 | Done (01-01) |
-| PRV-01 | Phase 1 | Done (01-01) |
+| MAC-06 | Phase 1 | Complete |
+| PRV-01 | Phase 1 | Complete |
 | PRV-02 | Phase 3 | Complete |
 | PRV-03 | Phase 3 | Complete |
 | PRV-04 | Phase 3 | Complete |
 
+### v1.1
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| MEDIA-01 | Pending | Pending |
+| MEDIA-02 | Pending | Pending |
+| MEDIA-03 | Pending | Pending |
+| MEDIA-04 | Pending | Pending |
+| SETT-01 | Pending | Pending |
+| SETT-02 | Pending | Pending |
+
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 32
-- Unmapped: 0
+- v1.0 requirements: 32 total — 32 complete
+- v1.1 requirements: 6 total
+- Mapped to phases: 0
+- Unmapped: 6 (pending roadmap)
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-15 after Haiku API decision — 32 requirements mapped*
+*Last updated: 2026-03-16 after v1.1 Pause Playback requirements defined*
