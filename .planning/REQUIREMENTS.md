@@ -60,8 +60,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **PRV-01**: Audio is transcribed 100% locally — raw audio never leaves the machine
 - [x] **PRV-02**: Only transcribed text (not audio) is sent to Anthropic's Haiku API for cleanup
-- [ ] **PRV-03**: User can configure their Anthropic API key in settings
-- [ ] **PRV-04**: App gracefully handles API errors (network down, invalid key) with clear user feedback
+- [x] **PRV-03**: User can configure their Anthropic API key in settings
+- [x] **PRV-04**: App gracefully handles API errors (network down, invalid key) with clear user feedback
 
 ## v2 Requirements
 
@@ -139,8 +139,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MAC-06 | Phase 1 | Done (01-01) |
 | PRV-01 | Phase 1 | Done (01-01) |
 | PRV-02 | Phase 3 | Complete |
-| PRV-03 | Phase 3 | Pending |
-| PRV-04 | Phase 3 | Pending |
+| PRV-03 | Phase 3 | Complete |
+| PRV-04 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 32 total
