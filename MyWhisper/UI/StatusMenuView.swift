@@ -6,6 +6,7 @@ final class StatusMenuController: NSObject {
     private var vocabularyService: VocabularyService?
     private var microphoneService: MicrophoneDeviceService?
     private var settingsWindowController: SettingsWindowController?
+    private var aboutWindowController: AboutWindowController?
     var historyWindowController: HistoryWindowController?
 
     init(
@@ -23,6 +24,11 @@ final class StatusMenuController: NSObject {
 
     func buildMenu() -> NSMenu {
         let menu = NSMenu()
+        // Acerca de MyWhisper at the top
+        let aboutItem = NSMenuItem(title: "Acerca de MyWhisper", action: #selector(openAbout), keyEquivalent: "")
+        aboutItem.target = self
+        menu.addItem(aboutItem)
+        menu.addItem(.separator())
         // Status item (updated dynamically by observing coordinator.state)
         let statusItem = NSMenuItem(title: "Listo", action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
@@ -44,6 +50,15 @@ final class StatusMenuController: NSObject {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Salir", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
+    }
+
+    @objc private func openAbout() {
+        Task { @MainActor in
+            if aboutWindowController == nil {
+                aboutWindowController = AboutWindowController()
+            }
+            aboutWindowController?.show()
+        }
     }
 
     @objc private func openHistory() {

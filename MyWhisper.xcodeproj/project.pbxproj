@@ -53,6 +53,8 @@
 		AA000043001 /* APIKeyWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000043002 /* APIKeyWindowController.swift */; };
 		AA000051001 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000051002 /* SettingsWindowController.swift */; };
 		AA000052001 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000052002 /* HistoryWindowController.swift */; };
+		AA000053001 /* AboutWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000053002 /* AboutWindowController.swift */; };
+		AA000054001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000054002 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -114,6 +116,8 @@
 		AA000048000 /* VocabularyServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyServiceTests.swift; sourceTree = "<group>"; };
 		AA000049000 /* TranscriptionHistoryServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryServiceTests.swift; sourceTree = "<group>"; };
 		AA000050002 /* MicrophoneDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneDeviceServiceTests.swift; sourceTree = "<group>"; };
+		AA000053002 /* AboutWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutWindowController.swift; sourceTree = "<group>"; };
+		AA000054002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +153,7 @@
 				AA000060001 /* Vocabulary */,
 				AA000061001 /* History */,
 				AA000062001 /* Settings */,
+				AA000054002 /* Assets.xcassets */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -160,6 +165,7 @@
 			children = (
 				AA000001000 /* MyWhisperApp.swift */,
 				AA000002000 /* AppDelegate.swift */,
+				AA000053002 /* AboutWindowController.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -390,6 +396,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000054001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -430,6 +437,7 @@
 				AA000047001 /* MicrophoneDeviceService.swift in Sources */,
 				AA000051001 /* SettingsWindowController.swift in Sources */,
 				AA000052001 /* HistoryWindowController.swift in Sources */,
+				AA000053001 /* AboutWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
