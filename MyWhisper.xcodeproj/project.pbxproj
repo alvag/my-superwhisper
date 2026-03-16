@@ -29,6 +29,10 @@
 		AA000020001 /* HotKey in Frameworks */ = {isa = PBXBuildFile; productRef = AA000020000 /* HotKey */; };
 		AA000022001 /* TextInjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000022000 /* TextInjectorTests.swift */; };
 		AA000023001 /* AudioRecorderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000023000 /* AudioRecorderTests.swift */; };
+		AA000024001 /* STTError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000024000 /* STTError.swift */; };
+		AA000025001 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000025000 /* WhisperKit */; };
+		AA000028001 /* VAD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000028000 /* VAD.swift */; };
+		AA000029001 /* VADTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000029000 /* VADTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -63,10 +67,13 @@
 		AA000019000 /* OverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayView.swift; sourceTree = "<group>"; };
 		AA000022000 /* TextInjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjectorTests.swift; sourceTree = "<group>"; };
 		AA000023000 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
+		AA000024000 /* STTError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTError.swift; sourceTree = "<group>"; };
 		AA000030000 /* MyWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000031000 /* MyWhisperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyWhisperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000032000 /* MyWhisper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyWhisper.entitlements; sourceTree = "<group>"; };
 		AA000033000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AA000028000 /* VAD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAD.swift; sourceTree = "<group>"; };
+		AA000029000 /* VADTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +82,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA000020001 /* HotKey in Frameworks */,
+				AA000025001 /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +104,7 @@
 				AA000053000 /* System */,
 				AA000054000 /* UI */,
 				AA000058000 /* Audio */,
+				AA000059000 /* STT */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -153,6 +162,7 @@
 				AA000015000 /* PermissionsManagerTests.swift */,
 				AA000022000 /* TextInjectorTests.swift */,
 				AA000023000 /* AudioRecorderTests.swift */,
+				AA000029000 /* VADTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -177,8 +187,17 @@
 			isa = PBXGroup;
 			children = (
 				AA000017000 /* AudioRecorder.swift */,
+				AA000028000 /* VAD.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		AA000059000 /* STT */ = {
+			isa = PBXGroup;
+			children = (
+				AA000024000 /* STTError.swift */,
+			);
+			path = STT;
 			sourceTree = "<group>";
 		};
 		AA000099000 = {
@@ -209,6 +228,7 @@
 			name = MyWhisper;
 			packageProductDependencies = (
 				AA000020000 /* HotKey */,
+				AA000025000 /* WhisperKit */,
 			);
 			productName = MyWhisper;
 			productReference = AA000030000 /* MyWhisper.app */;
@@ -261,6 +281,7 @@
 			mainGroup = AA000099000;
 			packageReferences = (
 				AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */,
+				AA000026000 /* XCRemoteSwiftPackageReference "WhisperKit" */,
 			);
 			productRefGroup = AA000056000 /* Products */;
 			projectDirPath = "";
@@ -302,6 +323,8 @@
 				AA000017001 /* AudioRecorder.swift in Sources */,
 				AA000018001 /* OverlayWindowController.swift in Sources */,
 				AA000019001 /* OverlayView.swift in Sources */,
+				AA000024001 /* STTError.swift in Sources */,
+				AA000028001 /* VAD.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -315,6 +338,7 @@
 				AA000015001 /* PermissionsManagerTests.swift in Sources */,
 				AA000022001 /* TextInjectorTests.swift in Sources */,
 				AA000023001 /* AudioRecorderTests.swift in Sources */,
+				AA000029001 /* VADTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -583,6 +607,14 @@
 				minimumVersion = 0.2.1;
 			};
 		};
+		AA000026000 /* XCRemoteSwiftPackageReference "WhisperKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/WhisperKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.15.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -590,6 +622,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA000021000 /* XCRemoteSwiftPackageReference "HotKey" */;
 			productName = HotKey;
+		};
+		AA000025000 /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA000026000 /* XCRemoteSwiftPackageReference "WhisperKit" */;
+			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
