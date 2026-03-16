@@ -45,7 +45,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **OUT-01**: Clean text is automatically pasted at the current cursor position (simulates Cmd+V)
 - [x] **OUT-02**: Auto-paste works system-wide in any macOS application (Slack, VS Code, browsers, Notes, etc.)
 - [x] **OUT-03**: User can view a history of recent transcriptions (last 10-20) to recover text
-- [ ] **OUT-04**: User can copy any item from the transcription history to clipboard
+- [x] **OUT-04**: User can copy any item from the transcription history to clipboard
 
 ### macOS Integration
 
@@ -130,7 +130,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OUT-01 | Phase 1 | Complete |
 | OUT-02 | Phase 1 | Complete |
 | OUT-03 | Phase 4 | Complete |
-| OUT-04 | Phase 4 | Pending |
+| OUT-04 | Phase 4 | Complete |
 | MAC-01 | Phase 1 | Done (01-01) |
 | MAC-02 | Phase 1 | Complete |
 | MAC-03 | Phase 1 | Complete |
