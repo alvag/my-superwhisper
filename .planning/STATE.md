@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-16T02:40:11.004Z"
+stopped_at: "Completed 02-03-PLAN.md (checkpoint:human-verify at Task 3)"
+last_updated: "2026-03-16T02:46:50.878Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 8
 ---
 
@@ -55,6 +55,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 01-foundation P04 | 2min | 2 tasks | 4 files |
 | Phase 02-audio-transcription P02-02 | 12 min | 2 tasks | 6 files |
 | Phase 02-audio-transcription P01 | 13 min | 2 tasks | 8 files |
+| Phase 02-audio-transcription P03 | 15 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions affecting current work:
 - [Phase 02-audio-transcription]: Hardware format tap: installTap uses inputNode.outputFormat(forBus:0), never hardcoded 16kHz — 16kHz target only for AVAudioConverter output
 - [Phase 02-audio-transcription]: barHeight(for:) is internal not private in AudioBarsView to allow unit testing without SwiftUI snapshot infrastructure
 - [Phase 02-audio-transcription]: NSHostingView replacement strategy for updateHostingView(): replace entire view on each audio level update — KISS approach viable at 16-33 fps
+- [Phase 02-audio-transcription]: Timer-based 30fps audio level polling bridges AudioRecorder.audioLevel to OverlayWindowController without reactive framework overhead
+- [Phase 02-audio-transcription]: STTEngine pre-loaded in background Task at launch — non-blocking, non-fatal on failure (model loads lazily on first transcription)
+- [Phase 02-audio-transcription]: NotificationHelper uses .provisional authorization to avoid blocking permission dialog at launch
 
 ### Pending Todos
 
@@ -99,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T02:40:11.002Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-16T02:46:50.875Z
+Stopped at: Completed 02-03-PLAN.md (checkpoint:human-verify at Task 3)
 Resume file: None

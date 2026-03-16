@@ -10,7 +10,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Recording
 
 - [x] **REC-01**: User can press a global hotkey to start recording from any application
-- [ ] **REC-02**: User can press the same hotkey again to stop recording and trigger transcription
+- [x] **REC-02**: User can press the same hotkey again to stop recording and trigger transcription
 - [x] **REC-03**: User sees an animated waveform visualization while recording is active
 - [x] **REC-04**: User can press Escape to cancel recording without pasting any text
 - [ ] **REC-05**: User can configure which hotkey activates recording (default: Option+Space, not Ctrl+Space due to macOS conflict)
@@ -110,7 +110,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | REC-01 | Phase 1 | Done (01-01) |
-| REC-02 | Phase 2 | Pending |
+| REC-02 | Phase 2 | Complete |
 | REC-03 | Phase 2 | Complete |
 | REC-04 | Phase 1 | Done (01-01) |
 | REC-05 | Phase 4 | Pending |
