@@ -168,19 +168,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MEDIA-01 | Pending | Pending |
-| MEDIA-02 | Pending | Pending |
-| MEDIA-03 | Pending | Pending |
-| MEDIA-04 | Pending | Pending |
-| SETT-01 | Pending | Pending |
-| SETT-02 | Pending | Pending |
+| MEDIA-01 | Phase 5 | Pending |
+| MEDIA-02 | Phase 5 | Pending |
+| MEDIA-03 | Phase 5 | Pending |
+| MEDIA-04 | Phase 5 | Pending |
+| SETT-01 | Phase 5 | Pending |
+| SETT-02 | Phase 5 | Pending |
 
 **Coverage:**
 - v1.0 requirements: 32 total — 32 complete
 - v1.1 requirements: 6 total
-- Mapped to phases: 0
-- Unmapped: 6 (pending roadmap)
+- Mapped to phases: 6
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-15*
-*Last updated: 2026-03-16 after v1.1 Pause Playback requirements defined*
+*Last updated: 2026-03-16 after v1.1 roadmap created (Phases 5-6)*

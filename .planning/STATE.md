@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Pause Playback
-status: defining
+status: roadmapped
 stopped_at: null
 last_updated: "2026-03-16"
-last_activity: "2026-03-16 — Milestone v1.1 started"
+last_activity: "2026-03-16 — Roadmap created (Phases 5-6)"
 progress:
-  total_phases: 0
+  total_phases: 2
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -25,46 +25,34 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 5 (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-16 — Milestone v1.1 started
+Status: Roadmap created, ready for planning
+Last activity: 2026-03-16 — Roadmap created (Phases 5-6)
 
 Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
-**Velocity:**
-- Total plans completed: 1
-- Average duration: 7 min
-- Total execution time: 0.12 hours
+**Velocity (v1.0 baseline):**
+- Total plans completed: 13
+- Average duration: ~8 min
+- Total execution time: ~1.7 hours
 
-**By Phase:**
+**By Phase (v1.0):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-foundation | 1 | 7 min | 7 min |
+| 01-foundation | 4 | ~16 min | ~4 min |
+| 02-audio-transcription | 3 | ~40 min | ~13 min |
+| 03-haiku-cleanup | 2 | ~12 min | ~6 min |
+| 04-settings-history-and-polish | 4 | ~35 min | ~9 min |
 
 **Recent Trend:**
-- Last 5 plans: 7 min
-- Trend: —
+- Last 5 plans: ~8 min avg
+- Trend: stable
 
 *Updated after each plan completion*
-| Phase 01-foundation P02 | 4 min | 2 tasks | 5 files |
-| Phase 01-foundation P03 | 3 min | 2 tasks | 8 files |
-| Phase 01-foundation P04 | 2min | 2 tasks | 4 files |
-| Phase 02-audio-transcription P02-02 | 12 min | 2 tasks | 6 files |
-| Phase 02-audio-transcription P01 | 13 min | 2 tasks | 8 files |
-| Phase 02-audio-transcription P03 | 15 | 2 tasks | 6 files |
-| Phase 02-audio-transcription P03 | 15 | 3 tasks | 10 files |
-| Phase 03-haiku-cleanup P01 | 6min | 2 tasks | 7 files |
-| Phase 03-haiku-cleanup P02 | 6min | 2 tasks | 6 files |
-| Phase 04-settings-history-and-polish P01 | 8 min | 2 tasks | 11 files |
-| Phase 04-settings-history-and-polish P02 | 9 min | 2 tasks | 6 files |
-| Phase 04-settings-history-and-polish P04 | 8 min | 1 tasks | 7 files |
-| Phase 04-settings-history-and-polish P04-03 | 6 | 1 tasks | 1 files |
-| Phase 04-settings-history-and-polish P04 | 10min | 2 tasks | 7 files |
-| Phase 04-settings-history-and-polish P03 | 8min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -117,22 +105,22 @@ Recent decisions affecting current work:
 - [Phase 04-04]: App icon asset catalog created as placeholder (Contents.json only, no images) — valid Xcode catalog that builds clean; custom icon PNG files to be added later
 - [Phase 04-settings-history-and-polish]: MAC-05 PASSES: idle RSS ~27MB at steady state — CoreML model memory for openai_whisper-large-v3 is managed by Neural Engine outside process RSS
 - [Phase 04-settings-history-and-polish]: Peak RSS during model download/compilation was ~1242MB but this is transient; steady-state idle is ~27MB
-- [Phase 04-04]: AboutWindowController uses NSWindow + frame-based layout (linter simplified) — adequate for read-only display
 - [Phase 04-settings-history-and-polish]: Phase 4 human verification APPROVED 2026-03-16: all features (settings, history, vocabulary, hotkey, mic selection) verified end-to-end
+- [v1.1 Research]: Do NOT use MediaRemote.framework — broken on macOS 15.4+; Apple added entitlement verification in mediaremoted; third-party apps silently denied
+- [v1.1 Research]: Use NSEvent.otherEvent(with: .systemDefined, subtype: 8) + CGEventPost(.cghidEventTap) for system-wide play/pause — same CGEventPost mechanism already used in TextInjector.swift
+- [v1.1 Research]: Track pausedByApp: Bool flag — only resume if the app was responsible for pausing; prevents double-toggle when user had media paused before recording
+- [v1.1 Research]: 150ms delay required between pause command and AVAudioEngine.start() — Spotify fade takes 100-200ms; without delay, fading audio bleeds into recording buffer
 
 ### Pending Todos
 
-None yet.
+None.
 
 ### Blockers/Concerns
 
-- [Phase 1 ongoing]: Xcode license not accepted — `sudo xcodebuild -license accept` needs user password. Build verification via xcodebuild is blocked until license is accepted.
-- [Phase 2]: VAD library selection unresolved — silero-vad requires Python or ONNX; WebRTC VAD requires C bridging. Must decide before Phase 2 starts to avoid rework.
-- [Phase 3]: Spanish Haiku cleanup prompt needs testing with real speech samples to ensure filler removal doesn't change meaning.
-- [Phase 3]: Anthropic API key management UX — needs secure storage (macOS Keychain) and first-run onboarding.
+None active. Previous blockers resolved in v1.0.
 
 ## Session Continuity
 
-Last session: 2026-03-16T16:06:15.934Z
-Stopped at: Completed 04-03-PLAN.md — Phase 4 fully complete, human verification approved
+Last session: 2026-03-16
+Stopped at: Roadmap created — ready for /gsd:plan-phase 5
 Resume file: None
