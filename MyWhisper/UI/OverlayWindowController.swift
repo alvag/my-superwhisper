@@ -1,9 +1,10 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class OverlayWindowController: OverlayWindowControllerProtocol {
     private var panel: NSPanel?
-    private var currentMode: OverlayMode = .recording(audioLevel: 0)
+    private let viewModel = OverlayViewModel()
 
     func show() {
         guard panel == nil else { return }
@@ -19,8 +20,8 @@ final class OverlayWindowController: OverlayWindowControllerProtocol {
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
-        currentMode = .recording(audioLevel: 0)
-        panel.contentView = NSHostingView(rootView: OverlayView(mode: currentMode))
+        viewModel.mode = .recording(audioLevel: 0)
+        panel.contentView = NSHostingView(rootView: OverlayView(viewModel: viewModel))
 
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
@@ -32,7 +33,6 @@ final class OverlayWindowController: OverlayWindowControllerProtocol {
         }
 
         // CRITICAL: orderFront, NOT makeKeyAndOrderFront — must not steal focus
-        // Pitfall 5: makeKeyAndOrderFront steals focus from target app, breaking paste
         panel.orderFront(nil)
         self.panel = panel
     }
@@ -43,17 +43,10 @@ final class OverlayWindowController: OverlayWindowControllerProtocol {
     }
 
     func showProcessing() {
-        currentMode = .processing
-        updateHostingView()
+        viewModel.mode = .processing
     }
 
     func updateAudioLevel(_ level: Float) {
-        currentMode = .recording(audioLevel: level)
-        updateHostingView()
-    }
-
-    private func updateHostingView() {
-        guard let panel = panel else { return }
-        panel.contentView = NSHostingView(rootView: OverlayView(mode: currentMode))
+        viewModel.mode = .recording(audioLevel: level)
     }
 }

@@ -5,8 +5,13 @@ enum OverlayMode: Equatable {
     case processing
 }
 
+@MainActor
+final class OverlayViewModel: ObservableObject {
+    @Published var mode: OverlayMode = .recording(audioLevel: 0)
+}
+
 struct OverlayView: View {
-    var mode: OverlayMode = .recording(audioLevel: 0)
+    @ObservedObject var viewModel: OverlayViewModel
 
     var body: some View {
         ZStack {
@@ -14,7 +19,7 @@ struct OverlayView: View {
                 .fill(.regularMaterial)
                 .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
 
-            switch mode {
+            switch viewModel.mode {
             case .recording(let level):
                 AudioBarsView(level: level)
             case .processing:

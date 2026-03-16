@@ -13,6 +13,7 @@ protocol TextInjectorProtocol: AnyObject {
     func inject(_ text: String) async
 }
 
+@MainActor
 protocol OverlayWindowControllerProtocol: AnyObject {
     func show()
     func hide()

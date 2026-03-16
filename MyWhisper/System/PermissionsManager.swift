@@ -78,7 +78,8 @@ final class PermissionsManager {
             UserDefaults.standard.set(true, forKey: Self.microphoneWasGrantedKey)
             return true
         case .notDetermined:
-            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            // Use AVAudioApplication for AVAudioEngine-based apps (AVCaptureDevice may not trigger dialog)
+            let granted = await AVAudioApplication.requestRecordPermission()
             if granted {
                 UserDefaults.standard.set(true, forKey: Self.microphoneWasGrantedKey)
             }
