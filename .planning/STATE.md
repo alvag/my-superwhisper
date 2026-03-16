@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-03-16T10:34:54.288Z"
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-03-16T10:59:10.996Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
   percent: 8
 ---
 
@@ -57,6 +57,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 02-audio-transcription P01 | 13 min | 2 tasks | 8 files |
 | Phase 02-audio-transcription P03 | 15 | 2 tasks | 6 files |
 | Phase 02-audio-transcription P03 | 15 | 3 tasks | 10 files |
+| Phase 03-haiku-cleanup P01 | 6min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [Phase 02-audio-transcription]: OverlayViewModel (ObservableObject) held by OverlayWindowController — NSHostingView created once, mode updates pushed via @Published property
 - [Phase 02-audio-transcription]: AVAudioApplication.requestRecordPermission() instead of AVCaptureDevice.requestAccess(for: .audio) — correct API for AVAudioEngine-based audio capture
 - [Phase 02-audio-transcription]: com.apple.security.device.audio-input entitlement required even for non-sandboxed apps on macOS 14+ for microphone access
+- [Phase 03-haiku-cleanup]: HaikuCleanupService uses URLSessionConfiguration with timeoutIntervalForRequest=5 AND timeoutIntervalForResource=5 to cover both DNS hang and response timeout
+- [Phase 03-haiku-cleanup]: saveAPIKey validates with max_tokens=5 tiny request before Keychain.save() to prevent bad keys from being persisted
+- [Phase 03-haiku-cleanup]: MockURLProtocol registered via URLSessionConfiguration.ephemeral.protocolClasses for clean per-test URLSession isolation
 
 ### Pending Todos
 
@@ -107,6 +111,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T10:34:54.286Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-haiku-cleanup/03-CONTEXT.md
+Last session: 2026-03-16T10:59:10.993Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None

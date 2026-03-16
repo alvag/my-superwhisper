@@ -29,11 +29,11 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Text Cleanup
 
-- [ ] **CLN-01**: Haiku API adds correct punctuation (periods, commas, question/exclamation marks)
-- [ ] **CLN-02**: Haiku API adds proper capitalization and paragraph breaks
-- [ ] **CLN-03**: Haiku API removes Spanish filler words ("eh", "este", "o sea", "bueno", "pues") and verbal repetitions
-- [ ] **CLN-04**: Haiku API preserves the user's original meaning — no paraphrasing or content addition
-- [ ] **CLN-05**: Haiku API cleanup completes in <2s for typical transcription length
+- [x] **CLN-01**: Haiku API adds correct punctuation (periods, commas, question/exclamation marks)
+- [x] **CLN-02**: Haiku API adds proper capitalization and paragraph breaks
+- [x] **CLN-03**: Haiku API removes Spanish filler words ("eh", "este", "o sea", "bueno", "pues") and verbal repetitions
+- [x] **CLN-04**: Haiku API preserves the user's original meaning — no paraphrasing or content addition
+- [x] **CLN-05**: Haiku API cleanup completes in <2s for typical transcription length
 
 ### Custom Vocabulary
 
@@ -120,11 +120,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | STT-01 | Phase 2 | Complete |
 | STT-02 | Phase 2 | Complete |
 | STT-03 | Phase 2 | Complete |
-| CLN-01 | Phase 3 | Pending |
-| CLN-02 | Phase 3 | Pending |
-| CLN-03 | Phase 3 | Pending |
-| CLN-04 | Phase 3 | Pending |
-| CLN-05 | Phase 3 | Pending |
+| CLN-01 | Phase 3 | Complete |
+| CLN-02 | Phase 3 | Complete |
+| CLN-03 | Phase 3 | Complete |
+| CLN-04 | Phase 3 | Complete |
+| CLN-05 | Phase 3 | Complete |
 | VOC-01 | Phase 4 | Pending |
 | VOC-02 | Phase 4 | Pending |
 | OUT-01 | Phase 1 | Complete |
