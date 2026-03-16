@@ -17,21 +17,38 @@ final class MenubarController {
     }
 
     static func image(for state: AppState) -> NSImage? {
-        let symbolName = "mic"
-        let config: NSImage.SymbolConfiguration
         switch state {
         case .idle:
-            config = .init(paletteColors: [.secondaryLabelColor])
-        case .recording:
-            config = .init(paletteColors: [.systemRed])
-        case .processing:
-            config = .init(paletteColors: [.systemBlue])
-        case .error:
-            config = .init(paletteColors: [.systemOrange])
+            // Template image — macOS renders it matching menubar appearance (light/dark)
+            let img = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "MyWhisper")
+            img?.isTemplate = true
+            return img
+        case .recording, .processing, .error:
+            // Colored image — draw SF Symbol with explicit color baked in
+            let color: NSColor
+            switch state {
+            case .recording: color = .systemRed
+            case .processing: color = .systemBlue
+            case .error: color = .systemOrange
+            default: color = .labelColor
+            }
+            return coloredSymbol("mic.fill", color: color)
         }
-        let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: state.description)?
-            .withSymbolConfiguration(config)
-        img?.isTemplate = false // MUST be false to preserve color
-        return img
+    }
+
+    private static func coloredSymbol(_ name: String, color: NSColor, pointSize: CGFloat = 14) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .medium)
+        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: "MyWhisper")?
+            .withSymbolConfiguration(config) else { return nil }
+
+        let size = symbol.size
+        let image = NSImage(size: size, flipped: false) { rect in
+            symbol.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            color.set()
+            rect.fill(using: .sourceAtop)
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }

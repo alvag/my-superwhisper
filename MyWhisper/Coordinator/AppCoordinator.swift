@@ -18,12 +18,9 @@ final class AppCoordinator {
         switch state {
         case .idle:
             // On-the-fly microphone permission (MAC-02)
+            // Request but don't block — user can still complete the flow
             if let pm = permissionsManager {
-                let granted = await pm.requestMicrophone()
-                if !granted {
-                    transitionTo(.error("microphone"))
-                    return
-                }
+                _ = await pm.requestMicrophone()
             }
             transitionTo(.recording)
             escapeMonitor?.startMonitoring()

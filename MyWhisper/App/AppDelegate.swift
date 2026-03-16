@@ -16,21 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
 
-        // Permission health check — runs on every launch (TCC can revoke after OS updates)
-        let permissionsManager = PermissionsManager()
-        self.permissionsManager = permissionsManager
-
-        let permissionStatus = permissionsManager.checkAllOnLaunch()
-        if case .blocked(let reason) = permissionStatus {
-            showPermissionBlockedWindow(reason: reason, permissionsManager: permissionsManager)
-            // Do NOT initialize hotkey or menubar yet — app is blocked
-            return
-        }
-
-        // Initialize core components
+        // Initialize core components FIRST — menubar must always be visible
         coordinator = AppCoordinator()
         menubarController = MenubarController()
         escapeMonitor = EscapeMonitor(coordinator: coordinator)
+
+        let permissionsManager = PermissionsManager()
+        self.permissionsManager = permissionsManager
 
         // Create remaining dependencies
         let audioRecorder = AudioRecorder()
@@ -56,6 +48,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Register hotkey last (after coordinator is fully wired)
         hotkeyMonitor = HotkeyMonitor(coordinator: coordinator)
+
+        // Permission health check — runs on every launch (TCC can revoke after OS updates)
+        // Menubar is already visible so user can see the app and quit if needed
+        let permissionStatus = permissionsManager.checkAllOnLaunch()
+        if case .blocked(let reason) = permissionStatus {
+            showPermissionBlockedWindow(reason: reason, permissionsManager: permissionsManager)
+        }
     }
 
     private func showPermissionBlockedWindow(reason: PermissionReason, permissionsManager: PermissionsManager) {

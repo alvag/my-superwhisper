@@ -9,10 +9,9 @@ final class TextInjector: TextInjectorProtocol {
     }
 
     func inject(_ text: String) async {
-        // Step 1: Check Accessibility permission — required for CGEventPost
-        if let pm = permissionsManager, !pm.requestAccessibility() {
-            // Permission denied — show blocking UI (handled by coordinator/AppDelegate in Phase 1)
-            // Fall through to clipboard-only path below
+        // Step 1: Request Accessibility on-the-fly (prompts system dialog on first use)
+        if let pm = permissionsManager {
+            _ = pm.requestAccessibility()
         }
 
         // Step 2: Write to clipboard (overwrites previous content — per spec, no restore)
@@ -21,12 +20,11 @@ final class TextInjector: TextInjectorProtocol {
         pasteboard.setString(text, forType: .string)
 
         // Step 3: Wait 150ms for clipboard write to propagate to target app
-        // (Pitfall 6 from research: CGEventPost can arrive before clipboard update without delay)
         try? await Task.sleep(for: .milliseconds(150))
 
-        // Step 4: Check if Accessibility is available for CGEventPost
+        // Step 4: Attempt paste via CGEventPost (requires Accessibility to be granted)
         guard AXIsProcessTrusted() else {
-            // Fallback: text is in clipboard, notify user to paste manually
+            // Accessibility not yet granted — text is in clipboard, notify user
             await showPasteFailureNotification()
             return
         }

@@ -40,40 +40,63 @@ protocol PermissionsManaging: AnyObject {
 
 final class PermissionsManager {
     private let checker: PermissionsChecking
+    private static let accessibilityWasGrantedKey = "permissions.accessibility.wasGranted"
+    private static let microphoneWasGrantedKey = "permissions.microphone.wasGranted"
 
     init(checker: PermissionsChecking = SystemPermissionsChecker()) {
         self.checker = checker
+        // Track when permissions are first granted so we can detect revocations
+        if checker.isAccessibilityTrusted {
+            UserDefaults.standard.set(true, forKey: Self.accessibilityWasGrantedKey)
+        }
+        if checker.microphoneAuthorizationStatus == .authorized {
+            UserDefaults.standard.set(true, forKey: Self.microphoneWasGrantedKey)
+        }
     }
 
-    // Called from applicationDidFinishLaunching — checks previously granted permissions
+    // Called from applicationDidFinishLaunching — only blocks if a PREVIOUSLY GRANTED
+    // permission was revoked (e.g., after OS update). Fresh installs are handled on-the-fly.
     func checkAllOnLaunch() -> PermissionStatus {
-        if !checker.isAccessibilityTrusted {
+        let accessibilityWasGranted = UserDefaults.standard.bool(forKey: Self.accessibilityWasGrantedKey)
+        if accessibilityWasGranted && !checker.isAccessibilityTrusted {
             return .blocked(reason: .accessibility)
         }
+        let micWasGranted = UserDefaults.standard.bool(forKey: Self.microphoneWasGrantedKey)
         let micStatus = checker.microphoneAuthorizationStatus
-        if micStatus == .denied || micStatus == .restricted {
+        if micWasGranted && (micStatus == .denied || micStatus == .restricted) {
             return .blocked(reason: .microphone)
         }
         return .ok
     }
 
     // Called on first recording start (on-the-fly)
+    // Returns true immediately if already authorized — no TCC dialog on subsequent calls
     func requestMicrophone() async -> Bool {
-        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        let status = checker.microphoneAuthorizationStatus
         switch status {
-        case .authorized: return true
+        case .authorized:
+            UserDefaults.standard.set(true, forKey: Self.microphoneWasGrantedKey)
+            return true
         case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .audio)
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            if granted {
+                UserDefaults.standard.set(true, forKey: Self.microphoneWasGrantedKey)
+            }
+            return granted
         default:
             return false // denied or restricted — show blocking screen
         }
     }
 
     // Called on first paste attempt (on-the-fly)
-    // Returns true if already trusted; false if user must enable in System Settings
+    // Returns true if already trusted; prompts user via system dialog if not
     func requestAccessibility() -> Bool {
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeUnretainedValue(): true]
-        return AXIsProcessTrustedWithOptions(options)
+        let trusted = AXIsProcessTrustedWithOptions(options)
+        if trusted {
+            UserDefaults.standard.set(true, forKey: Self.accessibilityWasGrantedKey)
+        }
+        return trusted
     }
 
     func openSystemSettingsForAccessibility() {
