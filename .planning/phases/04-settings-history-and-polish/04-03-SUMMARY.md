@@ -50,7 +50,7 @@ completed: 2026-03-16
 - **Duration:** 6 min
 - **Started:** 2026-03-16T13:26:50Z
 - **Completed:** 2026-03-16T13:32:49Z
-- **Tasks:** 1 complete (Task 2 is checkpoint:human-verify, awaiting user)
+- **Tasks:** 2 complete (Task 1: profiling; Task 2: human verification approved)
 - **Files modified:** 1
 
 ## Accomplishments
@@ -120,17 +120,22 @@ This methodology is repeatable. Any future model changes should re-run this prof
 
 None - no external service configuration required.
 
+## Human Verification Result
+
+**Task 2: Full Phase 4 verification — APPROVED (2026-03-16)**
+
+User verified all Phase 4 features end-to-end:
+- Settings panel (hotkey recorder, mic selector, API key, vocabulary table, launch-at-login)
+- History panel with click-to-copy
+- Vocabulary corrections in the transcription pipeline
+- KeyboardShortcuts migration
+- RAM at idle (~27MB as profiled)
+
 ## Next Phase Readiness
 
-- All Phase 4 features are code-complete and build cleanly
+- Phase 4 is COMPLETE — all features verified by user
 - MAC-05 documented as PASSING
-- Task 2 (full end-to-end verification) is a human checkpoint — user needs to:
-  1. Launch from Xcode (Cmd+R)
-  2. Verify all 5 settings sections, hotkey recorder, mic dropdown, vocabulary table
-  3. Test recording → transcription → vocabulary correction pipeline
-  4. Verify History window click-to-copy
-  5. Check Activity Monitor RAM (expected ~27MB at idle)
-- Phase 4 is fully complete once user approves the checkpoint
+- All Phase 4 features code-complete, build cleanly, and human-verified
 
 ---
 *Phase: 04-settings-history-and-polish*
