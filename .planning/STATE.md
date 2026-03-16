@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 04-04 Task 1, awaiting checkpoint:human-verify for Task 2"
-last_updated: "2026-03-16T13:31:34.039Z"
+stopped_at: "Completed 04-03-PLAN.md Task 1; awaiting checkpoint:human-verify Task 2"
+last_updated: "2026-03-16T13:34:47.415Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 13
-  completed_plans: 12
+  completed_plans: 13
   percent: 8
 ---
 
@@ -62,6 +62,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 04-settings-history-and-polish P01 | 8 min | 2 tasks | 11 files |
 | Phase 04-settings-history-and-polish P02 | 9 min | 2 tasks | 6 files |
 | Phase 04-settings-history-and-polish P04 | 8 min | 1 tasks | 7 files |
+| Phase 04-settings-history-and-polish P04-03 | 6 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -112,6 +113,8 @@ Recent decisions affecting current work:
 - [Phase 04-02]: Date.historyDisplayString uses RelativeDateTimeFormatter for <24h entries, DateFormatter for older; Spanish locale throughout
 - [Phase 04-04]: AboutWindowController uses NSWindow + frame-based layout (linter simplified) — adequate for read-only display
 - [Phase 04-04]: App icon asset catalog created as placeholder (Contents.json only, no images) — valid Xcode catalog that builds clean; custom icon PNG files to be added later
+- [Phase 04-settings-history-and-polish]: MAC-05 PASSES: idle RSS ~27MB at steady state — CoreML model memory for openai_whisper-large-v3 is managed by Neural Engine outside process RSS
+- [Phase 04-settings-history-and-polish]: Peak RSS during model download/compilation was ~1242MB but this is transient; steady-state idle is ~27MB
 
 ### Pending Todos
 
@@ -126,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:31:34.036Z
-Stopped at: Completed 04-04 Task 1, awaiting checkpoint:human-verify for Task 2
+Last session: 2026-03-16T13:34:47.413Z
+Stopped at: Completed 04-03-PLAN.md Task 1; awaiting checkpoint:human-verify Task 2
 Resume file: None
