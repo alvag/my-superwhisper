@@ -4,15 +4,17 @@ import XCTest
 final class VocabularyServiceTests: XCTestCase {
     var defaults: UserDefaults!
     var service: VocabularyService!
+    var suiteName: String!
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        suiteName = "test-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
         service = VocabularyService(defaults: defaults)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: defaults.suiteName ?? "")
+        defaults.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
 

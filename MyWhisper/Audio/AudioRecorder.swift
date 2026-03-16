@@ -9,6 +9,7 @@ final class AudioRecorder: AudioRecorderProtocol {
     private var audioEngine: AVAudioEngine?
     private var converter: AVAudioConverter?
     private var accumulator: [Float] = []
+    var microphoneService: MicrophoneDeviceService?
     // nonisolated(unsafe): written from audio thread, read from main thread.
     // Acceptable for a single Float visualization value — worst case shows stale level.
     nonisolated(unsafe) private var _audioLevel: Float = 0.0
@@ -53,6 +54,13 @@ final class AudioRecorder: AudioRecorderProtocol {
                 self.accumulator.append(contentsOf: converted)
             }
         }
+
+        // Apply selected microphone device (MAC-04) BEFORE engine.start()
+        // Setting device after start() silently fails
+        if let deviceID = microphoneService?.selectedDeviceID {
+            try? microphoneService?.setInputDevice(deviceID, on: engine)
+        }
+        // If no device selected, AVAudioEngine uses system default automatically
 
         try engine.start()
         audioEngine = engine

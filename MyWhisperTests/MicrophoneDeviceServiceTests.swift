@@ -4,15 +4,17 @@ import XCTest
 final class MicrophoneDeviceServiceTests: XCTestCase {
     var defaults: UserDefaults!
     var service: MicrophoneDeviceService!
+    var suiteName: String!
 
     override func setUp() {
         super.setUp()
-        defaults = UserDefaults(suiteName: "test-\(UUID().uuidString)")!
+        suiteName = "test-\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: suiteName)!
         service = MicrophoneDeviceService(defaults: defaults)
     }
 
     override func tearDown() {
-        defaults.removePersistentDomain(forName: defaults.suiteName ?? "")
+        defaults.removePersistentDomain(forName: suiteName)
         super.tearDown()
     }
 
