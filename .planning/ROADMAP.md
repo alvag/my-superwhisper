@@ -63,7 +63,11 @@ Plans:
   3. The user's original meaning and wording are preserved — Haiku does not paraphrase or add content
   4. Full end-to-end pipeline (record → transcribe → Haiku cleanup → paste) completes within 5 seconds for a typical 30-60 second dictation
   5. User can configure their Anthropic API key in settings and app handles API errors gracefully
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — HaikuCleanupService (protocol, actor, error enum) + KeychainService + unit tests
+- [ ] 03-02-PLAN.md — API key modal, AppCoordinator integration, AppDelegate wiring, coordinator tests
 
 ### Phase 4: Settings, History, and Polish
 **Goal**: Users can customize the app to fit their workflow, recover past transcriptions, and the app is ready for distribution
@@ -86,5 +90,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete    | 2026-03-16 |
 | 2. Audio + Transcription | 3/3 | Complete   | 2026-03-16 |
-| 3. Haiku Cleanup | 0/TBD | Not started | - |
+| 3. Haiku Cleanup | 0/2 | Not started | - |
 | 4. Settings, History, and Polish | 0/TBD | Not started | - |
