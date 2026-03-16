@@ -31,7 +31,16 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ### Active
 
-(None — v1.0 shipped. Define for v2 via `/gsd:new-milestone`)
+- [ ] Pause Playback: pausar automáticamente medios en reproducción al iniciar grabación y reanudar al terminar
+- [ ] Toggle configurable en Settings para activar/desactivar Pause Playback
+
+## Current Milestone: v1.1 Pause Playback
+
+**Goal:** Pausar automáticamente cualquier medio en reproducción (música, video, etc.) al iniciar grabación y reanudar al terminar, con toggle configurable en Settings.
+
+**Target features:**
+- Pause/resume automático de medios al grabar (sistema + terceros)
+- Toggle en Settings para activar/desactivar
 
 ### Out of Scope
 
@@ -78,4 +87,4 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 | Haiku fallback to raw text | User always gets text — degraded quality beats no output | ✓ Good |
 
 ---
-*Last updated: 2026-03-16 after v1.0 milestone*
+*Last updated: 2026-03-16 after v1.1 milestone started*

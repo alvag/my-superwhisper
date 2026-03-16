@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed 04-03-PLAN.md — Phase 4 fully complete, human verification approved
-last_updated: "2026-03-16T16:19:17.225Z"
-last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
+milestone: v1.1
+milestone_name: Pause Playback
+status: defining
+stopped_at: null
+last_updated: "2026-03-16"
+last_activity: "2026-03-16 — Milestone v1.1 started"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 13
-  completed_plans: 13
-  percent: 8
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Frictionless voice-to-text that produces clean, well-formatted Spanish text — press a key, speak, press again, and polished text appears where you're typing. Local STT + Haiku cleanup.
-**Current focus:** v1.0 shipped — planning next milestone
+**Current focus:** v1.1 Pause Playback — pausar medios durante grabación
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation)
-Plan: 1 of 3 in current phase
-Status: In progress
-Last activity: 2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-16 — Milestone v1.1 started
 
-Progress: [█░░░░░░░░░] 8%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
