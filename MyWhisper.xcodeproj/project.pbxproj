@@ -37,6 +37,12 @@
 		AA000035001 /* STTEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000035000 /* STTEngineTests.swift */; };
 		AA000034001 /* OverlayViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000034000 /* OverlayViewTests.swift */; };
 		AA000036001 /* NotificationHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000036000 /* NotificationHelper.swift */; };
+		AA000037001 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000037000 /* KeychainService.swift */; };
+		AA000038001 /* HaikuCleanupProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000038000 /* HaikuCleanupProtocol.swift */; };
+		AA000039001 /* HaikuCleanupError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000039000 /* HaikuCleanupError.swift */; };
+		AA000040002 /* HaikuCleanupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000040003 /* HaikuCleanupService.swift */; };
+		AA000041002 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000041003 /* KeychainServiceTests.swift */; };
+		AA000042001 /* HaikuCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000042000 /* HaikuCleanupServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -82,6 +88,12 @@
 		AA000029000 /* VADTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADTests.swift; sourceTree = "<group>"; };
 		AA000034000 /* OverlayViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayViewTests.swift; sourceTree = "<group>"; };
 		AA000036000 /* NotificationHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationHelper.swift; sourceTree = "<group>"; };
+		AA000037000 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		AA000038000 /* HaikuCleanupProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupProtocol.swift; sourceTree = "<group>"; };
+		AA000039000 /* HaikuCleanupError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupError.swift; sourceTree = "<group>"; };
+		AA000040003 /* HaikuCleanupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupService.swift; sourceTree = "<group>"; };
+		AA000041003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
+		AA000042000 /* HaikuCleanupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +125,7 @@
 				AA000054000 /* UI */,
 				AA000058000 /* Audio */,
 				AA000059000 /* STT */,
+				AA000043000 /* Cleanup */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -146,6 +159,7 @@
 				AA000013000 /* PermissionsManager.swift */,
 				AA000016000 /* TextInjector.swift */,
 				AA000036000 /* NotificationHelper.swift */,
+				AA000037000 /* KeychainService.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -174,6 +188,8 @@
 				AA000029000 /* VADTests.swift */,
 				AA000035000 /* STTEngineTests.swift */,
 				AA000034000 /* OverlayViewTests.swift */,
+				AA000041003 /* KeychainServiceTests.swift */,
+				AA000042000 /* HaikuCleanupServiceTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -210,6 +226,16 @@
 				AA000027000 /* STTEngine.swift */,
 			);
 			path = STT;
+			sourceTree = "<group>";
+		};
+		AA000043000 /* Cleanup */ = {
+			isa = PBXGroup;
+			children = (
+				AA000038000 /* HaikuCleanupProtocol.swift */,
+				AA000039000 /* HaikuCleanupError.swift */,
+				AA000040003 /* HaikuCleanupService.swift */,
+			);
+			path = Cleanup;
 			sourceTree = "<group>";
 		};
 		AA000099000 = {
@@ -339,6 +365,10 @@
 				AA000028001 /* VAD.swift in Sources */,
 				AA000027001 /* STTEngine.swift in Sources */,
 				AA000036001 /* NotificationHelper.swift in Sources */,
+				AA000037001 /* KeychainService.swift in Sources */,
+				AA000038001 /* HaikuCleanupProtocol.swift in Sources */,
+				AA000039001 /* HaikuCleanupError.swift in Sources */,
+				AA000040002 /* HaikuCleanupService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -355,6 +385,8 @@
 				AA000029001 /* VADTests.swift in Sources */,
 				AA000035001 /* STTEngineTests.swift in Sources */,
 				AA000034001 /* OverlayViewTests.swift in Sources */,
+				AA000041002 /* KeychainServiceTests.swift in Sources */,
+				AA000042001 /* HaikuCleanupServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
