@@ -79,7 +79,12 @@ Plans:
   3. User can view the last 10-20 transcriptions in a history panel and copy any entry to the clipboard
   4. User can define custom word corrections (e.g., a brand name the STT consistently misspells) that are applied to every transcription
   5. App consumes less than 200MB RAM when idle (no active recording or processing) — per MAC-05
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Services (VocabularyService, TranscriptionHistoryService, MicrophoneDeviceService), KeyboardShortcuts migration, pipeline wiring
+- [ ] 04-02-PLAN.md — SettingsWindowController (hotkey, mic, API key, vocabulary, launch-at-login), HistoryWindowController, mic selection in AudioRecorder
+- [ ] 04-03-PLAN.md — RAM profiling (MAC-05), release build verification, full Phase 4 human verification
 
 ## Progress
 
@@ -91,4 +96,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | 1. Foundation | 4/4 | Complete    | 2026-03-16 |
 | 2. Audio + Transcription | 3/3 | Complete   | 2026-03-16 |
 | 3. Haiku Cleanup | 0/2 | Not started | - |
-| 4. Settings, History, and Polish | 0/TBD | Not started | - |
+| 4. Settings, History, and Polish | 0/3 | Not started | - |
