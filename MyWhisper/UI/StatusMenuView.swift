@@ -3,11 +3,21 @@ import AppKit
 final class StatusMenuController: NSObject {
     private weak var coordinator: AppCoordinator?
     private var haikuCleanup: (any HaikuCleanupProtocol)?
-    private var apiKeyWindowController: APIKeyWindowController?
+    private var vocabularyService: VocabularyService?
+    private var microphoneService: MicrophoneDeviceService?
+    private var settingsWindowController: SettingsWindowController?
+    var historyWindowController: HistoryWindowController?
 
-    init(coordinator: AppCoordinator, haikuCleanup: (any HaikuCleanupProtocol)? = nil) {
+    init(
+        coordinator: AppCoordinator,
+        haikuCleanup: (any HaikuCleanupProtocol)? = nil,
+        vocabularyService: VocabularyService? = nil,
+        microphoneService: MicrophoneDeviceService? = nil
+    ) {
         self.coordinator = coordinator
         self.haikuCleanup = haikuCleanup
+        self.vocabularyService = vocabularyService
+        self.microphoneService = microphoneService
         super.init()
     }
 
@@ -23,26 +33,35 @@ final class StatusMenuController: NSObject {
         hotkeyItem.isEnabled = false
         menu.addItem(hotkeyItem)
         menu.addItem(.separator())
-        // API key entry
-        let apiKeyItem = NSMenuItem(title: "Clave de API...", action: #selector(openAPIKeyPanel), keyEquivalent: "")
-        apiKeyItem.target = self
-        menu.addItem(apiKeyItem)
-        // Settings (stub — Phase 4 implements)
-        menu.addItem(NSMenuItem(title: "Preferencias...", action: #selector(openSettings), keyEquivalent: ","))
+        // Historial
+        let historyItem = NSMenuItem(title: "Historial", action: #selector(openHistory), keyEquivalent: "")
+        historyItem.target = self
+        menu.addItem(historyItem)
+        // Settings (now fully implemented)
+        let settingsItem = NSMenuItem(title: "Preferencias...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Salir", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         return menu
     }
 
-    @objc private func openAPIKeyPanel() {
+    @objc private func openHistory() {
         Task { @MainActor in
-            let controller = APIKeyWindowController(haikuCleanup: self.haikuCleanup)
-            controller.show()
-            self.apiKeyWindowController = controller
+            historyWindowController?.show()
         }
     }
 
     @objc private func openSettings() {
-        // Phase 4 — stub
+        Task { @MainActor in
+            if settingsWindowController == nil, let vocab = vocabularyService, let mic = microphoneService {
+                settingsWindowController = SettingsWindowController(
+                    vocabularyService: vocab,
+                    microphoneService: mic,
+                    haikuCleanup: haikuCleanup
+                )
+            }
+            settingsWindowController?.show()
+        }
     }
 }

@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var vocabularyService: VocabularyService?
     private var historyService: TranscriptionHistoryService?
     private var microphoneService: MicrophoneDeviceService?
+    private var historyWindowController: HistoryWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -54,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.vocabularyService = vocabularyService
         coordinator.historyService = historyService
 
+        // Wire microphone selection into AudioRecorder
+        audioRecorder.microphoneService = microphoneService
+
         // Store strong references
         self.audioRecorder = audioRecorder
         self.textInjector = textInjector
@@ -65,8 +69,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.historyService = historyService
         self.microphoneService = microphoneService
 
+        // Create History window controller
+        let historyWindowController = HistoryWindowController(historyService: historyService)
+        self.historyWindowController = historyWindowController
+
         // Build and attach menu
-        statusMenuController = StatusMenuController(coordinator: coordinator, haikuCleanup: haikuCleanup)
+        statusMenuController = StatusMenuController(
+            coordinator: coordinator,
+            haikuCleanup: haikuCleanup,
+            vocabularyService: vocabularyService,
+            microphoneService: microphoneService
+        )
+        statusMenuController.historyWindowController = historyWindowController
         menubarController.setMenu(statusMenuController.buildMenu())
 
         // Request provisional notification authorization (silent, no dialog)

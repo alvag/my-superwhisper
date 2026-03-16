@@ -51,6 +51,8 @@
 		AA000041002 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000041003 /* KeychainServiceTests.swift */; };
 		AA000042001 /* HaikuCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000042000 /* HaikuCleanupServiceTests.swift */; };
 		AA000043001 /* APIKeyWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000043002 /* APIKeyWindowController.swift */; };
+		AA000051001 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000051002 /* SettingsWindowController.swift */; };
+		AA000052001 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000052002 /* HistoryWindowController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -103,6 +105,8 @@
 		AA000041003 /* KeychainServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainServiceTests.swift; sourceTree = "<group>"; };
 		AA000042000 /* HaikuCleanupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupServiceTests.swift; sourceTree = "<group>"; };
 		AA000043002 /* APIKeyWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyWindowController.swift; sourceTree = "<group>"; };
+		AA000051002 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AA000052002 /* HistoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowController.swift; sourceTree = "<group>"; };
 		AA000044000 /* VocabularyEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyEntry.swift; sourceTree = "<group>"; };
 		AA000045000 /* VocabularyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyService.swift; sourceTree = "<group>"; };
 		AA000046000 /* TranscriptionHistoryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionHistoryService.swift; sourceTree = "<group>"; };
@@ -144,6 +148,7 @@
 				AA000043000 /* Cleanup */,
 				AA000060001 /* Vocabulary */,
 				AA000061001 /* History */,
+				AA000062001 /* Settings */,
 				AA000032000 /* MyWhisper.entitlements */,
 				AA000033000 /* Info.plist */,
 			);
@@ -255,8 +260,17 @@
 			isa = PBXGroup;
 			children = (
 				AA000046000 /* TranscriptionHistoryService.swift */,
+				AA000052002 /* HistoryWindowController.swift */,
 			);
 			path = History;
+			sourceTree = "<group>";
+		};
+		AA000062001 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				AA000051002 /* SettingsWindowController.swift */,
+			);
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		AA000059000 /* STT */ = {
@@ -414,6 +428,8 @@
 				AA000045001 /* VocabularyService.swift in Sources */,
 				AA000046001 /* TranscriptionHistoryService.swift in Sources */,
 				AA000047001 /* MicrophoneDeviceService.swift in Sources */,
+				AA000051001 /* SettingsWindowController.swift in Sources */,
+				AA000052001 /* HistoryWindowController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
