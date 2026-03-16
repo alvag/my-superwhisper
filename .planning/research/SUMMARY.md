@@ -1,197 +1,160 @@
 # Project Research Summary
 
-**Project:** my-superwhisper
-**Domain:** Local voice-to-text macOS menubar app (Apple Silicon, Spanish)
-**Researched:** 2026-03-15
+**Project:** my-superwhisper — v1.1 Pause Playback
+**Domain:** macOS system-wide media playback control integrated into an existing local voice-to-text menubar app
+**Researched:** 2026-03-16
 **Confidence:** HIGH
 
 ## Executive Summary
 
-my-superwhisper is a privacy-first macOS menubar dictation app targeting Spanish speakers on Apple Silicon Macs. The well-established pattern for this class of app is a native Swift host (NSStatusItem + SwiftUI) that owns audio capture, system integration, and UI, combined with on-device ML models for speech recognition and text cleanup. The recommended stack is WhisperKit (Swift-native, CoreML/ANE) for STT and MLX Swift (MLXLLM) with Qwen2.5-3B-4bit for post-processing — both running entirely on-device, achieving sub-5-second end-to-end latency for typical 30-60 second dictations. The architecture is a strict sequential pipeline controlled by a Finite State Machine: hotkey press triggers audio capture, stop triggers transcription, raw text feeds the LLM cleaner, and clean text is injected at the cursor via clipboard simulation.
+This research covers the v1.1 milestone for an already-shipped macOS menubar app (my-superwhisper). The core product — local Spanish-optimized voice-to-text with auto-paste — is complete and validated at v1.0. The v1.1 feature is a single, well-scoped addition: automatically pause system media when the user starts recording, and resume it when recording ends. All four research domains converge on the same conclusion: this feature is implemented via HID media key event simulation using `NSEvent.otherEvent` (subtype 8, `NX_KEYTYPE_PLAY`) posted via `CGEventPost(.cghidEventTap)` — the identical mechanism used by BackgroundMusic, BeardedSpice, and SuperWhisper itself since v1.44.0 (January 2025, made default in v2.7.0 November 2025).
 
-The recommended approach is a 6-phase build following dependency order: foundation (app shell, hotkey, permissions) before audio capture, audio before STT, STT before LLM cleanup, and LLM before text injection. All models must be kept warm in memory — cold-start costs are 2-3 seconds for WhisperKit and 10-31 seconds for MLX LLM, which destroys the user experience if models are loaded per recording. The Spanish-specific differentiator (LLM cleanup of "eh", "este", "o sea", "bueno" fillers with correct punctuation) is achievable with a well-constrained system prompt at temperature=0.
+The recommended implementation is a new `MediaPlaybackService` (~60 lines of Swift) injected into the existing `AppCoordinator` FSM as side effects at state transitions. No new SPM dependencies, no new entitlements, no new permissions are required. The app is already non-sandboxed and already uses `CGEventPost` for paste simulation in `TextInjector.swift` — the media key variant is structurally identical. The entire implementation surface is one new file and three modified files, plus one new Settings checkbox.
 
-The critical risks are concentrated in Phase 1 (foundation): the default Ctrl+Space hotkey conflicts with macOS Input Source switching — a silent failure specifically for bilingual Spanish/English users (the primary audience). The app cannot be sandboxed because CGEventPost (required for paste simulation) is blocked in sandboxed apps, making Mac App Store distribution impossible. Accessibility and Microphone permissions must be checked on every launch, not just first launch, because macOS resets them after major OS updates. These three decisions must be made before writing any code.
+The key risk is the double-toggle problem: if the user had media paused before starting a recording, the recording-stop event will erroneously resume it. The pragmatic v1.1 mitigation is a `pausedByApp` flag combined with a user-facing Settings toggle (on by default) and a documented limitation. The technically correct solution — querying whether media was playing before pausing — is blocked on macOS 15.4+ by Apple's entitlement gate on `MediaRemote.framework`. This is acceptable for v1.1; per-app AppleScript targeting is the right escalation path for v1.2 if user reports warrant it.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The app requires a hybrid approach: pure Swift for the macOS system layer (audio capture, hotkey, paste, UI) and Swift-native ML via MLX Swift for on-device inference. WhisperKit (0.15+) runs Whisper large-v3-turbo on the Apple Neural Engine via CoreML, achieving ~0.19s transcription on M4 hardware with no Python dependency. MLX Swift (MLXLLM) runs Qwen2.5-3B-Instruct (4-bit quantized) at 80-230 tok/s depending on chip generation, completing LLM cleanup of a typical 100-300 word transcription in under 1 second when warm. This is a pure Swift stack — no Python subprocess required.
+The v1.1 feature requires no new frameworks or packages. All needed APIs are already imported by the project: `AppKit` (NSEvent), `CoreGraphics` (CGEvent, already used in `TextInjector.swift`), and `IOKit.hidsystem` (header-only import for the `NX_KEYTYPE_PLAY = 16` constant). The HID media key pattern has been stable since macOS 10.6 and works on all versions through macOS Sequoia (15.x).
 
-The only reason to deviate from the pure Swift path is if WhisperKit Spanish accuracy proves unsatisfactory, in which case parakeet-mlx (Python subprocess) is the fallback. The Parakeet-TDT-0.6b-v3 model achieves 3.45% WER on Spanish FLEURS and includes built-in punctuation/capitalization, potentially eliminating the need for LLM cleanup entirely — but at the cost of adding a Python runtime dependency.
+The critical stack decision is what NOT to use. `MediaRemote.framework` — the most commonly referenced approach for media control — is broken for third-party apps on macOS 15.4+. Apple added entitlement verification inside `mediaremoted`; any app without `com.apple.mediaremote` (Apple-only, unavailable to third parties) is silently denied. `MPRemoteCommandCenter` controls only the app's own audio session, not other apps. Third-party interceptor libraries (`SPMediaKeyTap`, `MediaKeyTap`) receive incoming media keys; they do not send them.
 
 **Core technologies:**
-- Swift / SwiftUI (macOS 14+): App shell, menubar, audio, paste — native macOS APIs required for Accessibility entitlements and zero idle overhead
-- WhisperKit 0.15+: STT engine — Swift-native, CoreML/ANE, fastest on-device Whisper implementation (~0.19s M4), no Python
-- MLX Swift (MLXLLM) + Qwen2.5-3B-Instruct-4bit: LLM cleanup — pure Swift Metal inference, ~2GB RAM, handles Spanish natively
-- AVFoundation: Microphone capture — first-party, zero dependencies, mandatory format conversion 44/48kHz to 16kHz
-- HotKey 0.2.1: Global hotkey — thin wrapper over Carbon EventHotKey, Accessibility-permission-exempt, used by production apps
+- `NSEvent.otherEvent(with: .systemDefined, subtype: 8)` — constructs a synthetic HID auxiliary key event targeting `NX_KEYTYPE_PLAY`; the only public mechanism for sending a system-wide play/pause command
+- `CGEvent.post(tap: .cghidEventTap)` — delivers the event to the macOS HID event stream; same tap used by `TextInjector.swift` for paste simulation; no new entitlements needed
+- `IOKit.hidsystem` (header-only) — provides the stable `NX_KEYTYPE_PLAY = 16` constant; zero linkage change required in Swift
 
 ### Expected Features
 
-The competitive landscape (SuperWhisper, Sotto, WhisperFlow, Wispr Flow) establishes a clear feature baseline. Every mature tool offers global hotkey + auto-paste as the core interaction loop, with waveform feedback during recording and LLM-based filler word removal. The key differentiators for this app are 100% local processing (Wispr Flow sends to cloud, only SuperWhisper is local) and Spanish-optimized cleanup (competitors default to English filler word lists).
+The v1.1 scope is tightly defined. V1.0 shipped all table-stakes features for the voice-to-text product. V1.1 adds one high-value behavioral feature that SuperWhisper first shipped in v1.44.0 and made default in v2.7.0 — confirming it is now a table-stakes expectation for the category.
 
-**Must have (table stakes):**
-- Global hotkey (default: non-conflicting, not Ctrl+Space) toggles recording from any app
-- Audio capture with waveform animation — users need visual confirmation mic is active
-- Local STT transcription optimized for Spanish (WhisperKit large-v3-turbo)
-- Local LLM cleanup: punctuation, capitalization, Spanish filler removal ("o sea", "este", "bueno", "pues")
-- Auto-paste clean text at cursor via Accessibility API
-- Menubar status icon with idle / recording / processing states
-- Permission prompts on first launch (Accessibility + Microphone) with clear explanation
-- Cancel recording (Escape key) — prevents accidentally pasting garbage
-- Configurable hotkey in settings
-- Microphone selection in settings
+**Must have (table stakes for v1.1):**
+- Pause active media player on recording start — users expect SuperWhisper parity
+- Resume media when recording ends, after pipeline completes (not at stop-hotkey press — resuming during 3-5s transcription is jarring)
+- Resume media when recording is cancelled via Escape — user abandoned the recording; media should come back
+- Settings toggle, on by default — feature is disruptive to users who do not want it
 
-**Should have (competitive):**
-- Push-to-talk mode (hold hotkey) — many users prefer this; low complexity to add after toggle works
-- Transaction history (last 10 transcriptions) — immediate recovery from accidental dismiss
-- Custom vocabulary / correction dictionary — for persistent proper noun misrecognitions
-- Granular processing state display (transcribing / cleaning / pasting) — reduces perceived latency
-- Lightweight idle resource usage target (<100MB RAM) — users loudly complain when Wispr Flow uses ~800MB
+**Should have (v1.1 polish):**
+- `pausedByApp` flag guard: only resume if the app was responsible for pausing — prevents double-toggle edge case
+- 150-200ms delay between pause command and `AVAudioEngine.start()` — prevents Spotify fade audio bleeding into recording buffer, degrading first-word transcription accuracy
+- Minimum recording duration guard (500ms) — prevents rapid double-tap from generating spurious pause/resume pairs
 
 **Defer (v2+):**
-- Reformulation modes (formal email, structured notes) — small LLMs produce unreliable output for this
-- Multi-language support (Spanish + English) — design architecture for it but ship Spanish-only
-- Configurable LLM cleanup aggressiveness (light/full modes)
+- Per-app AppleScript targeting (Spotify, Apple Music) — required only if toggle semantics generate sustained user complaints
+- Push-to-talk mode media pause — short hold-to-talk recordings make the media round-trip marginal
+- Reformulation modes, multi-language support — orthogonal to this milestone
 
 ### Architecture Approach
 
-The app uses a Finite State Machine in an `@MainActor @Observable AppCoordinator` to orchestrate a sequential pipeline of isolated Swift actors: AudioRecorder (AVAudioEngine), STTEngine (WhisperKit), and LLMCleaner (MLX Swift). System integration (hotkey, paste, permissions) lives in a dedicated `System/` layer. The menubar UI observes the coordinator state reactively via `@Observable` — no Combine or NotificationCenter needed. Both models load at app launch and stay resident in unified memory for the app's lifetime.
+The implementation follows the FSM side-effect injection pattern already established in the codebase. A new `MediaPlaybackService` encapsulates all CGEvent logic behind a `MediaPlaybackServiceProtocol`, injected into `AppCoordinator` by `AppDelegate` at startup. The coordinator calls `mediaPlayback?.pause()` at the `idle → recording` transition and `mediaPlayback?.resume()` at both `recording → processing` (normal stop) and in `handleEscape()` (cancel). `SettingsWindowController` adds a checkbox that writes directly to `UserDefaults` — `MediaPlaybackService` reads the key at call time, requiring zero coupling between the Settings UI and the service.
 
 **Major components:**
-1. AppCoordinator (FSM) — single orchestrator; owns state transitions; prevents double-trigger during processing
-2. AudioRecorder (actor) — AVAudioEngine tap, mandatory 44/48kHz to 16kHz Float32 resampling, buffer accumulation
-3. STTEngine (actor) — WhisperKit wrapper, model pre-loaded at startup, warm-up dummy inference on first launch
-4. LLMCleaner (actor) — MLX Swift inference, Qwen2.5-3B-4bit, keep-warm, temperature=0, constrained Spanish prompt
-5. TextInjector — NSPasteboard save/restore + CGEvent Cmd+V simulation with 100-200ms delay
-6. HotkeyMonitor — CGEventTap (consumes event, not NSEvent monitor), dispatches to MainActor via Task
-7. MenubarController — NSStatusItem with reactive state icons (idle/recording/transcribing/cleaning/done/error)
+1. `MediaPlaybackService` (new, `MyWhisper/System/MediaPlaybackService.swift`) — all media key logic; reads `UserDefaults["pausePlaybackEnabled"]`; posts `NX_KEYTYPE_PLAY` key-down + key-up via `CGEventPost`
+2. `AppCoordinator` (modified) — adds `mediaPlayback` property and three call sites: pause on `idle → recording`, resume on `recording → *`, resume on Escape cancel
+3. `SettingsWindowController` (modified) — adds "Pausar reproducción al grabar" NSButton checkbox as Section 6; persists to UserDefaults; no new dependency injection required
+4. `AppDelegate` (modified) — instantiates `MediaPlaybackService` and assigns it to `coordinator.mediaPlayback`
+5. `AppCoordinatorDependencies` (modified) — declares `MediaPlaybackServiceProtocol` for unit test mocking
+
+Build order: protocol first (Step 1), then service (Step 2) and coordinator call sites (Step 3) in parallel, then AppDelegate wiring (Step 4, depends on 2+3), then Settings UI (Step 5, independent), then unit tests (Step 6).
 
 ### Critical Pitfalls
 
-1. **Ctrl+Space hotkey conflict** — macOS claims Ctrl+Space for Input Source switching; silently broken for all bilingual Spanish/English users (the primary audience). Use a different default (e.g., Ctrl+Shift+Space). Add conflict detection in settings UI.
+1. **MediaRemote private framework broken on macOS 15.4+** — Do not use `dlopen`/`dlsym` against `MediaRemote.framework`. Apple added entitlement verification in `mediaremoted` with 15.4; third-party apps are silently denied. The failure is invisible — function calls succeed but return empty data. Use `CGEventPost` with `NX_KEYTYPE_PLAY` from the start, not as a fallback.
 
-2. **CGEventPost blocked in sandboxed apps** — Simulating Cmd+V for paste requires a non-sandboxed app. Mac App Store distribution is impossible with this architecture. Decide distribution model (Developer ID direct download) before writing any paste code.
+2. **Audio engine start / pause race (music bleeds into recording)** — Spotify's pause has a 100-200ms fade. If `AVAudioEngine.start()` fires immediately after the pause command, fading music audio enters the recording buffer and degrades first-word accuracy. Always send pause before engine start and add a 150-200ms `Task.sleep` before calling `AVAudioEngine.start()`.
 
-3. **Accessibility permission lost on every Xcode rebuild** — TCC ties permission to code signature. Sign with a consistent Developer ID certificate from day one. Add `AXIsProcessTrusted()` check on every app launch (not just first launch).
+3. **Double-toggle: resuming media the user had intentionally paused** — The toggle-based approach (pause on start, resume on stop) is wrong when the user had already paused media before recording. Track `pausedByApp: Bool`; only send resume if the flag is `true`. For v1.1, accept that reliable "is something currently playing?" detection is not possible on macOS 15.4+; the flag prevents double-resume even if it cannot prevent false-pause.
 
-4. **Whisper hallucination on silence/short recordings** — Whisper generates "Subtitles by..." or looping text when given silence or sub-1-second audio. Implement Voice Activity Detection (VAD) gate before STT. Discard recordings with no detected speech.
+4. **Media key routed to wrong app** — macOS routes media keys to whichever app holds the Now Playing token — not necessarily the player the user expects (browsers compete aggressively for this token). Accept as a known limitation and document it next to the Settings toggle. Per-app targeting is v1.2+ scope.
 
-5. **LLM rewrites meaning instead of just cleaning** — Small LLMs interpret "clean up" liberally and alter meaning. Use maximally constrained system prompt, set temperature=0, add output length sanity check (>20% longer than input = fall back to raw STT).
-
-6. **WhisperKit CoreML cold start** — First CoreML compilation takes 4+ minutes on a fresh install. Run a silent warm-up transcription on app launch with a "Preparing model..." indicator. Keep model resident — never reload per recording.
-
-7. **AVAudioEngine sample rate mismatch** — Built-in mics default to 48kHz; Whisper requires 16kHz. Always query `inputNode.outputFormat(forBus: 0)` — never hardcode. Install AVAudioConverter in the tap path.
+5. **FSM state corruption on rapid double-tap** — Fast double-press sends pause then immediately resume before the media player processes the first event. The existing FSM guards `processing` state; extend with a minimum recording duration (500ms) and ensure resume fires only after pipeline completion, not immediately after engine stop.
 
 ## Implications for Roadmap
 
-Based on the combined research, the architecture's dependency chain maps directly to a build order. Each phase produces something testable before the next phase begins.
+This is a compact, two-phase milestone with a natural gate between implementation and integration testing.
 
-### Phase 1: Foundation (App Shell, Hotkey, Permissions, Paste)
-**Rationale:** All other phases depend on these system integration points. Architecture decisions made here (no sandbox, Developer ID signing, hotkey default) are expensive to change later. The CGEventPost paste mechanism, Accessibility permission infrastructure, and hotkey capture must all be validated before any ML work begins.
-**Delivers:** A working menubar app that captures a hotkey from any app, shows state in the menubar, and pastes clipboard content at the cursor. No audio or ML yet.
-**Addresses features:** Global hotkey, menubar status icon, auto-paste foundation, configurable hotkey, permission prompts
-**Avoids pitfalls:** Ctrl+Space conflict (choose correct default), CGEventPost sandbox decision (non-sandboxed from day one), Accessibility permission on every launch, clipboard race condition (implement 100-200ms paste delay), code signing stability
+### Phase 1: Core Implementation
 
-### Phase 2: Audio Capture Pipeline
-**Rationale:** Audio capture with correct format conversion is a prerequisite for STT. The sample rate mismatch pitfall must be caught here via unit tests before Whisper integration — discovering it after STT is wired in makes diagnosis harder. VAD should be implemented here as a first-class component, not retrofitted later.
-**Delivers:** Hotkey press starts recording; press again stops; returns a validated 16kHz Float32 buffer. Waveform animation visible during recording. VAD gate implemented.
-**Uses:** AVFoundation, AVAudioConverter, silero-vad or WebRTC VAD
-**Implements:** AudioRecorder actor, AudioBuffer, waveform UI component
-**Avoids pitfalls:** Sample rate mismatch (query hardware format, assert conversion output), Whisper hallucination on silence (VAD gate before STT), audio device switching gaps
+**Rationale:** All logic is internal to the app. Dependencies are deterministic and fully specified in ARCHITECTURE.md. No external unknowns block implementation. The Settings UI is the only unit that can be built independently of the service wiring.
 
-### Phase 3: STT Integration
-**Rationale:** WhisperKit integration is the highest-complexity ML step. Isolation in its own phase allows accurate latency measurement before LLM is added. CoreML first-load warmup must be implemented here — users will test immediately after adding this phase.
-**Delivers:** Full audio-to-text pipeline. Hotkey → speak → stop → raw Spanish text. Transcription latency measured and within budget (<3s for typical recording on target hardware).
-**Uses:** WhisperKit 0.15+, Whisper large-v3-turbo model
-**Implements:** STTEngine actor, model warm-up on startup, "Preparing model..." loading state
-**Avoids pitfalls:** CoreML cold start (warm-up at launch), hallucination on silence (VAD gate already in place from Phase 2), models loaded once and kept warm
+**Delivers:** Working pause/resume cycle wired into the recording FSM; Settings toggle that persists across restarts; all pitfall mitigations built in from day one (flag guard, pause-before-engine-start delay, minimum duration guard).
 
-### Phase 4: LLM Cleanup Integration
-**Rationale:** LLM cleanup is additive to the working STT pipeline. The LLM prompt must be benchmarked against a 20-sentence Spanish test set before wiring into the live pipeline — this is the phase where the "LLM rewrites meaning" pitfall is most likely to surface.
-**Delivers:** Raw transcript is cleaned: punctuation added, capitalization corrected, Spanish fillers ("o sea", "este", "bueno", "pues") removed. Output is recognizably what the user said.
-**Uses:** MLX Swift (MLXLLM), Qwen2.5-3B-Instruct-4bit, temperature=0
-**Implements:** LLMCleaner actor, Prompts.swift (Spanish cleanup system prompt), output length sanity check
-**Avoids pitfalls:** LLM meaning rewrite (constrained prompt + length check + benchmark before shipping), LLM cold start (keep-warm strategy at app launch)
+**Addresses:** Pause on recording start, resume on normal stop, resume on Escape cancel, `pausedByApp` flag, 150ms delay, Settings checkbox, UserDefaults persistence.
 
-### Phase 5: End-to-End Integration and Polish
-**Rationale:** With all pipeline components working in isolation, integration focus shifts to robustness, recovery flows, and perceived quality. This phase delivers the minimum shippable product.
-**Delivers:** Complete E2E flow: hotkey → record → transcribe → clean → paste at cursor. Error recovery for each failure mode. Cancel recording (Escape). Permission health check UI. Startup optimization.
-**Addresses features:** Cancel recording, granular processing state display, permission status screen, error states
-**Avoids pitfalls:** macOS permission resets (health check on every launch), no-speech silent failure (VAD-driven "No speech detected" notification), paste in wrong app (post-paste toast for Cmd+Z recovery)
+**Avoids:** MediaRemote (never introduced), audio bleed (delay built in), double-resume (flag built in from the start, not retrofitted), FSM corruption (minimum-duration guard extended in this phase).
 
-### Phase 6: Settings, Quality, and Distribution
-**Rationale:** User-facing settings, quality tuning, and distribution readiness complete the v1 scope. Notarization is required for any user to run the app — this is not optional for distribution.
-**Delivers:** Configurable hotkey, microphone selection, model selection UI. Notarized and distributable .app bundle. Startup latency optimized (dummy warmup inference, cached CoreML shaders).
-**Addresses features:** Configurable hotkey, microphone selection
-**Avoids pitfalls:** Notarization required for distribution (Gatekeeper blocks unnotarized apps on macOS 15+), thermal throttling on MacBook Air (Metal GPU path, not CPU-only)
+Build sequence:
+1. `AppCoordinatorDependencies.swift` — add `MediaPlaybackServiceProtocol`
+2. `MediaPlaybackService.swift` (new file) — service conforming to protocol
+3. `AppCoordinator.swift` — add property + 3 call sites
+4. `AppDelegate.swift` — instantiate and wire service (depends on 2 and 3)
+5. `SettingsWindowController.swift` — add checkbox (independent of 2-4)
+6. Unit tests — mock protocol; verify pause/resume call sites and toggle-off guard
+
+### Phase 2: Integration Testing and Verification
+
+**Rationale:** The media key routing behavior depends on macOS system state (which app holds Now Playing focus). Functional correctness cannot be verified by unit tests alone. A dedicated test pass against a compatibility matrix is required before shipping.
+
+**Delivers:** Verified behavior across the four key player scenarios; documented limitations in Settings UI; confidence the feature ships without regressions; the 12-item "Looks Done But Isn't" checklist from PITFALLS.md fully passed.
+
+**Test matrix:** Spotify native app, Apple Music, YouTube/Safari, YouTube/Chrome, nothing playing, user-manually-paused Spotify before recording, Settings toggle OFF, rapid double-tap hotkey, recording cancelled via Escape, recording ending normally, app restart (Settings persistence).
 
 ### Phase Ordering Rationale
 
-- **System integration before ML:** CGEventPost, CGEventTap, and Accessibility permissions have hard architecture constraints (no sandbox) that affect every subsequent phase. These decisions cannot be reversed cheaply.
-- **Audio before STT:** WhisperKit requires exactly 16kHz mono Float32. The AVAudioConverter layer must be proven correct before Whisper sees any data — sample rate errors produce garbage transcription with no obvious error signal.
-- **STT before LLM:** LLM cleanup is meaningless without accurate STT input. Measuring pure STT latency in isolation informs whether the LLM cleanup budget (typically 0.5-1s warm) is achievable.
-- **Both models kept warm from Phase 3+:** Once WhisperKit loads in Phase 3, it must stay resident. Adding LLM in Phase 4 extends the startup sequence; never regress to per-recording model loading.
-- **Polish last:** Settings UI, error recovery, and distribution readiness have no upstream blockers and can be done in any order within Phase 5-6.
+- Phase 1 must precede Phase 2 — nothing to test until implementation exists.
+- The Settings UI (Step 5 in Phase 1) can be built in parallel with Steps 2-4 but must be complete before Phase 2 (the toggle-off test path requires it).
+- Unit tests (Step 6) are the Phase 1 → Phase 2 gate: if coordinator call-site tests pass, the remaining risk is external system behavior, which is what Phase 2 covers.
 
 ### Research Flags
 
-Phases likely needing deeper research during planning:
-- **Phase 2 (Audio Capture):** VAD integration specifics — silero-vad vs WebRTC VAD on macOS; Swift bindings availability needs validation before implementation
-- **Phase 4 (LLM Cleanup):** Spanish-specific system prompt engineering — no single authoritative source; requires empirical benchmarking with test sentences before finalizing
-- **Phase 6 (Distribution):** Developer ID notarization workflow for a non-sandboxed app with Accessibility entitlements — the specific entitlement combination may require validation with Apple's notarization toolchain
+Phases with standard patterns — no additional research needed before implementation:
+- **Phase 1:** Implementation is fully specified. Exact Swift code is provided in STACK.md and ARCHITECTURE.md. The HID media key pattern is 15+ years documented. Existing codebase is already read. Build directly from the spec.
+- **Phase 2:** Test matrix is fully defined in PITFALLS.md checklist. Execute the checklist; no upfront research required.
 
-Phases with standard patterns (skip research-phase):
-- **Phase 1 (Foundation):** CGEventTap, NSStatusItem, NSPasteboard patterns are extremely well-documented; reference implementations (AudioWhisper) available
-- **Phase 3 (STT):** WhisperKit integration is well-documented with official examples and a production reference in MacWhisper
-- **Phase 5 (Integration):** Error handling and permission UI patterns are standard macOS development
+No phases in this milestone require a `/gsd:research-phase` call. The research files contain sufficient detail to implement directly.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Core choices (WhisperKit, MLX Swift, HotKey) verified via production reference implementations (AudioWhisper, MacWhisper). Benchmarks from peer-reviewed sources. Spanish support verified via Qwen2.5 multilingual training data. |
-| Features | HIGH | Based on official docs and feature pages of 4 direct competitors (SuperWhisper, Sotto, WhisperFlow, Wispr Flow). MVP definition grounded in competitive analysis. |
-| Architecture | HIGH | FSM + actor isolation pattern verified via WWDC sessions, Apple Developer docs, and open-source reference implementations. Data flow confirmed against WhisperKit and AVFoundation documentation. |
-| Pitfalls | HIGH | Most pitfalls verified via official Apple Developer Forums threads, upstream GitHub issues with linked evidence, and SuperWhisper's own documentation on hallucinations. |
+| Stack | HIGH | HID media key pattern in continuous production use since macOS 10.6; independently confirmed by BackgroundMusic (open source), BeardedSpice (open source), and SuperWhisper (production app); existing codebase confirms `CGEventPost` already works without new entitlements |
+| Features | HIGH | SuperWhisper changelog confirms this exact feature at specific version dates; competitor analysis comprehensive; v1.1 scope is tightly bounded with no ambiguous requirements |
+| Architecture | HIGH | Existing codebase read directly; component boundaries are explicit; full implementation code drafted in ARCHITECTURE.md; no architectural unknowns remain |
+| Pitfalls | HIGH (implementation pitfalls), MEDIUM (browser compat specifics) | MediaRemote breakage verified via multiple developer reports and community tracking; CGEvent approach confirmed by production codebase; browser-specific behavior varies by macOS and browser version — needs empirical validation in Phase 2 |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Spanish LLM prompt quality:** The exact system prompt for Spanish filler word removal and punctuation is not documented anywhere — it must be empirically developed and benchmarked against a test corpus before shipping. Plan for 1-2 prompt iteration cycles in Phase 4.
-- **Qwen2.5 vs Qwen3 for cleanup:** ARCHITECTURE.md references Qwen3-4B as an alternative in the scaling table while STACK.md recommends Qwen2.5-3B. Both are supported by mlx-lm. The 3B vs 4B choice for M1 8GB machines should be validated against actual memory pressure during Phase 4.
-- **VAD library selection:** No clear winner identified for Swift-native or easily-bridged VAD on macOS. silero-vad requires Python or ONNX runtime; WebRTC VAD has a C library that requires bridging. This should be a day-one decision in Phase 2 to avoid rework.
-- **Parakeet as STT fallback:** If WhisperKit Spanish accuracy is unsatisfactory in Phase 3, the fallback (parakeet-mlx via Python subprocess) adds architectural complexity. This risk cannot be eliminated until Phase 3 testing with real Spanish speech samples.
+- **False-pause when nothing is playing** — Sending a play/pause event when nothing is active may silently no-op, or on some configurations launch Music.app. No clean public API exists to pre-check playback state on macOS 15.4+. Validate empirically during Phase 2 integration testing. If Music.app launches, add a guard (AppleScript `tell application "Music" to player state` is the most reliable available check for the Music-app-launch case specifically).
+
+- **Browser media resume reliability** — YouTube/Chrome resume via media key is documented as potentially unreliable in PITFALLS.md (Chrome's Web Media Session implementation sometimes requires tab focus for resume). Confirm during Phase 2. If confirmed unreliable, add a Settings UI caveat: "Works best with native media apps. Browser-based players may require manual resume."
+
+- **Bluetooth SCO profile switching** — A separate macOS/hardware behavior: mic activation forces Bluetooth headphones to SCO profile, degrading audio quality. Not fixable in app code. Document in the Settings tooltip next to the Pause Playback toggle during Phase 1 implementation.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [WhisperKit GitHub (argmaxinc)](https://github.com/argmaxinc/WhisperKit) — Version 0.15+, CoreML/ANE, macOS 14+ requirement
-- [AudioWhisper GitHub (mazdak)](https://github.com/mazdak/AudioWhisper) — Production reference: Swift + WhisperKit + HotKey + CGEvent paste
-- [mlx-lm GitHub (ml-explore)](https://github.com/ml-explore/mlx-lm) — v0.31.0, throughput benchmarks
-- [MLX Swift / mlx-swift-examples](https://github.com/ml-explore/mlx-swift-examples) — MLXLLM Swift API
-- [Production-Grade Local LLM Inference on Apple Silicon (arXiv:2511.05502)](https://arxiv.org/abs/2511.05502) — Throughput comparisons
-- [mac-whisper-speedtest benchmark (anvanvan)](https://github.com/anvanvan/mac-whisper-speedtest) — M4 hardware benchmarks
-- [SuperWhisper official docs](https://superwhisper.com/docs/) — UI states, hotkey behavior, hallucination documentation
-- [CGEventPost sandboxing (Apple Developer Forums thread 103992)](https://developer.apple.com/forums/thread/103992) — Confirmed blocked in sandbox
-- [Whisper hallucination on silence (openai/whisper Discussion #1606)](https://github.com/openai/whisper/discussions/1606) — Confirmed behavior pattern
-- [Ctrl+Space input source conflict (Apple Community)](https://discussions.apple.com/thread/8507324) — Confirmed system shortcut conflict
-- [Accessibility Permission in macOS 2025 (jano.dev)](https://jano.dev/apple/macos/swift/2025/01/08/Accessibility-Permission.html) — TCC behavior on rebuild
+- Existing codebase (`TextInjector.swift`, `AppCoordinator.swift`, `AppDelegate.swift`) — read directly; confirms `CGEventPost` usage, FSM structure, component boundaries
+- [Rogue Amoeba: Apple Keyboard Media Key Event Handling (2007)](https://weblog.rogueamoeba.com/2007/09/29/apple-keyboard-media-key-event-handling/) — NSEvent systemDefined subtype 8 pattern; technique confirmed in continuous production use
+- [Apple Developer Docs: MPRemoteCommandCenter](https://developer.apple.com/documentation/mediaplayer/mpremotecommandcenter) — confirmed incoming command handler for own app only, not an outgoing sender
+- [BackgroundMusic source (kyleneideck)](https://github.com/kyleneideck/BackgroundMusic) — open source; confirms media key posting as system-wide approach; AppleScript as per-app fallback
+- [SuperWhisper changelog](https://superwhisper.com/changelog) — Pause media added v1.44.0 (Jan 2025), refined v2.2.4 (Aug 2025), default in v2.7.0 (Nov 2025)
+- [CGEvent Taps and Code Signing: The Silent Disable Race — Daniel Raffel (2026-02-19)](https://danielraffel.me/til/2026/02/19/cgevent-taps-and-code-signing-the-silent-disable-race/) — CGEvent tap silent disable after re-signing
 
 ### Secondary (MEDIUM confidence)
-- [NVIDIA Parakeet-TDT-0.6b-v3 HuggingFace](https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v3) — MLX port, community-maintained
-- [Tauri global shortcut macOS bug #11085](https://github.com/tauri-apps/tauri/issues/11085) — Active permission issue (may be resolved)
-- [Sotto official website](https://sotto.to/) — Feature comparison
-- [WhisperFlow official website](https://www.whisperflow.de/) — Feature comparison
-- [Wispr Flow official website](https://wisprflow.ai/) — Feature comparison, RAM usage
+- [MediaRemote breakage on macOS 15.4 — feedback-assistant/reports #637](https://github.com/feedback-assistant/reports/issues/637) — community-tracked breakage with multiple independent confirmations
+- [ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) — Perl adapter workaround; confirms scope of entitlement restriction and why it is not a viable path
+- [Apple Developer Forums: Play/Pause Now Playing with MediaRemote (thread/688433)](https://developer.apple.com/forums/thread/688433) — developer discussion confirming MediaRemote restrictions
+- [Qiita: macOS media key emulation in Swift](https://qiita.com/nak435/items/53d952147c3986afd7fc) — Swift implementation cross-reference
+- [AutoPause HN thread](https://news.ycombinator.com/item?id=44823938) — Bluetooth SCO side effect; browser media key behavior notes
 
-### Tertiary (LOW confidence — validate during implementation)
-- Spanish LLM system prompt quality — no documented benchmark exists; empirical testing required
-- VAD library Swift compatibility — needs hands-on investigation before Phase 2 starts
+### Tertiary (for reference)
+- [SuperWhisper on X re: pause music (2025)](https://x.com/superwhisperapp/status/1963687889193095282) — confirmed behavior in production
+- [mpv-player/mpv Issue #4834](https://github.com/mpv-player/mpv/issues/4834) — Now Playing token contention between media apps
 
 ---
-*Research completed: 2026-03-15*
+*Research completed: 2026-03-16*
 *Ready for roadmap: yes*

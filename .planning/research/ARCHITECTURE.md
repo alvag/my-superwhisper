@@ -1,416 +1,386 @@
 # Architecture Research
 
-**Domain:** Local voice-to-text macOS menubar app (Apple Silicon)
-**Researched:** 2026-03-15
-**Confidence:** HIGH (core pipeline patterns), MEDIUM (LLM integration specifics), HIGH (macOS system integration)
+**Domain:** Pause Playback integration into existing macOS menubar voice-to-text app
+**Researched:** 2026-03-16
+**Confidence:** HIGH (existing codebase read directly; media key approach cross-verified with multiple sources)
+
+---
 
 ## Standard Architecture
 
-### System Overview
+### System Overview — v1.1 with Pause Playback
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    macOS System Layer                            │
-│  ┌─────────────┐  ┌──────────────────┐  ┌───────────────────┐  │
-│  │ CGEventTap  │  │  NSStatusItem    │  │  NSPasteboard +   │  │
-│  │ (hotkey)    │  │  (menubar icon)  │  │  CGEvent (paste)  │  │
-│  └──────┬──────┘  └────────┬─────────┘  └─────────┬─────────┘  │
-└─────────┼──────────────────┼───────────────────────┼────────────┘
-          │ hotkey events    │ state updates          │ inject text
-┌─────────▼──────────────────▼───────────────────────▼────────────┐
-│                   App Coordinator (@MainActor)                   │
-│            (orchestrates pipeline, owns app state)               │
+│                        AppDelegate (wiring)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌───────────────┐  ┌────────────────┐  ┌────────────────────┐  │
+│  │ HotkeyMonitor │  │  EscapeMonitor │  │ MenubarController  │  │
+│  └──────┬────────┘  └───────┬────────┘  └─────────┬──────────┘  │
+│         │                  │                      │              │
+├─────────▼──────────────────▼──────────────────────▼─────────────┤
+│                      AppCoordinator (FSM)                        │
+│              idle ↔ recording ↔ processing ↔ error               │
+│                                                                  │
+│   ON ENTER recording:  → MediaPlaybackService.pause()  [NEW]    │
+│   ON EXIT  recording:  → MediaPlaybackService.resume() [NEW]    │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐ ┌────────────┐ ┌───────────────────────────┐  │
+│  │ AudioRecorder│ │ STTEngine  │ │  HaikuCleanupService      │  │
+│  └──────────────┘ └────────────┘ └───────────────────────────┘  │
+│  ┌──────────────┐ ┌────────────┐ ┌──────────────┐               │
+│  │ TextInjector │ │VocabService│ │HistoryService│               │
+│  └──────────────┘ └────────────┘ └──────────────┘               │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │   MediaPlaybackService  [NEW]                            │    │
+│  │   Wraps: CGEventPost — NX_KEYTYPE_PLAY media key sim     │    │
+│  │   Setting: UserDefaults "pausePlaybackEnabled"           │    │
+│  └──────────────────────────────────────────────────────────┘    │
+├─────────────────────────────────────────────────────────────────┤
 │  ┌────────────────────────────────────────────────────────────┐  │
-│  │  AppState: idle | recording | transcribing | cleaning      │  │
-│  │            | pasting | error                               │  │
+│  │  SettingsWindowController  [MODIFIED — add toggle row]    │  │
 │  └────────────────────────────────────────────────────────────┘  │
-└──────────┬───────────────────┬────────────────────┬─────────────┘
-           │ start/stop        │ pcm buffer          │ raw transcript
-┌──────────▼──────┐  ┌────────▼──────────┐  ┌──────▼──────────────┐
-│  AudioRecorder  │  │  STT Engine       │  │  LLM Cleaner        │
-│  (actor)        │  │  (actor)          │  │  (actor)            │
-│                 │  │                   │  │                     │
-│ AVAudioEngine   │  │ WhisperKit        │  │ MLX Swift / Ollama  │
-│ installTap      │  │ (CoreML/ANE)      │  │ (quantized 3B-7B)   │
-│ AVAudioConverter│  │ large-v3-turbo    │  │ keep-warm strategy  │
-│ 44kHz→16kHz    │  │ pre-loaded        │  │ system prompt       │
-│ Float32         │  │ on @MainActor     │  │ for Spanish cleanup │
-└─────────────────┘  └───────────────────┘  └─────────────────────┘
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Component Responsibilities
 
-| Component | Responsibility | Typical Implementation |
-|-----------|----------------|------------------------|
-| AppCoordinator | Owns FSM state, orchestrates pipeline stages, handles errors | `@MainActor` class with `@Observable` state |
-| HotkeyMonitor | Global event tap for Ctrl+Space, reports press events to Coordinator | `CGEventTap` + `CGEventMask`, requires Accessibility permission |
-| MenubarController | Status item icon, popover/menu with state icon, settings access | `NSStatusItem` + `NSHostingView` (SwiftUI) |
-| AudioRecorder | Microphone capture, format conversion, buffer accumulation | `AVAudioEngine` + `AVAudioConverter`, actor-isolated |
-| STTEngine | Model loading, audio→text transcription, CoreML execution | `WhisperKit` Swift package, pre-loaded at startup |
-| LLMCleaner | Prompt construction, LLM inference, response extraction | MLX Swift (`MLXLLM`) or Ollama REST API, keep-warm |
-| TextInjector | Save clipboard, write text, simulate Cmd+V, restore clipboard | `NSPasteboard` + `CGEvent` keyboard simulation |
+| Component | Responsibility | Status |
+|-----------|----------------|--------|
+| `AppCoordinator` | FSM transitions; calls `MediaPlaybackService` at `idle→recording` and `recording→*` | Modified |
+| `MediaPlaybackService` | Sends system-wide play/pause media key event via `CGEventPost`; reads enabled setting | New |
+| `SettingsWindowController` | Renders Pause Playback toggle (`NSButton` checkbox); persists to `UserDefaults` | Modified |
+| `AppDelegate` | Instantiates `MediaPlaybackService`; injects into `AppCoordinator` | Modified |
+| `AppCoordinatorDependencies` | Declares `MediaPlaybackServiceProtocol` for testability | Modified |
 
-## Recommended Project Structure
+---
 
-```
-MyWhisper/
-├── App/
-│   ├── MyWhisperApp.swift          # @main, NSApplicationDelegate, no dock icon
-│   └── AppDelegate.swift           # Setup lifecycle: launch agents, request permissions
-│
-├── Coordinator/
-│   ├── AppCoordinator.swift        # @MainActor FSM, pipeline orchestration
-│   └── AppState.swift              # enum: idle | recording | transcribing | cleaning | pasting | error
-│
-├── Audio/
-│   ├── AudioRecorder.swift         # actor: AVAudioEngine capture + format conversion
-│   └── AudioBuffer.swift           # Accumulates Float32 PCM chunks until stop
-│
-├── STT/
-│   ├── STTEngine.swift             # actor: WhisperKit wrapper, model lifecycle
-│   └── STTConfig.swift             # Model name, language tag, decode options
-│
-├── LLM/
-│   ├── LLMCleaner.swift            # actor: MLX or Ollama inference
-│   ├── LLMConfig.swift             # Model name, system prompt, temperature
-│   └── Prompts.swift               # System prompt templates for Spanish cleanup
-│
-├── System/
-│   ├── HotkeyMonitor.swift         # CGEventTap global hotkey listener
-│   ├── TextInjector.swift          # NSPasteboard save/restore + CGEvent paste
-│   └── PermissionsManager.swift    # Accessibility + microphone permission checks
-│
-├── UI/
-│   ├── MenubarController.swift     # NSStatusItem setup and icon state
-│   ├── StatusView.swift            # SwiftUI popover: state indicator, last transcript
-│   └── SettingsView.swift          # Hotkey config, model selection
-│
-└── Persistence/
-    └── UserSettings.swift          # @AppStorage: hotkey, model, preferences
-```
+## New vs Modified Components
 
-### Structure Rationale
+### New: `MediaPlaybackService`
 
-- **Coordinator/:** Single point of orchestration prevents spaghetti calls between Audio/STT/LLM layers. The FSM guards against impossible state transitions (e.g., starting a new recording while still cleaning).
-- **Audio/:** Isolated from STT so the recording module can be tested without model dependencies. The buffer accumulates until stop, enabling batch transcription (not streaming).
-- **STT/ and LLM/:** Separate actors prevent memory contention. STT and LLM models both consume significant unified memory; keep them in distinct ownership domains.
-- **System/:** All macOS API surface area in one place. Accessibility, clipboard, and keyboard simulation are the highest-risk integration points; isolating them simplifies debugging.
-- **UI/:** SwiftUI for views, minimal logic. State display only — no business logic here.
+Single-responsibility service. All media-key logic lives here so `AppCoordinator` stays clean.
 
-## Architectural Patterns
+File location: `MyWhisper/System/MediaPlaybackService.swift`
 
-### Pattern 1: Finite State Machine for Pipeline Control
+Responsibilities:
+- Read `UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")` at call time (defaults `true`)
+- Send `NX_KEYTYPE_PLAY` key-down + key-up via `CGEventPost(.cghidEventTap)` when `pause()` is called
+- Send the same event when `resume()` is called (play/pause is a hardware toggle — same keycode for both directions)
+- Guard: if `!isEnabled`, return immediately without posting any events
 
-**What:** An explicit enum-based FSM in AppCoordinator guards all state transitions. The coordinator is the only entity that transitions state; all other actors report results and wait.
-**When to use:** Any time multiple async operations must run in strict sequence and partial failures need clean recovery.
-**Trade-offs:** Slightly more boilerplate than ad-hoc flags; massively easier to debug and extend.
+Protocol (for testability in unit tests):
 
-**Example:**
 ```swift
-@MainActor
-@Observable
-final class AppCoordinator {
-    var state: AppState = .idle
+protocol MediaPlaybackServiceProtocol: AnyObject {
+    func pause()
+    func resume()
+    var isEnabled: Bool { get }
+}
+```
 
-    func handleHotkey() async {
-        switch state {
-        case .idle:
-            state = .recording
-            await audioRecorder.start()
-        case .recording:
-            state = .transcribing
-            let pcm = await audioRecorder.stop()
-            let raw = try await sttEngine.transcribe(pcm)
-            state = .cleaning
-            let clean = try await llmCleaner.clean(raw)
-            state = .pasting
-            await textInjector.inject(clean)
-            state = .idle
-        default:
-            break // ignore hotkey during processing
-        }
+Implementation sketch:
+
+```swift
+final class MediaPlaybackService: MediaPlaybackServiceProtocol {
+    var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")
+    }
+
+    func pause()  { sendMediaKey() }
+    func resume() { sendMediaKey() }
+
+    private func sendMediaKey() {
+        guard isEnabled else { return }
+        let key = Int(NX_KEYTYPE_PLAY)
+        postMediaKey(key, down: true)
+        postMediaKey(key, down: false)
+    }
+
+    private func postMediaKey(_ key: Int, down: Bool) {
+        let flags = NSEvent.ModifierFlags(rawValue: down ? 0xA00 : 0xB00)
+        let event = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: flags,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: (key << 16) | ((down ? 0xA : 0xB) << 8),
+            data2: -1
+        )
+        event?.cgEvent?.post(tap: .cghidEventTap)
     }
 }
 ```
 
-### Pattern 2: Actor Isolation per Processing Stage
+### Modified: `AppCoordinatorDependencies.swift`
 
-**What:** Each pipeline stage (AudioRecorder, STTEngine, LLMCleaner) is a Swift `actor`. Actors serialize access automatically, preventing data races on shared model state.
-**When to use:** Any stage that owns mutable non-thread-safe resources (model weights, audio engine, LLM context).
-**Trade-offs:** Requires `await` at every actor boundary; adds async context requirements. Worth it — CoreML and AVAudioEngine are not thread-safe.
+Add `MediaPlaybackServiceProtocol` declaration alongside the existing protocols (`AudioRecorderProtocol`, `TextInjectorProtocol`, etc.). No other change.
 
-**Example:**
+### Modified: `AppCoordinator.swift`
+
+Add one stored property:
+
 ```swift
-actor STTEngine {
-    private var whisperKit: WhisperKit?
+var mediaPlayback: (any MediaPlaybackServiceProtocol)?
+```
 
-    func load() async throws {
-        whisperKit = try await WhisperKit(model: "large-v3-turbo")
-    }
+Add three call sites within `handleHotkey()` and `handleEscape()`:
 
-    func transcribe(_ buffer: [Float]) async throws -> String {
-        guard let kit = whisperKit else { throw STTError.notLoaded }
-        let result = try await kit.transcribe(audioArray: buffer)
-        return result.text
-    }
+| Location | Call | Reason |
+|----------|------|--------|
+| `.idle` branch — before `audioRecorder?.start()` | `mediaPlayback?.pause()` | Pause before mic opens |
+| `.recording` branch — after `escapeMonitor?.stopMonitoring()` | `mediaPlayback?.resume()` | Resume after normal stop |
+| `handleEscape()` — after `audioRecorder?.cancel()` | `mediaPlayback?.resume()` | Resume after cancelled recording |
+
+No other changes to coordinator logic.
+
+### Modified: `AppDelegate.swift`
+
+Add one stored property:
+
+```swift
+private var mediaPlaybackService: MediaPlaybackService?
+```
+
+In `applicationDidFinishLaunching`, after existing service instantiations:
+
+```swift
+let mediaPlaybackService = MediaPlaybackService()
+coordinator.mediaPlayback = mediaPlaybackService
+self.mediaPlaybackService = mediaPlaybackService
+```
+
+### Modified: `SettingsWindowController.swift`
+
+Add Section 6 below the existing "Launch at Login" checkbox. The toggle writes directly to `UserDefaults` — no reference to `MediaPlaybackService` needed:
+
+```swift
+let pauseCheckbox = NSButton(
+    checkboxWithTitle: "Pausar reproducción al grabar",
+    target: self,
+    action: #selector(pausePlaybackChanged(_:))
+)
+pauseCheckbox.state = UserDefaults.standard.bool(forKey: "pausePlaybackEnabled") ? .on : .off
+```
+
+```swift
+@objc private func pausePlaybackChanged(_ sender: NSButton) {
+    UserDefaults.standard.set(sender.state == .on, forKey: "pausePlaybackEnabled")
 }
 ```
 
-### Pattern 3: Keep-Warm Model Strategy
+The `SettingsWindowController` init signature does not change — no new dependency injection required.
 
-**What:** Both STT and LLM models are loaded at app launch and kept resident in unified memory. A menubar app staying in memory indefinitely makes this practical.
-**When to use:** Background apps with sub-5-second pipeline requirement. Cold-starting WhisperKit adds ~2-3 seconds; MLX LLM cold start adds ~10-31 seconds.
-**Trade-offs:** Uses ~2-6GB unified memory continuously. Acceptable for M1+ with 16GB+; add a user setting to unload models when idle for machines with 8GB.
-
-**Loading sequence at startup:**
-```
-1. App launches → AppDelegate
-2. STTEngine.load()     (~2-3 seconds, CoreML compilation first time)
-3. LLMCleaner.load()   (~5-10 seconds for 3B quantized MLX model)
-4. Menubar icon appears as "ready"
-5. CGEventTap registered → app ready for hotkey
-```
-
-### Pattern 4: Clipboard Save/Restore for Text Injection
-
-**What:** Save current clipboard contents before injection, write transcribed text, simulate Cmd+V, then restore original clipboard after a short delay.
-**When to use:** The standard pattern for voice-typing apps on macOS. Avoids requiring Accessibility API's `AXUIElement` text insertion (which doesn't work in all apps).
-**Trade-offs:** Briefly clobbers the user's clipboard (~300ms window). The Accessibility API insertion approach avoids this but fails in many apps (terminals, games, Electron apps). The save/restore approach has near-universal compatibility.
-
-**Example:**
-```swift
-final class TextInjector {
-    func inject(_ text: String) async {
-        let pasteboard = NSPasteboard.general
-        // Save
-        let saved = pasteboard.string(forType: .string)
-        // Write new text
-        pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
-        // Simulate Cmd+V
-        postKeyEvent(keyCode: 0x09, flags: .maskCommand, down: true)
-        postKeyEvent(keyCode: 0x09, flags: .maskCommand, down: false)
-        // Restore after paste completes
-        try? await Task.sleep(for: .milliseconds(100))
-        pasteboard.clearContents()
-        if let saved { pasteboard.setString(saved, forType: .string) }
-    }
-}
-```
+---
 
 ## Data Flow
 
-### Primary Pipeline: Hotkey to Pasted Text
+### Pause Flow (hotkey pressed while idle)
 
 ```
-User presses Ctrl+Space
+User presses Option+Space
     ↓
-CGEventTap fires → HotkeyMonitor.onHotkey()
+HotkeyMonitor fires → AppCoordinator.handleHotkey()  [state: .idle]
+    ↓  mic permission check passes, API-key check passes
+MediaPlaybackService.pause()
+    → reads UserDefaults["pausePlaybackEnabled"]
+    → if true: CGEventPost NX_KEYTYPE_PLAY (down + up)
+    → system media server routes event to Now Playing app → pauses
     ↓
-AppCoordinator.handleHotkey() [main actor]
-    ↓ (state: idle → recording)
-AudioRecorder.start() [actor]
+audioRecorder?.start()
+transitionTo(.recording)
+overlay shows, waveform begins
+```
+
+### Resume Flow — Normal Stop (hotkey pressed while recording)
+
+```
+User presses Option+Space  [state: .recording]
     ↓
-  AVAudioEngine.installTap(onBus: 0, format: 44.1kHz stereo)
-    → AVAudioConverter → Float32 PCM @ 16kHz mono
-    → Append to internal [Float] accumulation buffer
-
-User presses Ctrl+Space again
+escapeMonitor?.stopMonitoring()
+stopAudioLevelPolling()
+MediaPlaybackService.resume()
+    → reads UserDefaults["pausePlaybackEnabled"]
+    → if true: CGEventPost NX_KEYTYPE_PLAY (down + up)
+    → system media server routes event → resumes playback
     ↓
-AppCoordinator.handleHotkey() [main actor]
-    ↓ (state: recording → transcribing)
-AudioRecorder.stop() → returns [Float] (all accumulated audio)
+audioRecorder?.stop() → VAD check → transcription pipeline...
+```
+
+### Resume Flow — Escape Cancel
+
+```
+User presses Escape  [state: .recording]
     ↓
-STTEngine.transcribe([Float]) [actor]
-    → WhisperKit.transcribe(audioArray:)
-    → CoreML model on Neural Engine / GPU
-    → Returns raw String (e.g., "eh bueno pues eso es lo que quería decir")
-    ↓ (state: transcribing → cleaning)
-LLMCleaner.clean(rawText) [actor]
-    → Build system prompt + user message
-    → MLX Swift inference (quantized 3B model @ ~100 tok/s)
-    → Returns cleaned String (e.g., "Bueno, eso es lo que quería decir.")
-    ↓ (state: cleaning → pasting)
-TextInjector.inject(cleanText)
-    → NSPasteboard.setString(cleanText)
-    → CGEvent: keyDown(V, .maskCommand) + keyUp
-    → Wait 100ms
-    → NSPasteboard.setString(previousClipboard)
-    ↓ (state: pasting → idle)
-MenubarController updates icon to idle
+AppCoordinator.handleEscape()
+escapeMonitor?.stopMonitoring()
+stopAudioLevelPolling()
+overlayController?.hide()
+audioRecorder?.cancel()
+MediaPlaybackService.resume()
+    → CGEventPost NX_KEYTYPE_PLAY
+NSSound.beep()
+transitionTo(.idle)
 ```
 
-### Audio Format Conversion Detail
+### Settings Toggle Flow
 
 ```
-AVAudioEngine input node
-    44,100 Hz stereo Float32
-         ↓
-    AVAudioConverter
-         ↓
-    16,000 Hz mono Float32
-         ↓  (interleaved samples, normalized -1.0..1.0)
-    [Float] array buffer
-         ↓
-    WhisperKit.transcribe(audioArray: [Float])
+User opens Preferences → checks/unchecks "Pausar reproducción al grabar"
+    ↓
+SettingsWindowController.pausePlaybackChanged(_:)
+    ↓
+UserDefaults.standard.set(Bool, forKey: "pausePlaybackEnabled")
+
+MediaPlaybackService reads this key at each pause()/resume() call.
+Change takes effect on the next recording session. No restart needed.
 ```
 
-Note: Whisper requires exactly 16kHz mono Float32. AVAudioEngine always captures at the device's native format (typically 44.1kHz or 48kHz). The conversion step is mandatory — attempting to tap at 16kHz directly silently fails.
+---
 
-### State Management
+## Architectural Patterns
 
-```
-AppState (enum, @MainActor)
-    .idle        → icon: microphone (gray)
-    .recording   → icon: microphone (red, pulsing)
-    .transcribing → icon: waveform (yellow)
-    .cleaning    → icon: sparkles (yellow)
-    .pasting     → icon: checkmark (green, brief)
-    .error(msg)  → icon: exclamation (red)
+### Pattern 1: FSM Side-Effect Injection
 
-MenubarController observes AppCoordinator via @Observable
-    → Updates NSStatusItem.button.image on main thread
-    → No explicit Combine/NotificationCenter needed
-```
+**What:** `AppCoordinator` holds a protocol reference (`MediaPlaybackServiceProtocol`). It calls `pause()`/`resume()` as side effects at state transition boundaries. No media-control logic lives in the coordinator.
 
-### Key Data Flows
+**When to use:** Any external system action that must happen at a state boundary but has no bearing on state itself.
 
-1. **Hotkey event:** CGEventTap callback (background thread) → must dispatch to MainActor; don't call coordinator directly from callback.
-2. **Audio buffers:** AVAudioEngine tap fires on audio thread → copy buffer data synchronously, enqueue to actor mailbox, never block the audio thread.
-3. **LLM response extraction:** LLM may produce reasoning tokens (`<think>...</think>` for Qwen3); strip everything before the final assistant text before returning.
+**Trade-offs:** Keeps coordinator focused and testable. Adds one optional dependency. No meaningful downsides at this feature size.
 
-## Scaling Considerations
+### Pattern 2: CGEventPost Media Key (NX_KEYTYPE_PLAY)
 
-This is a single-user local desktop app; traditional scaling doesn't apply. The relevant "scaling" dimension is model size vs. latency vs. memory use:
+**What:** Post a synthetic `NSSystemDefined` event (type 14, subtype 8) with `NX_KEYTYPE_PLAY` (keyCode 16) to `.cghidEventTap`. This mimics the hardware Play/Pause key. One post pauses, the next post resumes — identical to the physical key.
 
-| Model Scale | STT Choice | LLM Choice | Pipeline Time | RAM Use |
-|-------------|-----------|------------|---------------|---------|
-| Minimal (8GB Mac) | whisper-base or whisper-small | Qwen3-1.7B 4-bit | ~1-2s | ~1.5GB |
-| Recommended (16GB) | whisper-large-v3-turbo | Qwen3-4B 4-bit or Mistral-7B 4-bit | ~2-4s | ~3-5GB |
-| High quality (32GB+) | whisper-large-v3 | Qwen3-8B 4-bit | ~3-5s | ~6-8GB |
+**When to use:** System-wide media control for any player (Spotify, Apple Music, YouTube in Safari, podcast apps, video players) without app-specific knowledge.
 
-### Scaling Priorities
+**Why this over alternatives:**
+- The app is already non-sandboxed (Developer ID distribution) — `CGEventPost` is already in use by `TextInjector` for paste simulation. No new permissions required.
+- Works with every app that responds to hardware media keys, which is essentially all media players.
+- If nothing is playing, the key press is silently ignored — no crash, no error.
+- macOS 15.4 entitlement restrictions apply to the private `MediaRemote.framework`. They do not affect `CGEventPost` media key simulation, which is an independent, lower-level mechanism.
 
-1. **First bottleneck:** LLM cold start. A 3B-7B MLX model takes 10-31 seconds to load. Solution: load at app launch, keep warm.
-2. **Second bottleneck:** STT first inference. CoreML compiles Metal shaders on first run, adding several seconds. Subsequent runs use cached shaders. Solution: run a silent dummy transcription at startup.
+**Confidence:** HIGH. The pattern is well-established and already in use in the same codebase for `TextInjector`.
 
-## Anti-Patterns
+### Pattern 3: UserDefaults Read at Call Time (No Subscription)
 
-### Anti-Pattern 1: Calling CoreML / WhisperKit from Main Thread
+**What:** `MediaPlaybackService` reads `UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")` at the moment `pause()` or `resume()` is called, rather than subscribing to changes.
 
-**What people do:** Call `whisperKit.transcribe()` directly from a button action or CGEventTap callback without async dispatch.
-**Why it's wrong:** CoreML inference blocks the thread for seconds. On the main thread this freezes the UI and the menubar icon. On the CGEventTap thread this can crash the system event queue.
-**Do this instead:** Wrap all model inference in Swift `actor` methods and always `await` them from an `async` context. Use `Task { await sttEngine.transcribe(...) }` to bridge from synchronous call sites.
+**When to use:** Boolean feature flags that change only from a Settings panel interaction.
 
-### Anti-Pattern 2: Streaming Audio Directly to Whisper
+**Trade-offs:** Zero coupling between `SettingsWindowController` and `MediaPlaybackService`. No Combine/observation boilerplate. Toggle takes effect on the next recording session — expected UX for a settings panel.
 
-**What people do:** Pipe the raw AVAudioEngine tap buffer directly to Whisper in real time (streaming mode).
-**Why it's wrong:** Whisper's encoder processes fixed-length 30-second Mel spectrogram windows. Streaming short chunks causes severe accuracy degradation, especially for Spanish where sentence context matters for punctuation. The project spec explicitly says batch-after-stop.
-**Do this instead:** Accumulate all Float32 PCM samples into a buffer during recording. Pass the complete buffer to WhisperKit after stop. This is the "batch transcription" mode and produces significantly better results.
-
-### Anti-Pattern 3: Reloading Models Per Recording
-
-**What people do:** Initialize WhisperKit and the LLM client fresh for each recording to keep memory low.
-**Why it's wrong:** WhisperKit load time is 2-3 seconds (plus ~30s first-ever CoreML compilation). MLX LLM load time is 10-31 seconds. The user's 3-5 second pipeline budget is consumed before any audio is processed.
-**Do this instead:** Load both models once at app launch. Keep them in memory for the lifetime of the app. Expose a "unload models" setting for low-memory machines.
-
-### Anti-Pattern 4: Blocking the CGEventTap Callback
-
-**What people do:** Perform synchronous work (file I/O, UI updates, model calls) inside the CGEventTap callback.
-**Why it's wrong:** The CGEventTap callback runs on a dedicated Carbon event thread. Blocking it delays system-wide keyboard event delivery. macOS will disable the tap if it blocks for too long.
-**Do this instead:** The callback should only post a `Task` or signal a continuation. All real work happens on the MainActor or in actor methods:
-
-```swift
-// In the CGEventTap callback (C-style closure):
-let coordinator = Unmanaged<AppCoordinator>.fromOpaque(refcon!).takeUnretainedValue()
-Task { @MainActor in
-    await coordinator.handleHotkey()
-}
-return Unmanaged.passUnretained(event!)
-```
-
-### Anti-Pattern 5: Using NSEvent.addGlobalMonitorForEvents Instead of CGEventTap
-
-**What people do:** Use the simpler `NSEvent.addGlobalMonitorForEvents(matching:handler:)` for hotkeys.
-**Why it's wrong:** `NSEvent` global monitors cannot intercept or consume the event — they only observe it. This means the hotkey also triggers in the focused app (pressing Ctrl+Space could trigger autocompletion or other shortcuts in IDEs/editors). CGEventTap can consume the event, preventing it from reaching the focused app.
-**Do this instead:** Use `CGEventTap` with `CGEventTapLocation.cgSessionEventTap` and return `nil` from the callback to consume (suppress) the hotkey event.
+---
 
 ## Integration Points
-
-### External (System) Services
-
-| Service | Integration Pattern | Notes |
-|---------|---------------------|-------|
-| AVAudioEngine | Direct framework import, tap on input node | Requires NSMicrophoneUsageDescription in Info.plist |
-| CGEventTap | C API bridged to Swift, requires Accessibility permission | Must call `AXIsProcessTrusted()` at launch and prompt user |
-| NSPasteboard | AppKit, direct API | No special permission; but be good citizen and restore contents |
-| CGEvent (keyboard) | C API, post synthetic events | Same Accessibility permission as CGEventTap |
-| WhisperKit | Swift Package Manager, `argmaxinc/WhisperKit` | Models download from HuggingFace on first use, cached in App Support |
-| MLX Swift | Swift Package Manager, `ml-explore/mlx-swift` + `mlx-swift-examples` (MLXLLM) | Python not required; pure Swift + Metal |
 
 ### Internal Boundaries
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| HotkeyMonitor ↔ AppCoordinator | `Task { @MainActor in ... }` dispatch | Never call coordinator synchronously from C callback |
-| AudioRecorder ↔ AppCoordinator | `async/await` actor call, returns `[Float]` | Coordinator calls `stop()` which drains and returns buffer |
-| STTEngine ↔ AppCoordinator | `async throws` actor method | Throws `STTError` on failure; coordinator catches and sets `.error` state |
-| LLMCleaner ↔ AppCoordinator | `async throws` actor method | Returns cleaned `String`; on timeout falls back to raw transcript |
-| TextInjector ↔ AppCoordinator | `async` method (not actor, no shared state) | Coordinator `await`s injection completion before returning to idle |
-| MenubarController ↔ AppCoordinator | `@Observable` observation, main thread | SwiftUI/AppKit reads `coordinator.state` reactively, no explicit binding |
+| `AppCoordinator` → `MediaPlaybackService` | Protocol method call at state transitions | Injected by `AppDelegate` at startup |
+| `SettingsWindowController` → `MediaPlaybackService` | None — decoupled via `UserDefaults` | No new init parameter needed |
+| `MediaPlaybackService` → macOS media system | `CGEventPost(.cghidEventTap)` with `NSSystemDefined` event | Same entitlement scope as `TextInjector` |
 
-## Suggested Build Order
+### System-Level Boundary
 
-Dependencies flow upward — each layer must exist before the one above it:
+The `NX_KEYTYPE_PLAY` event posted to `.cghidEventTap` is routed by the macOS media server to whichever app currently holds the Now Playing session. The app does not need to know what is playing or which app is playing it. This is the same routing that happens when the user presses the physical Play/Pause key on an Apple keyboard.
+
+---
+
+## Build Order (Implementation Sequence)
+
+Dependencies determine order. Steps 4 and 5 are independent and can proceed in parallel.
 
 ```
-Phase 1: Foundation
-  ├── AppCoordinator + AppState FSM (stub methods)
-  ├── HotkeyMonitor (CGEventTap, permissions check)
-  └── MenubarController (NSStatusItem, state icon)
+Step 1: AppCoordinatorDependencies.swift
+        → Add MediaPlaybackServiceProtocol
+        → No other dependencies; do this first
 
-Phase 2: Audio Pipeline
-  ├── AudioRecorder (AVAudioEngine capture)
-  └── AudioBuffer + format conversion (44kHz→16kHz Float32)
-      [Can test: press hotkey, see recording state, press again, get [Float] array]
+Step 2: MediaPlaybackService.swift  (new file)
+        → Implement service conforming to protocol
+        → Depends on: Step 1 (protocol)
 
-Phase 3: STT Integration
-  ├── STTEngine (WhisperKit wrapper, model loading)
-  └── Integration: AudioRecorder → STTEngine → raw text
-      [Can test: full pipeline except LLM and paste]
+Step 3: AppCoordinator.swift
+        → Add mediaPlayback property
+        → Add 3 call sites (pause on idle→recording, resume on recording→*, resume on escape)
+        → Depends on: Step 1 (protocol)
 
-Phase 4: LLM Integration
-  ├── LLMCleaner (MLX Swift or Ollama, keep-warm)
-  └── Prompts.swift (Spanish cleanup system prompt)
-      [Can test: raw text → cleaned text]
+Step 4: AppDelegate.swift
+        → Instantiate MediaPlaybackService
+        → Wire into coordinator
+        → Depends on: Steps 2 and 3
 
-Phase 5: Text Injection
-  ├── TextInjector (NSPasteboard + CGEvent)
-  └── Integration: full end-to-end pipeline
-      [Full E2E: hotkey → speak → stop → clean text appears at cursor]
+Step 5: SettingsWindowController.swift  (independent of Steps 2-4)
+        → Add pausePlaybackEnabled checkbox
+        → Persists to UserDefaults
+        → No new dependency injection
 
-Phase 6: Polish
-  ├── Settings UI (hotkey config, model selection)
-  ├── Error handling and recovery
-  └── Startup optimization (dummy inference warmup)
+Step 6: Unit tests
+        → Mock MediaPlaybackServiceProtocol
+        → Verify pause() called on .idle → .recording transition
+        → Verify resume() called on .recording → * transition
+        → Verify resume() called from handleEscape()
+        → Verify no calls when isEnabled == false
 ```
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Using Private MediaRemote Framework
+
+**What people do:** `dlopen`/`dlsym` `MediaRemote.framework` and call `MRMediaRemoteSendCommand`.
+
+**Why it's wrong:** Apple introduced entitlement verification in `mediaremoted` with macOS 15.4. Third-party apps without `com.apple.mediaremote` entitlement are denied. Cannot obtain this entitlement outside of Apple. Will silently fail or crash on current and future macOS versions.
+
+**Do this instead:** `CGEventPost` with `NX_KEYTYPE_PLAY` — system-wide, stable, and already within the app's permission scope.
+
+### Anti-Pattern 2: App-Specific AppleScript Targeting
+
+**What people do:** Use `NSAppleScript` to target specific apps (`tell application "Spotify" to pause`).
+
+**Why it's wrong:** Breaks for YouTube in browsers, podcast apps, video players, and any app not in a hardcoded list. Requires Automation permission per target app (TCC dialog). Fragile to app name changes and updates. Maintenance burden grows with the list.
+
+**Do this instead:** The media key approach pauses whatever holds the current Now Playing session — universal, zero per-app configuration.
+
+### Anti-Pattern 3: Tracking "Was Playing" State Before Pause
+
+**What people do:** Check whether media is currently playing before pausing, then conditionally skip the resume call.
+
+**Why it's wrong:** No public API provides reliable "is something currently playing" state to a non-entitled app on macOS 15.4+. The play/pause toggle is effectively idempotent in practice — if nothing is playing, pressing Play is a no-op or silently resumes from where the user last stopped (acceptable behavior). Attempting to track state requires the private MediaRemote framework.
+
+**Trade-off to document:** If the user was already paused before starting a recording, the recording-stop event will resume their media. This is an edge case worth noting in PITFALLS.md. Accept the toggle semantics for v1.1; revisit only if user reports make it a priority.
+
+**Do this instead:** Always send pause on recording start, always send resume on recording stop. Simpler, no private API required.
+
+### Anti-Pattern 4: Pause Logic Inline in AppCoordinator
+
+**What people do:** Put the `CGEventPost` call directly inside `AppCoordinator.handleHotkey()`.
+
+**Why it's wrong:** Makes `AppCoordinator` unit tests dependent on actually posting system events. Mixes media system concern with recording FSM concern. Harder to disable in test environments.
+
+**Do this instead:** Wrap in `MediaPlaybackService` with a protocol. Inject the protocol. The coordinator calls `mediaPlayback?.pause()` — testable with a mock that records calls.
+
+---
+
+## Scaling Considerations
+
+This is a local single-user macOS app. Scalability is not a concern. The resource impact of this feature is two `CGEventPost` calls per recording session — effectively zero overhead.
+
+---
 
 ## Sources
 
-- [WhisperKit — On-device Speech Recognition for Apple Silicon (argmaxinc)](https://github.com/argmaxinc/WhisperKit)
-- [WhisperKit on macOS: Integrating On-Device ML in SwiftUI](https://www.helrabelo.dev/blog/whisperkit-on-macos-integrating-on-device-ml)
-- [MLX Swift — Swift API for MLX (ml-explore)](https://github.com/ml-explore/mlx-swift)
-- [MLX Swift Examples with MLXLLM](https://github.com/ml-explore/mlx-swift-examples)
-- [Explore LLMs on Apple Silicon with MLX — WWDC25](https://developer.apple.com/videos/play/wwdc2025/298/)
-- [Production-Grade Local LLM Inference: MLX vs Ollama vs llama.cpp (arXiv 2511.05502)](https://arxiv.org/abs/2511.05502)
-- [AVFoundation AVAudioNode installTap buffer format for whisper.cpp (ggml-org issue #2008)](https://github.com/ggerganov/whisper.cpp/issues/2008)
-- [CGEvent paste simulation — Apple Developer Forums](https://developer.apple.com/forums/thread/659804)
-- [NSPasteboard transient type — nspasteboard.org](https://nspasteboard.org/)
-- [JustDictate — macOS dictation with Parakeet, clipboard inject architecture](https://github.com/gowtham-ponnana/JustDictate)
-- [Building STTInput: Universal Voice-to-Text for macOS](https://yuta-san.medium.com/building-sttinput-universal-voice-to-text-for-macos-080ca40cb9de)
-- [Accessibility Permission in macOS (2025)](https://jano.dev/apple/macos/swift/2025/01/08/Accessibility-Permission.html)
-- [Whisper Large V3 Turbo — performance benchmarks](https://whispernotes.app/blog/introducing-whisper-large-v3-turbo)
+- Existing source code read directly from `/Users/max/Personal/repos/my-superwhisper/MyWhisper/` — HIGH confidence
+- CGEventPost media key simulation pattern: [Qiita: macOS media key emulation in Swift](https://qiita.com/nak435/items/53d952147c3986afd7fc) — MEDIUM confidence (pattern independently confirmed by multiple forum sources)
+- MediaRemote macOS 15.4 entitlement restriction: [GitHub: ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) — MEDIUM confidence (multiple sources confirm the restriction)
+- CGEventPost sandbox restriction (confirming non-sandboxed requirement is already met by this project): [Apple Developer Forums thread 103992](https://developer.apple.com/forums/thread/103992) — HIGH confidence
 
 ---
-*Architecture research for: local voice-to-text macOS menubar app (Apple Silicon)*
-*Researched: 2026-03-15*
+
+*Architecture research for: Pause Playback integration — my-superwhisper v1.1*
+*Researched: 2026-03-16*

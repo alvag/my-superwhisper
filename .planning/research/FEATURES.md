@@ -1,7 +1,7 @@
 # Feature Research
 
 **Domain:** Local voice-to-text macOS menubar application
-**Researched:** 2026-03-15
+**Researched:** 2026-03-15 (v1.0) / Updated 2026-03-16 (v1.1 Pause Playback milestone)
 **Confidence:** HIGH (primary sources: SuperWhisper official docs, Sotto, WhisperFlow, Wispr Flow, macOS Dictation official docs, multiple competitor analyses)
 
 ---
@@ -107,6 +107,13 @@ Features that seem good but create problems.
 [History Log]
     └──requires──> [Clean text output]
     └──depends-on──> [in-memory storage]
+
+[Pause Playback]
+    └──triggered-by──> [Recording starts (hotkey pressed)]
+    └──reverses-on──> [Recording ends (hotkey pressed again / recording complete)]
+    └──requires──> [Settings toggle enabled]
+    └──uses──> [Media key simulation via CGEvent/NSEvent]
+    └──no new permissions required (non-sandboxed app)
 ```
 
 ### Dependency Notes
@@ -116,6 +123,7 @@ Features that seem good but create problems.
 - **LLM Cleanup requires STT output:** The pipeline is sequential: record → transcribe → clean → paste. LLM cannot run until STT finishes. No parallelism is possible in the core pipeline.
 - **Waveform enhances Recording State:** Waveform animation is the most important visual signal during recording. Menubar icon state alone is not sufficient feedback.
 - **Custom Vocabulary post-processes LLM output:** Correction dictionary applies after LLM cleanup to fix persistent misrecognitions. Applying before LLM would allow LLM to "fix" the corrections.
+- **Pause Playback requires no new permissions:** The app is non-sandboxed (Developer ID). Simulating media key events via CGEventPost is already used for paste simulation. No Accessibility or Input Monitoring entitlements beyond what v1.0 already has.
 
 ---
 
@@ -125,26 +133,24 @@ Features that seem good but create problems.
 
 Minimum viable product — what's needed to validate the concept.
 
-- [ ] Global hotkey (Ctrl+Space) toggles recording from anywhere — core interaction model
-- [ ] Audio capture from selected microphone while recording is active
-- [ ] Menubar status icon: 3 states minimum (idle / recording / processing)
-- [ ] Waveform animation during recording — essential feedback, otherwise users don't know it's working
-- [ ] Local STT transcription (Whisper.cpp or MLX-Whisper) optimized for Spanish
-- [ ] Local LLM post-processing: punctuation, capitalization, filler word removal (Spanish-aware)
-- [ ] Auto-paste clean text at cursor position via Accessibility API
-- [ ] Permission prompts on first launch (Accessibility + Microphone)
-- [ ] Cancel recording (Escape key or button) — prevents pasting garbage
-- [ ] Configurable hotkey in settings — Ctrl+Space may conflict for some users
-- [ ] Microphone selection in settings — basic but expected
+- [x] Global hotkey (Option+Space) toggles recording from anywhere — core interaction model — **SHIPPED v1.0**
+- [x] Audio capture from selected microphone while recording is active — **SHIPPED v1.0**
+- [x] Menubar status icon: 3 states minimum (idle / recording / processing) — **SHIPPED v1.0**
+- [x] Waveform animation during recording — essential feedback — **SHIPPED v1.0**
+- [x] Local STT transcription (WhisperKit large-v3) optimized for Spanish — **SHIPPED v1.0**
+- [x] LLM post-processing: punctuation, capitalization, filler word removal (Spanish-aware) — **SHIPPED v1.0**
+- [x] Auto-paste clean text at cursor position — **SHIPPED v1.0**
+- [x] Permission prompts on first launch (Accessibility + Microphone) — **SHIPPED v1.0**
+- [x] Configurable hotkey in settings — **SHIPPED v1.0**
+- [x] Microphone selection in settings — **SHIPPED v1.0**
 
 ### Add After Validation (v1.x)
 
 Features to add once core is working.
 
+- [ ] **Pause Playback (v1.1):** Auto-pause media when recording starts, resume when recording ends, with Settings toggle — see detailed breakdown below
 - [ ] Push-to-talk mode (hold hotkey vs toggle) — many users prefer this, low complexity to add
-- [ ] Transaction history (last 10 transcriptions) — immediate recovery from accidental dismiss
-- [ ] Custom vocabulary / correction dictionary — for users with specialized terminology
-- [ ] Processing state granularity (transcribing vs cleaning vs pasting) — reduces perceived wait
+- [ ] Configurable LLM cleanup aggressiveness (light/full modes) — nice to have, not blocking
 
 ### Future Consideration (v2+)
 
@@ -152,8 +158,109 @@ Features to defer until product-market fit is established.
 
 - [ ] Reformulation modes (formal email, structured notes) — needs powerful local LLM; validate accuracy first
 - [ ] Second language support — add Spanish+English after v1 proves the architecture
-- [ ] Configurable LLM cleanup aggressiveness (light/full modes) — nice to have, not blocking
 - [ ] Keyboard-driven history navigation — power user feature only
+
+---
+
+## v1.1 Milestone: Pause Playback — Feature Detail
+
+### What the Feature Does
+
+When the user starts recording (hotkey press), the app sends a media play/pause key event to macOS. This pauses whatever is currently playing (Spotify, Apple Music, VLC, YouTube in a browser, etc.). When recording ends (hotkey press to stop, or transcription pipeline completes), the app sends the key event again to resume playback.
+
+The feature is controlled by a single toggle in Settings. Off by default; user opts in.
+
+### Mechanism: Media Key Simulation via CGEvent/NSEvent
+
+**Approach:** Simulate pressing the physical Play/Pause media key (F8 / keyboard media key) programmatically using `NSEvent` with `NSSystemDefined` type and subtype 8 with `NX_KEYTYPE_PLAY` (value 16). Post the event via `CGEventPost(.cghidEventTap)`.
+
+This is the same mechanism used by:
+- BackgroundMusic (auto-pause utility)
+- BeardedSpice (media key forwarder)
+- Mac Media Key Forwarder
+- SuperWhisper v1.44.0+ (confirmed: "Media will now pause when recording is started and play when recording ends")
+
+**Why this approach:**
+- Works with all apps that respond to the physical Play/Pause media key (Spotify, Apple Music, VLC, browsers, Pocket Casts, etc.)
+- No private API usage — NSEvent + CGEventPost are public APIs
+- No additional permissions required for non-sandboxed apps (app already uses CGEventPost for paste simulation)
+- Single code path, no per-app logic
+- Identical to pressing F8 on the keyboard from the OS's perspective
+
+**Alternative rejected — MediaRemote private framework:**
+- Private framework (`/System/Library/PrivateFrameworks/MediaRemote.framework`)
+- macOS 15.4+ introduced entitlement verification in mediaremoted; clients without entitlement are denied NowPlaying access
+- Would break on future macOS updates without warning
+- App Store ineligible (already the case, but still bad practice)
+
+**Alternative rejected — AppleScript per-app (BackgroundMusic approach):**
+- Requires knowing which apps are playing and scripting each one individually
+- Does not cover browser tabs (YouTube, Netflix)
+- Brittle: each new app needs explicit support
+- BackgroundMusic only supports: iTunes, Spotify, VLC, VOX, Decibel, Hermes, Swinsian, GPMDP
+
+### Table Stakes for Pause Playback Feature
+
+| Behavior | Why Expected | Complexity | Notes |
+|----------|--------------|------------|-------|
+| Pause on recording start | Core premise of the feature; user expectation from SuperWhisper, AutoPause, etc. | LOW | Send `NX_KEYTYPE_PLAY` key down + key up on `recordingDidStart` |
+| Resume on recording end | Without resume, user must manually restart media after every dictation — breaks flow | LOW | Send `NX_KEYTYPE_PLAY` key down + key up after paste completes (not at stop-hotkey press, since processing takes 3-5s) |
+| Settings toggle to enable/disable | Feature is disruptive if user doesn't want it. Single toggle in Settings panel | LOW | UserDefaults bool, default `false`. Show in Settings alongside other behavioral options |
+| Works with Spotify | Most common audio player on macOS; users expect it to work | LOW | Media key approach handles Spotify natively |
+| Works with Apple Music | Second most common; built into macOS | LOW | Media key approach handles Apple Music natively |
+| Works with browser media (YouTube, etc.) | Users routinely have YouTube/Netflix playing in background | LOW | Media key approach works for browser tabs that have media focus |
+
+### Differentiators for Pause Playback Feature
+
+| Behavior | Value | Complexity | Notes |
+|----------|-------|------------|-------|
+| Resume after processing completes (not at stop-hotkey) | More polished than resuming immediately at stop-press, since processing takes 3-5s more — resuming during transcription noise is jarring | LOW | Track "was paused by us" state; resume in `transcriptionDidComplete` or `pipelineDidComplete` |
+| Guard against double-resume | If user manually resumed media during the processing window, a second resume would pause it again | LOW | Track boolean `pausedByApp`. Only resume if we were the ones who paused |
+| Silent no-op when nothing is playing | Sending media key when nothing plays should not open Music app or cause side effects | MEDIUM | macOS behavior: sending play/pause when nothing plays can launch Music.app on some configurations. Test and add guard if needed |
+| VLC support | VLC is common among power users for video files | LOW | Media key approach handles VLC natively |
+
+### Anti-Features for Pause Playback
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Per-app pause logic (pause Spotify specifically, not others) | Seems more surgical | Requires AppleScript per app, misses browser tabs, brittle with app updates, 10x implementation complexity | Media key simulation is universal and correct |
+| Pause on push-to-talk hold (not just toggle) | Consistency with hold-to-talk mode | Push-to-talk recordings are typically very short (2-5s); media key round-trip adds complexity for negligible benefit | Start with toggle mode only; extend later if users request it |
+| Resume to different track / smart resume | Remember position in podcast or video | Requires state tracking per media type, AppleScript, different APIs per app | Not needed: media key resume is native behavior |
+| Mute system audio instead of pause | Alternative approach | Muting leaves the audio running (CPU, network for streams); pausing is what users expect and what competitors do | Always pause, not mute |
+| Chrome extension integration | Required for YouTube pause in some implementations | Media key simulation works without any browser extension for standard HTML5 players; extension adds distribution complexity | Media key approach sufficient |
+
+### Edge Cases to Handle
+
+| Scenario | Expected Behavior | Implementation Note |
+|----------|-------------------|---------------------|
+| Nothing is playing when recording starts | No-op; do not open Music.app or cause any side effect | Test on macOS: sending play/pause when nothing plays may launch Music.app. If so, guard with NowPlaying check or accept limitation |
+| User manually pauses during transcription (3-5s window) | App should not resume media (user explicitly paused) | Problematic: we cannot distinguish "user paused" from "we paused." Track `pausedByApp` flag, only resume if flag is set. Flag is cleared if recording cancelled |
+| Recording cancelled (user presses Escape or cancels) | Resume media since the recording was abandoned, not completed | Resume on cancel the same as on completion — user interrupted dictation, media should come back |
+| Rapid back-to-back recordings | Media paused → resumed → paused again in quick succession | Each recording cycle should independently pause and resume. No cumulative state issues |
+| Bluetooth headphones in use | macOS switches Bluetooth headphones to SCO (lower quality) profile when microphone activates — separate from this feature but often reported together | This is a macOS/hardware behavior, not fixable in app. Document in settings tooltip: "Media pauses during recording; Bluetooth headphones may switch audio profile while mic is active." |
+| Browser tab has media focus vs background music | Sending play/pause pauses whichever app currently "owns" the Now Playing widget | macOS determines media key target via the NowPlaying focus mechanism. This is correct behavior — pause whatever is currently "playing" per the OS |
+| Multiple apps playing simultaneously | Rare but possible (Spotify + browser) | Media key pauses the NowPlaying-registered app. Other audio continues. Acceptable limitation |
+| App that intercepts media keys (Discord, Teams) | These apps can steal media key focus, causing pause to affect call audio instead of music | Known ecosystem conflict. Superwhisper v2.2.1 flagged Discord and Obsidian as problematic. Document in release notes. No reliable workaround without per-app AppleScript |
+| User disables toggle mid-session | If recording is already in progress when toggle is turned off, do not resume media when recording ends | Check toggle state at resume time, not just at pause time |
+
+### Feature Dependencies (Pause Playback Specific)
+
+```
+[Pause Playback Toggle]
+    └──stored-in──> [UserDefaults (existing)]
+    └──displayed-in──> [Settings Panel (existing)]
+
+[Pause on Recording Start]
+    └──triggered-by──> [RecordingManager.startRecording() (existing)]
+    └──uses──> [CGEventPost / NSEvent systemDefined (same API as paste simulation)]
+    └──sets──> [pausedByApp: Bool = true]
+
+[Resume on Recording End]
+    └──triggered-by──> [Pipeline completion: paste done OR recording cancelled]
+    └──guard──> [pausedByApp == true]
+    └──clears──> [pausedByApp = false]
+    └──uses──> [same CGEventPost / NSEvent path as pause]
+```
 
 ---
 
@@ -161,22 +268,20 @@ Features to defer until product-market fit is established.
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Global hotkey toggle | HIGH | LOW | P1 |
-| Audio capture | HIGH | LOW | P1 |
-| Local STT (Spanish) | HIGH | HIGH | P1 |
-| LLM cleanup (Spanish filler words) | HIGH | MEDIUM | P1 |
-| Auto-paste at cursor | HIGH | MEDIUM | P1 |
-| Menubar status icon | HIGH | LOW | P1 |
-| Waveform during recording | HIGH | LOW | P1 |
-| Permission prompts (first launch) | HIGH | LOW | P1 |
-| Cancel recording | MEDIUM | LOW | P1 |
-| Configurable hotkey | MEDIUM | LOW | P1 |
-| Microphone selection | MEDIUM | LOW | P1 |
+| Global hotkey toggle | HIGH | LOW | P1 (shipped) |
+| Audio capture | HIGH | LOW | P1 (shipped) |
+| Local STT (Spanish) | HIGH | HIGH | P1 (shipped) |
+| LLM cleanup (Spanish filler words) | HIGH | MEDIUM | P1 (shipped) |
+| Auto-paste at cursor | HIGH | MEDIUM | P1 (shipped) |
+| Menubar status icon | HIGH | LOW | P1 (shipped) |
+| Waveform during recording | HIGH | LOW | P1 (shipped) |
+| Permission prompts (first launch) | HIGH | LOW | P1 (shipped) |
+| Configurable hotkey | MEDIUM | LOW | P1 (shipped) |
+| Microphone selection | MEDIUM | LOW | P1 (shipped) |
+| **Pause Playback (auto-pause media)** | **HIGH** | **LOW** | **P1 (v1.1)** |
+| **Pause Playback Settings toggle** | **HIGH** | **LOW** | **P1 (v1.1)** |
 | Push-to-talk mode | MEDIUM | LOW | P2 |
-| Transaction history | MEDIUM | LOW | P2 |
-| Custom vocabulary | MEDIUM | MEDIUM | P2 |
-| Granular processing states | LOW | LOW | P2 |
-| Lightweight idle resources | MEDIUM | MEDIUM | P2 |
+| Configurable LLM cleanup aggressiveness | LOW | LOW | P2 |
 | Reformulation modes | LOW | HIGH | P3 |
 | Multi-language support | LOW | HIGH | P3 |
 
@@ -191,41 +296,44 @@ Features to defer until product-market fit is established.
 
 | Feature | SuperWhisper | Wispr Flow | Sotto | macOS Dictation | Our Approach |
 |---------|--------------|------------|-------|-----------------|--------------|
-| Global hotkey | Yes (⌥+Space, configurable) | Yes | Yes | Yes (Fn key) | Yes (Ctrl+Space default, configurable) |
-| Push-to-talk | Yes (hold) | Yes (hold) | Yes (hold) | No | Yes (v1.x) |
-| Toggle mode | Yes | No (hold only) | Yes | No | Yes (v1) |
-| Local processing | Yes | No (cloud) | Yes | Partial (on-device option) | Yes (hard requirement) |
-| Auto-paste | Yes | Yes | Yes | No (inserts inline via Dictation API) | Yes |
-| Waveform feedback | Yes (full window) | Yes (floating) | Yes (bar) | Yes (2025 Liquid Glass overlay) | Yes (menubar or floating) |
-| Filler word removal | Yes (LLM) | Yes (cloud LLM) | Yes (LLM) | No | Yes (local LLM, Spanish-aware) |
-| Punctuation cleanup | Yes | Yes | Yes | Partial (auto-punctuation) | Yes |
-| Spanish support | Yes (100+ langs) | Yes (cloud) | Yes | Yes (system language) | Yes (primary language, optimized) |
-| Custom vocabulary | Yes | Unknown | Yes | No | v1.x |
-| Modes/presets | Yes (complex) | Partial | Yes | No | No (v1), light cleanup levels v1.x |
-| History log | Yes (search) | Unknown | No | No | v1.x |
-| Menubar app | Yes | Yes | Yes | N/A (system feature) | Yes |
-| Context capture (clipboard/screen) | Yes (Super Mode) | Yes | No | No | No (v1) |
+| Global hotkey | Yes (⌥+Space, configurable) | Yes | Yes | Yes (Fn key) | Yes (⌥+Space, configurable) — shipped |
+| Push-to-talk | Yes (hold) | Yes (hold) | Yes (hold) | No | Planned v1.x |
+| Toggle mode | Yes | No (hold only) | Yes | No | Yes — shipped |
+| Local processing | Yes | No (cloud) | Yes | Partial (on-device option) | Yes (hard requirement) — shipped |
+| Auto-paste | Yes | Yes | Yes | No | Yes — shipped |
+| Waveform feedback | Yes (full window) | Yes (floating) | Yes (bar) | Yes (2025 Liquid Glass overlay) | Yes (floating overlay) — shipped |
+| Filler word removal | Yes (LLM) | Yes (cloud LLM) | Yes (LLM) | No | Yes (local LLM, Spanish-aware) — shipped |
+| Punctuation cleanup | Yes | Yes | Yes | Partial (auto-punctuation) | Yes — shipped |
+| Spanish support | Yes (100+ langs) | Yes (cloud) | Yes | Yes (system language) | Yes (primary language, optimized) — shipped |
+| Custom vocabulary | Yes | Unknown | Yes | No | Yes — shipped |
+| History log | Yes (search) | Unknown | No | No | Yes (last 20) — shipped |
+| **Pause media while recording** | **Yes (v1.44.0+, default in v2.7.0)** | **Unknown** | **Unknown** | **No** | **v1.1 — in progress** |
+| Menubar app | Yes | Yes | Yes | N/A (system feature) | Yes — shipped |
+| Context capture (clipboard/screen) | Yes (Super Mode) | Yes | No | No | No (out of scope) |
 | Cloud required | No | Yes | No | Optional | Never |
-| Idle RAM | ~150MB (est.) | ~800MB | Unknown | Minimal | Target <100MB |
+| Idle RAM | ~150MB (est.) | ~800MB | Unknown | Minimal | ~27MB — shipped |
 
 ---
 
 ## Sources
 
 - [SuperWhisper official website](https://superwhisper.com/) — feature overview, modes
+- [SuperWhisper changelog](https://superwhisper.com/changelog) — Pause media feature added v1.44.0 (Jan 13, 2025), refined v2.2.4 (Aug 20, 2025), default in v2.7.0 (Nov 26, 2025)
 - [SuperWhisper Recording Window docs](https://superwhisper.com/docs/get-started/interface-rec-window) — UI states, waveform behavior
-- [SuperWhisper Keyboard Shortcuts docs](https://superwhisper.com/docs/get-started/settings-shortcuts) — push-to-talk vs toggle
-- [Sotto official website](https://sotto.to/) — full feature list including Parakeet, hotkey modes, AI functions
+- [SuperWhisper on Twitter re: pause music](https://x.com/superwhisperapp/status/1963687889193095282) — confirmed "pause music while recording option in mode settings"
+- [Sotto official website](https://sotto.to/) — full feature list
 - [WhisperFlow official website](https://www.whisperflow.de/) — hold-to-talk, local Whisper, notch UI
 - [Wispr Flow official website](https://wisprflow.ai/) — cloud approach, filler removal, context awareness
-- [Vibe Transcribe GitHub](https://github.com/thewh1teagle/vibe) — file transcription, open source patterns
-- [Buzz GitHub](https://github.com/chidiwilliams/buzz) — open source reference for Whisper wrappers
+- [BackgroundMusic GitHub](https://github.com/kyleneideck/BackgroundMusic) — AppleScript-based auto-pause mechanism, supported players list
+- [AutoPause HN thread](https://news.ycombinator.com/item?id=44823938) — mic-activity-based pause, Chrome extension for browser media, Bluetooth SCO side effect documented
+- [MediaKeyTap GitHub](https://github.com/nhurden/MediaKeyTap) — Swift media key access library
+- [Rogue Amoeba: Apple Keyboard Media Key Event Handling](https://weblog.rogueamoeba.com/2007/09/09/apple-keyboard-media-key-event-handling/) — NX_KEYTYPE_PLAY / NSSystemDefined subtype 8 mechanism
+- [macOS NX_KEYTYPE_PLAY CGEventPost approach via Qiita](https://qiita.com/nak435/items/53d952147c3986afd7fc) — Swift code pattern
+- [Apple Developer Forums: Play/Pause now playing with MediaRemote](https://developer.apple.com/forums/thread/688433) — MediaRemote private framework discussion
+- [macOS Prevent Bluetooth Headphones Microphone switch](https://www.codejam.info/2024/05/macos-prevent-bluetooth-headphones-microphone.html) — Bluetooth SCO profile switching on mic activation
 - [macOS Dictation Apple Support](https://support.apple.com/guide/mac-help/use-dictation-mh40584/mac) — built-in dictation capabilities
-- [Choosing the Right AI Dictation App for Mac](https://afadingthought.substack.com/p/best-ai-dictation-tools-for-mac) — philosophy comparison, differentiators
-- [Best Dictation App for Mac 2025 - Writingmate](https://writingmate.ai/blog/best-dictation-app-for-mac) — resource usage data, user expectations
-- [push-to-talk-dictate GitHub (Rasala)](https://github.com/Rasala/push-to-talk-dictate) — MLX Whisper + Qwen pipeline reference
-- [open-wispr GitHub](https://github.com/human37/open-wispr) — minimal local push-to-talk reference implementation
 
 ---
 *Feature research for: local voice-to-text macOS menubar app*
-*Researched: 2026-03-15*
+*Originally researched: 2026-03-15*
+*Updated: 2026-03-16 — added v1.1 Pause Playback milestone feature detail*
