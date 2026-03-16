@@ -7,7 +7,7 @@ wave_0_complete: false
 created: 2026-03-16
 ---
 
-# Phase 4 — Validation Strategy
+# Phase 4 -- Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
 
@@ -38,24 +38,26 @@ created: 2026-03-16
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 04-01-01 | 01 | 1 | REC-05 | unit | `xcodebuild test -only-testing:MyWhisperTests/SettingsServiceTests` | ❌ W0 | ⬜ pending |
-| 04-01-02 | 01 | 1 | MAC-04 | unit | `xcodebuild test -only-testing:MyWhisperTests/AudioDeviceTests` | ❌ W0 | ⬜ pending |
-| 04-02-01 | 02 | 1 | OUT-03 | unit | `xcodebuild test -only-testing:MyWhisperTests/HistoryServiceTests` | ❌ W0 | ⬜ pending |
-| 04-02-02 | 02 | 1 | OUT-04 | unit | `xcodebuild test -only-testing:MyWhisperTests/HistoryServiceTests` | ❌ W0 | ⬜ pending |
-| 04-03-01 | 03 | 1 | VOC-01 | unit | `xcodebuild test -only-testing:MyWhisperTests/VocabularyServiceTests` | ❌ W0 | ⬜ pending |
-| 04-03-02 | 03 | 1 | VOC-02 | unit | `xcodebuild test -only-testing:MyWhisperTests/VocabularyServiceTests` | ❌ W0 | ⬜ pending |
-| 04-04-01 | 04 | 2 | MAC-05 | manual | Instruments profiling | N/A | ⬜ pending |
+| 04-01-01 | 01 | 1 | VOC-01, VOC-02 | unit | `xcodebuild test -only-testing:MyWhisperTests/VocabularyServiceTests` | Wave 0 | pending |
+| 04-01-01 | 01 | 1 | OUT-03 | unit | `xcodebuild test -only-testing:MyWhisperTests/TranscriptionHistoryServiceTests` | Wave 0 | pending |
+| 04-01-01 | 01 | 1 | MAC-04 | unit | `xcodebuild test -only-testing:MyWhisperTests/MicrophoneDeviceServiceTests` | Wave 0 | pending |
+| 04-01-02 | 01 | 1 | REC-05 | unit | `xcodebuild test -only-testing:MyWhisperTests/HotkeyMonitorTests` | Exists (update) | pending |
+| 04-02-01 | 02 | 2 | REC-05, MAC-04 | build | `xcodebuild build -scheme MyWhisper -quiet` | N/A | pending |
+| 04-02-02 | 02 | 2 | OUT-03, OUT-04 | build | `xcodebuild build -scheme MyWhisper -quiet` | N/A | pending |
+| 04-03-01 | 03 | 3 | MAC-05 | manual | Instruments profiling / Activity Monitor RSS | N/A | pending |
+| 04-04-01 | 04 | 3 | Distribution | build | `xcodebuild build -scheme MyWhisper -configuration Release -quiet` | N/A | pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: pending / green / red / flaky*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `MyWhisperTests/SettingsServiceTests.swift` — stubs for REC-05 hotkey persistence
-- [ ] `MyWhisperTests/AudioDeviceTests.swift` — stubs for MAC-04 device selection
-- [ ] `MyWhisperTests/HistoryServiceTests.swift` — stubs for OUT-03, OUT-04
-- [ ] `MyWhisperTests/VocabularyServiceTests.swift` — stubs for VOC-01, VOC-02
+- [ ] `MyWhisperTests/VocabularyServiceTests.swift` -- stubs for VOC-01, VOC-02 (created in 04-01 Task 1)
+- [ ] `MyWhisperTests/TranscriptionHistoryServiceTests.swift` -- stubs for OUT-03 (created in 04-01 Task 1)
+- [ ] `MyWhisperTests/MicrophoneDeviceServiceTests.swift` -- stubs for MAC-04 with hardware-guard `try XCTSkipIf` (created in 04-01 Task 1)
+- [ ] `MyWhisperTests/HotkeyMonitorTests.swift` -- update existing file for KeyboardShortcuts refactor, REC-05 (updated in 04-01 Task 2)
+- [ ] Package.swift -- add KeyboardShortcuts dependency: `.package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0")`
 
 *Existing XCTest infrastructure from Phase 1-3 covers framework needs.*
 
@@ -68,7 +70,8 @@ created: 2026-03-16
 | Hotkey works system-wide after change | REC-05 | Requires global event monitor + other app focus | 1. Open Settings, record new hotkey 2. Switch to Safari 3. Press new hotkey 4. Verify recording starts |
 | Microphone selection persists across launches | MAC-04 | Requires real audio hardware | 1. Select non-default mic in Settings 2. Quit and relaunch 3. Verify selected mic persists |
 | RAM usage at idle | MAC-05 | Requires Instruments profiling | 1. Launch app, wait 30s 2. Check Activity Monitor RSS 3. Must be <200MB |
-| DMG notarization | Distribution | Requires Apple notary service | 1. Build DMG 2. `xcrun notarytool submit` 3. Verify staple |
+| DMG notarization | Distribution | Requires Apple notary service + Developer ID | 1. Run `./scripts/build-dmg.sh` 2. Verify notarization succeeds 3. Verify staple |
+| History click-to-copy | OUT-04 | Requires NSPasteboard + display server | 1. Record a transcription 2. Open History 3. Click entry 4. Verify clipboard + notification |
 
 ---
 
