@@ -23,9 +23,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Transcription
 
-- [ ] **STT-01**: Audio is transcribed locally using a speech-to-text model optimized for Spanish on Apple Silicon
-- [ ] **STT-02**: STT model is pre-loaded at app launch to avoid cold-start latency
-- [ ] **STT-03**: Transcription completes within reasonable time (<3s for 30-60s of speech on Apple Silicon)
+- [x] **STT-01**: Audio is transcribed locally using a speech-to-text model optimized for Spanish on Apple Silicon
+- [x] **STT-02**: STT model is pre-loaded at app launch to avoid cold-start latency
+- [x] **STT-03**: Transcription completes within reasonable time (<3s for 30-60s of speech on Apple Silicon)
 
 ### Text Cleanup
 
@@ -117,9 +117,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AUD-01 | Phase 2 | Pending |
 | AUD-02 | Phase 2 | Pending |
 | AUD-03 | Phase 2 | Pending |
-| STT-01 | Phase 2 | Pending |
-| STT-02 | Phase 2 | Pending |
-| STT-03 | Phase 2 | Pending |
+| STT-01 | Phase 2 | Complete |
+| STT-02 | Phase 2 | Complete |
+| STT-03 | Phase 2 | Complete |
 | CLN-01 | Phase 3 | Pending |
 | CLN-02 | Phase 3 | Pending |
 | CLN-03 | Phase 3 | Pending |

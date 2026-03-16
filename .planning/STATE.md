@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-16T01:16:04.504Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-16T02:38:03.341Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
   percent: 8
 ---
 
@@ -53,6 +53,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 01-foundation P02 | 4 min | 2 tasks | 5 files |
 | Phase 01-foundation P03 | 3 min | 2 tasks | 8 files |
 | Phase 01-foundation P04 | 2min | 2 tasks | 4 files |
+| Phase 02-audio-transcription P02-02 | 12 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ Recent decisions affecting current work:
 - [Phase 01-foundation]: PermissionsManaging protocol placed in PermissionsManager.swift to keep protocol near its implementation
 - [Phase 01-foundation]: weak var permissionsManager in AppCoordinator prevents retain cycle; AppDelegate retains strongly
 - [Phase 01-foundation]: nil permissionsManager guard preserves backward compatibility — existing unit tests with no permissionsManager set still reach .recording
+- [Phase 02-audio-transcription]: WhisperKit.download() returns URL, not String — convert via .path for WhisperKitConfig.modelFolder
+- [Phase 02-audio-transcription]: Both prewarmModels() and loadModels() called — prewarm alone is insufficient for model readiness
+- [Phase 02-audio-transcription]: Spanish forced via language=es in DecodingOptions with noSpeechThreshold=0.6 as secondary silence guard
 
 ### Pending Todos
 
@@ -90,6 +94,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T01:16:04.502Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-audio-transcription/02-CONTEXT.md
+Last session: 2026-03-16T02:38:03.339Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: None
