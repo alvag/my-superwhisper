@@ -15,9 +15,14 @@ actor STTEngine: STTEngineProtocol {
         isLoading = true
         defer { isLoading = false }
 
-        // Download model (first launch: ~3GB; cached on subsequent launches)
+        // Download model into Application Support (avoids iCloud sync of ~/.cache/huggingface)
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let modelsDir = appSupport.appendingPathComponent("MyWhisper/Models", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+
         let modelFolder = try await WhisperKit.download(
             variant: "openai_whisper-large-v3",
+            downloadBase: modelsDir,
             from: "argmaxinc/whisperkit-coreml",
             progressCallback: { [weak self] progress in
                 guard let self else { return }
@@ -45,8 +50,15 @@ actor STTEngine: STTEngineProtocol {
     /// Transcribe a 16kHz mono Float32 audio buffer to Spanish text.
     func transcribe(_ audioArray: [Float]) async throws -> String {
         // If model not loaded, attempt to prepare it (user may have recorded before load finished)
-        if whisperKit == nil && !isLoading {
-            try await prepareModel()
+        if whisperKit == nil {
+            if isLoading {
+                // Model is downloading — wait for it instead of failing immediately
+                while isLoading {
+                    try await Task.sleep(nanoseconds: 200_000_000) // 200ms
+                }
+            } else {
+                try await prepareModel()
+            }
         }
         guard let kit = whisperKit else {
             throw STTError.notLoaded

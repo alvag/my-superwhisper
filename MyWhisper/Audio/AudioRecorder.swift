@@ -58,7 +58,14 @@ final class AudioRecorder: AudioRecorderProtocol {
         // Apply selected microphone device (MAC-04) BEFORE engine.start()
         // Setting device after start() silently fails
         if let deviceID = microphoneService?.selectedDeviceID {
-            try? microphoneService?.setInputDevice(deviceID, on: engine)
+            // Validate saved device still exists — stale IDs cause "no device with given ID" errors
+            let availableIDs = microphoneService?.availableInputDevices().map(\.id) ?? []
+            if availableIDs.contains(deviceID) {
+                try? microphoneService?.setInputDevice(deviceID, on: engine)
+            } else {
+                // Clear stale device ID, fall through to system default
+                microphoneService?.selectedDeviceID = nil
+            }
         }
         // If no device selected, AVAudioEngine uses system default automatically
 
