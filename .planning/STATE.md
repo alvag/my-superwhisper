@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 04-03-PLAN.md Task 1; awaiting checkpoint:human-verify Task 2"
-last_updated: "2026-03-16T13:34:47.415Z"
+stopped_at: Completed 04-04-PLAN.md — all tasks done, plan approved
+last_updated: "2026-03-16T16:06:12.561Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
@@ -63,6 +63,8 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 04-settings-history-and-polish P02 | 9 min | 2 tasks | 6 files |
 | Phase 04-settings-history-and-polish P04 | 8 min | 1 tasks | 7 files |
 | Phase 04-settings-history-and-polish P04-03 | 6 | 1 tasks | 1 files |
+| Phase 04-settings-history-and-polish P04 | 10min | 2 tasks | 7 files |
+| Phase 04-settings-history-and-polish P03 | 8min | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -115,6 +117,8 @@ Recent decisions affecting current work:
 - [Phase 04-04]: App icon asset catalog created as placeholder (Contents.json only, no images) — valid Xcode catalog that builds clean; custom icon PNG files to be added later
 - [Phase 04-settings-history-and-polish]: MAC-05 PASSES: idle RSS ~27MB at steady state — CoreML model memory for openai_whisper-large-v3 is managed by Neural Engine outside process RSS
 - [Phase 04-settings-history-and-polish]: Peak RSS during model download/compilation was ~1242MB but this is transient; steady-state idle is ~27MB
+- [Phase 04-04]: AboutWindowController uses NSWindow + frame-based layout (linter simplified) — adequate for read-only display
+- [Phase 04-settings-history-and-polish]: Phase 4 human verification APPROVED 2026-03-16: all features (settings, history, vocabulary, hotkey, mic selection) verified end-to-end
 
 ### Pending Todos
 
@@ -129,6 +133,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:34:47.413Z
-Stopped at: Completed 04-03-PLAN.md Task 1; awaiting checkpoint:human-verify Task 2
+Last session: 2026-03-16T16:06:01.247Z
+Stopped at: Completed 04-04-PLAN.md — all tasks done, plan approved
 Resume file: None

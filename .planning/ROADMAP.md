@@ -84,7 +84,7 @@ Plans:
 Plans:
 - [ ] 04-01-PLAN.md — Services (VocabularyService, TranscriptionHistoryService, MicrophoneDeviceService), KeyboardShortcuts migration, pipeline wiring
 - [ ] 04-02-PLAN.md — SettingsWindowController (hotkey, mic, API key, vocabulary, launch-at-login), HistoryWindowController, mic selection in AudioRecorder
-- [ ] 04-03-PLAN.md — RAM profiling (MAC-05), release build verification, full Phase 4 human verification
+- [x] 04-03-PLAN.md — RAM profiling (MAC-05), release build verification, full Phase 4 human verification (completed 2026-03-16)
 - [ ] 04-04-PLAN.md — Distribution: About window, app icon, DMG build script with Developer ID signing + Apple notarization
 
 ## Progress

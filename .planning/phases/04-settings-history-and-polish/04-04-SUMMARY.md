@@ -58,7 +58,7 @@ completed: 2026-03-16
 - **Duration:** ~8 min
 - **Started:** 2026-03-16T13:27:20Z
 - **Completed:** 2026-03-16T13:35:00Z
-- **Tasks:** 1 of 2 (paused at checkpoint:human-verify)
+- **Tasks:** 2 of 2 (complete)
 - **Files modified:** 7
 
 ## Accomplishments
@@ -72,8 +72,7 @@ completed: 2026-03-16
 Each task was committed atomically:
 
 1. **Task 1: Create About window, app icon, distribution script, and ExportOptions.plist** - `ac6a09a` (feat)
-
-**Plan metadata:** (pending — awaiting checkpoint verification)
+2. **Task 2: Verify distribution script and About window** - checkpoint approved by user
 
 ## Files Created/Modified
 - `MyWhisper/App/AboutWindowController.swift` - NSWindow-based About panel with version info and credits
@@ -115,11 +114,15 @@ Distribution requires:
 2. notarytool keychain profile: `xcrun notarytool store-credentials 'notarytool-profile' --apple-id <email> --team-id <team> --password <app-specific-password>`
 3. Custom app icon PNG files placed in `MyWhisper/Assets.xcassets/AppIcon.appiconset/` (sizes: 16, 32, 128, 256, 512 @1x and @2x)
 
+## Verification Result
+
+Task 2 checkpoint: **approved** by user on 2026-03-16. Distribution pipeline artifacts and About window confirmed correct.
+
 ## Next Phase Readiness
 - Phase 4 complete — distribution pipeline scripted and ready for when credentials are configured
 - About window accessible from menu
 - App icon slot is ready for custom artwork
-- User verification (Task 2 checkpoint) still pending
+- User verified all artifacts (Task 2 checkpoint passed)
 
 ---
 *Phase: 04-settings-history-and-polish*
