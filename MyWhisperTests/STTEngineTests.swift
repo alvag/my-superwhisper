@@ -1,10 +1,10 @@
 import XCTest
 @testable import MyWhisper
 
-/// MockSTTEngine for testing STTEngineProtocol consumers.
+/// MockSTTEngineProtocol for testing STTEngineProtocol behavior in isolation.
 /// Verifies that the protocol contract supports model readiness checks,
 /// progress reporting, and transcription (STT-02).
-final class MockSTTEngine: STTEngineProtocol, @unchecked Sendable {
+final class MockSTTEngineProtocol: STTEngineProtocol, @unchecked Sendable {
     var mockTranscription: String = "Hola mundo"
     var shouldThrow = false
     var prepareModelCalled = false
@@ -38,13 +38,13 @@ final class STTEngineTests: XCTestCase {
     // MARK: - Model readiness (STT-02)
 
     func testMockEngineNotReadyBeforePrepare() async {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         let ready = await engine.isReady
         XCTAssertFalse(ready, "Engine should not be ready before prepareModel()")
     }
 
     func testMockEngineReadyAfterPrepare() async throws {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         try await engine.prepareModel()
         let ready = await engine.isReady
         XCTAssertTrue(ready, "Engine should be ready after prepareModel()")
@@ -52,13 +52,13 @@ final class STTEngineTests: XCTestCase {
     }
 
     func testLoadProgressZeroBeforePrepare() async {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         let progress = await engine.loadProgress
         XCTAssertEqual(progress, 0.0, "Progress should be 0 before model load")
     }
 
     func testLoadProgressOneAfterPrepare() async throws {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         try await engine.prepareModel()
         let progress = await engine.loadProgress
         XCTAssertEqual(progress, 1.0, "Progress should be 1.0 after model load")
@@ -67,7 +67,7 @@ final class STTEngineTests: XCTestCase {
     // MARK: - Transcription (STT-02 protocol contract)
 
     func testTranscribeReturnsText() async throws {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         try await engine.prepareModel()
         let text = try await engine.transcribe([0.1, 0.2, 0.3])
         XCTAssertEqual(text, "Hola mundo")
@@ -75,7 +75,7 @@ final class STTEngineTests: XCTestCase {
     }
 
     func testTranscribeThrowsOnError() async throws {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         engine.shouldThrow = true
         try await engine.prepareModel()
         do {
@@ -87,7 +87,7 @@ final class STTEngineTests: XCTestCase {
     }
 
     func testTranscribeEmptyBufferThrows() async throws {
-        let engine = MockSTTEngine()
+        let engine = MockSTTEngineProtocol()
         try await engine.prepareModel()
         do {
             _ = try await engine.transcribe([])

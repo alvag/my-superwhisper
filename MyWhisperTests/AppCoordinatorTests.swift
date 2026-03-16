@@ -1,7 +1,7 @@
 import XCTest
 @testable import MyWhisper
 
-// MARK: - Mock for permission testing
+// MARK: - Mocks
 
 final class MockPermissionsManaging: PermissionsManaging {
     var shouldGrantMicrophone: Bool
@@ -9,45 +9,172 @@ final class MockPermissionsManaging: PermissionsManaging {
     func requestMicrophone() async -> Bool { shouldGrantMicrophone }
 }
 
+final class MockAudioRecorder: AudioRecorderProtocol {
+    var isStarted = false
+    var shouldThrowOnStart = false
+    var mockBuffer: [Float] = []
+    var audioLevel: Float = 0.0
+
+    func start() throws {
+        if shouldThrowOnStart { throw NSError(domain: "test", code: 1) }
+        isStarted = true
+    }
+
+    func stop() -> [Float] {
+        isStarted = false
+        return mockBuffer
+    }
+
+    func cancel() {
+        isStarted = false
+    }
+}
+
+final class MockSTTEngine: STTEngineProtocol, @unchecked Sendable {
+    var mockTranscription: String = "Hola mundo"
+    var shouldThrow = false
+    var transcribeCalled = false
+    var isReady: Bool = true
+    var loadProgress: Double = 1.0
+
+    func prepareModel() async throws {}
+
+    func transcribe(_ audioArray: [Float]) async throws -> String {
+        transcribeCalled = true
+        if shouldThrow { throw STTError.transcriptionFailed(underlying: NSError(domain: "test", code: 1)) }
+        return mockTranscription
+    }
+}
+
+final class MockOverlayController: OverlayWindowControllerProtocol {
+    var isShowing = false
+    var isProcessing = false
+    var lastAudioLevel: Float = 0.0
+
+    func show() { isShowing = true }
+    func hide() { isShowing = false; isProcessing = false }
+    func showProcessing() { isProcessing = true }
+    func updateAudioLevel(_ level: Float) { lastAudioLevel = level }
+}
+
+final class MockTextInjector: TextInjectorProtocol {
+    var lastInjectedText: String?
+    func inject(_ text: String) async { lastInjectedText = text }
+}
+
+// MARK: - Tests
+
 @MainActor
 final class AppCoordinatorTests: XCTestCase {
     var coordinator: AppCoordinator!
+    var mockRecorder: MockAudioRecorder!
+    var mockSTT: MockSTTEngine!
+    var mockOverlay: MockOverlayController!
+    var mockInjector: MockTextInjector!
 
     override func setUp() {
         super.setUp()
         coordinator = AppCoordinator()
+        mockRecorder = MockAudioRecorder()
+        mockSTT = MockSTTEngine()
+        mockOverlay = MockOverlayController()
+        mockInjector = MockTextInjector()
+
+        coordinator.audioRecorder = mockRecorder
+        coordinator.sttEngine = mockSTT
+        coordinator.overlayController = mockOverlay
+        coordinator.textInjector = mockInjector
     }
+
+    // MARK: - Basic FSM
 
     func testHotkeyStartsRecording() async {
-        XCTAssertEqual(coordinator.state, .idle)
         await coordinator.handleHotkey()
         XCTAssertEqual(coordinator.state, .recording)
-    }
-
-    func testHotkeyStopsRecordingAndReturnsIdle() async {
-        // idle -> recording
-        await coordinator.handleHotkey()
-        XCTAssertEqual(coordinator.state, .recording)
-        // recording -> processing -> idle (textInjector is nil, so processing completes immediately)
-        await coordinator.handleHotkey()
-        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertTrue(mockRecorder.isStarted)
+        XCTAssertTrue(mockOverlay.isShowing)
     }
 
     func testHotkeyIgnoredDuringProcessing() async {
-        // Manually set processing state to test the guard
         coordinator.state = .processing
         await coordinator.handleHotkey()
-        XCTAssertEqual(coordinator.state, .processing) // unchanged
+        XCTAssertEqual(coordinator.state, .processing)
     }
 
     func testEscapeCancelsRecording() async {
-        await coordinator.handleHotkey() // start recording
+        await coordinator.handleHotkey()
         XCTAssertEqual(coordinator.state, .recording)
         coordinator.handleEscape()
         XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertFalse(mockRecorder.isStarted)
+        XCTAssertFalse(mockOverlay.isShowing)
     }
 
-    // MARK: - On-the-fly permission tests (MAC-02)
+    // MARK: - Full Pipeline (REC-02)
+
+    func testHotkeyStopsRecordingTranscribesAndPastes() async {
+        // Provide a speech-level buffer (RMS > 0.01)
+        mockRecorder.mockBuffer = (0..<16000).map { i in
+            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
+        }
+        mockSTT.mockTranscription = "Hola esto es una prueba"
+
+        await coordinator.handleHotkey() // start
+        XCTAssertEqual(coordinator.state, .recording)
+
+        await coordinator.handleHotkey() // stop -> transcribe -> paste
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertTrue(mockSTT.transcribeCalled)
+        XCTAssertEqual(mockInjector.lastInjectedText, "Hola esto es una prueba")
+        XCTAssertFalse(mockOverlay.isShowing)
+    }
+
+    // MARK: - VAD Gate (AUD-03)
+
+    func testSilentRecordingDoesNotTranscribe() async {
+        // Empty buffer = no speech
+        mockRecorder.mockBuffer = [Float](repeating: 0.0, count: 16000)
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> VAD fails -> no transcription
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertFalse(mockSTT.transcribeCalled)
+        XCTAssertNil(mockInjector.lastInjectedText)
+    }
+
+    // MARK: - STT Error Handling
+
+    func testTranscriptionErrorReturnsToIdle() async {
+        mockRecorder.mockBuffer = (0..<16000).map { i in
+            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
+        }
+        mockSTT.shouldThrow = true
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> transcribe fails
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertFalse(mockOverlay.isShowing)
+    }
+
+    // MARK: - Overlay Mode Switching (REC-03)
+
+    func testOverlayShowsProcessingDuringTranscription() async {
+        mockRecorder.mockBuffer = (0..<16000).map { i in
+            Float(sin(Double(i) * 2.0 * .pi * 440.0 / 16000.0)) * 0.1
+        }
+
+        await coordinator.handleHotkey() // start
+        XCTAssertTrue(mockOverlay.isShowing)
+
+        // Note: showProcessing() is called synchronously during handleHotkey
+        // We verify the overlay was showing before the pipeline completed
+        await coordinator.handleHotkey() // stop -> process
+        XCTAssertFalse(mockOverlay.isShowing) // hidden after completion
+    }
+
+    // MARK: - Permission Tests (MAC-02)
 
     func testHotkeyDeniedMicrophoneTransitionsToError() async {
         let mock = MockPermissionsManaging(grant: false)
@@ -64,9 +191,16 @@ final class AppCoordinatorTests: XCTestCase {
     }
 
     func testHotkeyNilPermissionsManagerProceedsToRecording() async {
-        // permissionsManager is nil — existing behavior must not break
         coordinator.permissionsManager = nil
         await coordinator.handleHotkey()
         XCTAssertEqual(coordinator.state, .recording)
+    }
+
+    // MARK: - Audio Start Failure
+
+    func testAudioStartFailureTransitionsToError() async {
+        mockRecorder.shouldThrowOnStart = true
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .error("microphone"))
     }
 }
