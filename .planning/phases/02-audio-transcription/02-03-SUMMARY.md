@@ -29,6 +29,11 @@ key-files:
   modified:
     - MyWhisper/Coordinator/AppCoordinator.swift
     - MyWhisper/App/AppDelegate.swift
+    - MyWhisper/Coordinator/AppCoordinatorDependencies.swift
+    - MyWhisper/UI/OverlayView.swift
+    - MyWhisper/UI/OverlayWindowController.swift
+    - MyWhisper/System/PermissionsManager.swift
+    - MyWhisper/MyWhisper.entitlements
     - MyWhisperTests/AppCoordinatorTests.swift
     - MyWhisperTests/STTEngineTests.swift
     - MyWhisper.xcodeproj/project.pbxproj
@@ -38,6 +43,10 @@ key-decisions:
   - "STTEngine pre-loaded in background Task at launch — non-blocking, non-fatal on failure (model loads lazily on first transcription)"
   - "NotificationHelper uses .provisional authorization to avoid blocking permission dialog at launch"
   - "MockSTTEngine in STTEngineTests renamed to MockSTTEngineProtocol to avoid redeclaration conflict with AppCoordinatorTests canonical MockSTTEngine"
+  - "OverlayViewModel (ObservableObject) held by OverlayWindowController — NSHostingView created once, mode updates pushed via @Published property"
+  - "OverlayWindowControllerProtocol marked @MainActor — required because OverlayViewModel is @MainActor and all overlay calls come from coordinator main thread"
+  - "AVAudioApplication.requestRecordPermission() instead of AVCaptureDevice.requestAccess(for: .audio) — correct API for AVAudioEngine-based audio capture"
+  - "com.apple.security.device.audio-input entitlement required even for non-sandboxed apps on macOS 14+ for microphone access"
 
 patterns-established:
   - "startAudioLevelPolling/stopAudioLevelPolling: Timer pair manages 30fps overlay updates, invalidated on stop/escape/cancel"
@@ -59,8 +68,8 @@ completed: 2026-03-15
 - **Duration:** ~15 min
 - **Started:** 2026-03-15T21:30:00Z
 - **Completed:** 2026-03-15T21:45:00Z
-- **Tasks:** 2 of 3 complete (Task 3 is human verification checkpoint)
-- **Files modified:** 6
+- **Tasks:** 3 of 3 complete
+- **Files modified:** 10
 
 ## Accomplishments
 - NotificationHelper.swift delivers macOS native notifications (.provisional, no permission dialog)
@@ -75,7 +84,7 @@ Each task was committed atomically:
 
 1. **Task 1: NotificationHelper, updated AppCoordinator pipeline, and updated AppDelegate with STT pre-loading** - `5897c46` (feat)
 2. **Task 2: Update unit tests for new AppCoordinator pipeline with mock STT** - `ae747d2` (test)
-3. **Task 3: Human verification checkpoint** - pending
+3. **Task 3: Verify end-to-end recording and transcription flow** - `40fd2f0` (fix)
 
 ## Files Created/Modified
 - `MyWhisper/System/NotificationHelper.swift` - UNUserNotificationCenter wrapper for silence/error macOS notifications
@@ -84,6 +93,11 @@ Each task was committed atomically:
 - `MyWhisperTests/AppCoordinatorTests.swift` - Complete rewrite with all mock types and pipeline tests
 - `MyWhisperTests/STTEngineTests.swift` - Renamed MockSTTEngine to MockSTTEngineProtocol to resolve redeclaration conflict
 - `MyWhisper.xcodeproj/project.pbxproj` - Registered NotificationHelper.swift (AA000036)
+- `MyWhisper/UI/OverlayView.swift` - Added OverlayViewModel (ObservableObject), OverlayView now takes @ObservedObject viewModel
+- `MyWhisper/UI/OverlayWindowController.swift` - Uses OverlayViewModel held as instance property; NSHostingView created once on show(); @MainActor
+- `MyWhisper/Coordinator/AppCoordinatorDependencies.swift` - OverlayWindowControllerProtocol marked @MainActor
+- `MyWhisper/System/PermissionsManager.swift` - requestMicrophone() uses AVAudioApplication.requestRecordPermission()
+- `MyWhisper/MyWhisper.entitlements` - Added com.apple.security.device.audio-input entitlement
 
 ## Decisions Made
 - Timer-based 30fps audio level polling: bridges AudioRecorder.audioLevel (updated on audio callback thread) to OverlayWindowController without reactive overhead
@@ -104,8 +118,35 @@ Each task was committed atomically:
 
 ---
 
-**Total deviations:** 1 auto-fixed (1 blocking)
-**Impact on plan:** Required fix to resolve Swift module conflict. No scope creep. STTEngineTests semantics unchanged.
+**2. [Rule 1 - Bug] OverlayWindowController recreated NSHostingView on every audio level update**
+- **Found during:** Task 3 (E2E manual verification)
+- **Issue:** Original implementation called `updateHostingView()` replacing the entire NSHostingView at 30fps — caused visible flicker and potential memory pressure
+- **Fix:** Added OverlayViewModel (ObservableObject) as instance property; NSHostingView created once in show(); mode updated via @Published property; OverlayView uses @ObservedObject
+- **Files modified:** MyWhisper/UI/OverlayView.swift, MyWhisper/UI/OverlayWindowController.swift, MyWhisper/Coordinator/AppCoordinatorDependencies.swift
+- **Commit:** 40fd2f0
+
+---
+
+**3. [Rule 2 - Missing] Missing com.apple.security.device.audio-input entitlement**
+- **Found during:** Task 3 (E2E manual verification — microphone access denied)
+- **Issue:** App could not access microphone; entitlement required even for non-sandboxed apps on macOS 14+
+- **Fix:** Added `<key>com.apple.security.device.audio-input</key><true/>` to MyWhisper.entitlements
+- **Files modified:** MyWhisper/MyWhisper.entitlements
+- **Commit:** 40fd2f0
+
+---
+
+**4. [Rule 1 - Bug] Wrong API for microphone permission request**
+- **Found during:** Task 3 (E2E manual verification — TCC dialog did not appear)
+- **Issue:** AVCaptureDevice.requestAccess(for: .audio) does not trigger the system TCC dialog for AVAudioEngine-based apps
+- **Fix:** Replaced with AVAudioApplication.requestRecordPermission() — correct API for AVAudioEngine audio capture
+- **Files modified:** MyWhisper/System/PermissionsManager.swift
+- **Commit:** 40fd2f0
+
+---
+
+**Total deviations:** 4 auto-fixed (1 blocking, 3 bugs/missing)
+**Impact on plan:** All fixes required for correct E2E operation. No architectural changes. Manual verification confirmed all fixes resolved the issues.
 
 ## Issues Encountered
 - xcodebuild test execution fails with code signing Team ID mismatch (pre-existing issue documented in STATE.md). `xcodebuild build-for-testing` succeeds, confirming all code compiles correctly. Test execution requires running from Xcode with proper signing configuration.
@@ -114,10 +155,24 @@ Each task was committed atomically:
 None - no external service configuration required.
 
 ## Next Phase Readiness
-- Complete Phase 2 pipeline ready for manual end-to-end verification (Task 3 checkpoint)
-- After user verifies: Phase 3 (text cleanup with Claude Haiku) can begin
-- All subsystems built: AudioRecorder, VAD, STTEngine, OverlayWindowController, AppCoordinator pipeline
+- Complete Phase 2 pipeline verified end-to-end by user (all manual tests pass)
+- Phase 3 (text cleanup with Claude Haiku) can begin
+- All subsystems built and verified: AudioRecorder, VAD, STTEngine, OverlayWindowController, AppCoordinator pipeline
 
 ---
 *Phase: 02-audio-transcription*
 *Completed: 2026-03-15*
+
+## Self-Check: PASSED
+
+- FOUND: MyWhisper/System/NotificationHelper.swift
+- FOUND: MyWhisper/Coordinator/AppCoordinator.swift
+- FOUND: MyWhisper/App/AppDelegate.swift
+- FOUND: MyWhisper/UI/OverlayView.swift
+- FOUND: MyWhisper/UI/OverlayWindowController.swift
+- FOUND: MyWhisper/MyWhisper.entitlements
+- FOUND: MyWhisperTests/AppCoordinatorTests.swift
+- FOUND: .planning/phases/02-audio-transcription/02-03-SUMMARY.md
+- FOUND: commit 5897c46 (feat: pipeline wiring)
+- FOUND: commit ae747d2 (test: AppCoordinatorTests update)
+- FOUND: commit 40fd2f0 (fix: Task 3 E2E verification fixes)

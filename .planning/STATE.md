@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: "Completed 02-03-PLAN.md (checkpoint:human-verify at Task 3)"
-last_updated: "2026-03-16T02:46:50.878Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-16T10:14:41.461Z"
 last_activity: "2026-03-15 — Plan 01-01 complete: Xcode scaffold, AppCoordinator FSM, HotkeyMonitor, MenubarController"
 progress:
   total_phases: 4
@@ -56,6 +56,7 @@ Progress: [█░░░░░░░░░] 8%
 | Phase 02-audio-transcription P02-02 | 12 min | 2 tasks | 6 files |
 | Phase 02-audio-transcription P01 | 13 min | 2 tasks | 8 files |
 | Phase 02-audio-transcription P03 | 15 | 2 tasks | 6 files |
+| Phase 02-audio-transcription P03 | 15 | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,9 @@ Recent decisions affecting current work:
 - [Phase 02-audio-transcription]: Timer-based 30fps audio level polling bridges AudioRecorder.audioLevel to OverlayWindowController without reactive framework overhead
 - [Phase 02-audio-transcription]: STTEngine pre-loaded in background Task at launch — non-blocking, non-fatal on failure (model loads lazily on first transcription)
 - [Phase 02-audio-transcription]: NotificationHelper uses .provisional authorization to avoid blocking permission dialog at launch
+- [Phase 02-audio-transcription]: OverlayViewModel (ObservableObject) held by OverlayWindowController — NSHostingView created once, mode updates pushed via @Published property
+- [Phase 02-audio-transcription]: AVAudioApplication.requestRecordPermission() instead of AVCaptureDevice.requestAccess(for: .audio) — correct API for AVAudioEngine-based audio capture
+- [Phase 02-audio-transcription]: com.apple.security.device.audio-input entitlement required even for non-sandboxed apps on macOS 14+ for microphone access
 
 ### Pending Todos
 
@@ -103,6 +107,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T02:46:50.875Z
-Stopped at: Completed 02-03-PLAN.md (checkpoint:human-verify at Task 3)
+Last session: 2026-03-16T10:14:41.458Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
