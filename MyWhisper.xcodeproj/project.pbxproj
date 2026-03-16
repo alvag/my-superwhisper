@@ -33,6 +33,9 @@
 		AA000025001 /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000025000 /* WhisperKit */; };
 		AA000028001 /* VAD.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000028000 /* VAD.swift */; };
 		AA000029001 /* VADTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000029000 /* VADTests.swift */; };
+		AA000027001 /* STTEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000027000 /* STTEngine.swift */; };
+		AA000035001 /* STTEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000035000 /* STTEngineTests.swift */; };
+		AA000034001 /* OverlayViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000034000 /* OverlayViewTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,12 +71,15 @@
 		AA000022000 /* TextInjectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInjectorTests.swift; sourceTree = "<group>"; };
 		AA000023000 /* AudioRecorderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioRecorderTests.swift; sourceTree = "<group>"; };
 		AA000024000 /* STTError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTError.swift; sourceTree = "<group>"; };
+		AA000027000 /* STTEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTEngine.swift; sourceTree = "<group>"; };
+		AA000035000 /* STTEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = STTEngineTests.swift; sourceTree = "<group>"; };
 		AA000030000 /* MyWhisper.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MyWhisper.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000031000 /* MyWhisperTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MyWhisperTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000032000 /* MyWhisper.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MyWhisper.entitlements; sourceTree = "<group>"; };
 		AA000033000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA000028000 /* VAD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VAD.swift; sourceTree = "<group>"; };
 		AA000029000 /* VADTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VADTests.swift; sourceTree = "<group>"; };
+		AA000034000 /* OverlayViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayViewTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -163,6 +169,8 @@
 				AA000022000 /* TextInjectorTests.swift */,
 				AA000023000 /* AudioRecorderTests.swift */,
 				AA000029000 /* VADTests.swift */,
+				AA000035000 /* STTEngineTests.swift */,
+				AA000034000 /* OverlayViewTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -196,6 +204,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000024000 /* STTError.swift */,
+				AA000027000 /* STTEngine.swift */,
 			);
 			path = STT;
 			sourceTree = "<group>";
@@ -325,6 +334,7 @@
 				AA000019001 /* OverlayView.swift in Sources */,
 				AA000024001 /* STTError.swift in Sources */,
 				AA000028001 /* VAD.swift in Sources */,
+				AA000027001 /* STTEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -339,6 +349,8 @@
 				AA000022001 /* TextInjectorTests.swift in Sources */,
 				AA000023001 /* AudioRecorderTests.swift in Sources */,
 				AA000029001 /* VADTests.swift in Sources */,
+				AA000035001 /* STTEngineTests.swift in Sources */,
+				AA000034001 /* OverlayViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
