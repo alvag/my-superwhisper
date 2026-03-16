@@ -35,7 +35,7 @@ Plans:
 - [x] 01-01-PLAN.md — Xcode scaffold, AppState FSM, AppCoordinator, HotkeyMonitor, EscapeMonitor, MenubarController
 - [x] 01-02-PLAN.md — PermissionsManager (health check + on-the-fly requesting) and PermissionBlockedView
 - [x] 01-03-PLAN.md — TextInjector (paste simulation), AudioRecorder stub, OverlayWindowController, full wiring
-- [ ] 01-04-PLAN.md — Gap closure: wire on-the-fly microphone permission request into AppCoordinator (MAC-02 partial fix)
+- [x] 01-04-PLAN.md — Gap closure: wire on-the-fly microphone permission request into AppCoordinator (MAC-02 partial fix)
 
 ### Phase 2: Audio + Transcription
 **Goal**: Users can speak after pressing the hotkey and receive the raw transcribed Spanish text pasted at their cursor
@@ -46,7 +46,12 @@ Plans:
   2. User presses the hotkey a second time and raw transcribed Spanish text appears at the cursor within 5 seconds for a 30-60 second recording
   3. A recording with no detectable speech (silence or background noise only) does not trigger transcription and produces no pasted output
   4. App is responsive immediately on launch — STT model is pre-loaded so the first recording does not incur a cold-start delay
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Real AudioRecorder (AVAudioEngine capture + resampling + RMS), VAD module, reactive OverlayView with spinner mode
+- [ ] 02-02-PLAN.md — WhisperKit SPM dependency, STTEngine actor with model lifecycle and Spanish transcription
+- [ ] 02-03-PLAN.md — Full pipeline wiring (AppCoordinator + AppDelegate), NotificationHelper, updated tests, end-to-end verification
 
 ### Phase 3: Haiku Cleanup
 **Goal**: Users receive clean, well-punctuated Spanish text with filler words removed via Anthropic Haiku API — the complete core product promise delivered end-to-end
@@ -80,6 +85,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 4/4 | Complete    | 2026-03-16 |
-| 2. Audio + Transcription | 0/TBD | Not started | - |
+| 2. Audio + Transcription | 0/3 | Planned | - |
 | 3. Haiku Cleanup | 0/TBD | Not started | - |
 | 4. Settings, History, and Polish | 0/TBD | Not started | - |
