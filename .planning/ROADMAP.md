@@ -24,7 +24,7 @@
 ### v1.1 Pause Playback
 
 - [x] **Phase 5: Pause Playback Implementation** - MediaPlaybackService wired into FSM + Settings toggle (completed 2026-03-17)
-- [ ] **Phase 6: Integration Verification** - Compatibility matrix validated across players and edge cases
+- [x] **Phase 6: Integration Verification** - Compatibility matrix validated across players and edge cases (completed 2026-03-17)
 
 ## Phase Details
 
@@ -52,7 +52,7 @@ Plans:
   2. Recording with nothing playing completes without launching Music.app or producing spurious playback events
   3. Rapid double-tap hotkey does not leave media in wrong state
   4. Settings toggle OFF: complete recording cycle against Spotify produces zero pause/resume events
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 Plans:
 - [ ] 06-01-PLAN.md — Music.app launch guard (isAnyMediaAppRunning) + unit test
 - [ ] 06-02-PLAN.md — Manual QA checklist execution + VERIFICATION.md
@@ -66,4 +66,4 @@ Plans:
 | 3. Haiku Cleanup | v1.0 | 2/2 | Complete | 2026-03-16 |
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 6. Integration Verification | 1/2 | In Progress|  | - |
+| 6. Integration Verification | 2/2 | Complete   | 2026-03-17 | - |
