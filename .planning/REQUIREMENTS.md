@@ -20,6 +20,7 @@ Requirements for v1.2 Dictation Quality. Each maps to roadmap phases.
 - [ ] **VOL-03**: App restores original mic input volume when recording stops (all exit paths: success, cancel, error)
 - [ ] **VOL-04**: App silently skips volume control when device does not expose settable input volume (graceful degradation)
 - [ ] **VOL-05**: Volume restore works correctly when mic device changes between start and stop
+- [ ] **VOL-06**: Settings toggle "Maximizar volumen al grabar" (default: ON) to enable/disable auto-max volume
 
 ## Future Requirements
 
@@ -50,10 +51,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VOL-03 | Phase 7 | Pending |
 | VOL-04 | Phase 7 | Pending |
 | VOL-05 | Phase 7 | Pending |
+| VOL-06 | Phase 7 | Pending |
 
 **Coverage:**
-- v1.2 requirements: 8 total
-- Mapped to phases: 8
+- v1.2 requirements: 9 total
+- Mapped to phases: 9
 - Unmapped: 0 ✓
 
 ---

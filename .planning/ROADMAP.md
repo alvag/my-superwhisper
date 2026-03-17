@@ -46,7 +46,7 @@
 ### Phase 7: Implementation
 **Goal**: Both dictation quality features are coded, wired, and building — mic volume auto-maximizes on record start and restores on every exit, and Haiku never appends hallucinated courtesy phrases
 **Depends on**: Phase 6 (v1.1 complete)
-**Requirements**: HAIKU-01, HAIKU-02, VOL-01, VOL-02, VOL-03, VOL-04, VOL-05
+**Requirements**: HAIKU-01, HAIKU-02, VOL-01, VOL-02, VOL-03, VOL-04, VOL-05, VOL-06
 **Success Criteria** (what must be TRUE):
   1. Recording a voice note causes mic input volume to jump to 1.0 (max) at start and return to its original level when recording stops, is cancelled, or errors out
   2. Haiku system prompt contains a structural Rule 6 prohibiting addition of words absent from the STT input, with "gracias", "de nada", "hasta luego" named as concrete examples
