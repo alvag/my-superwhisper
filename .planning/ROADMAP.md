@@ -53,7 +53,7 @@
   3. Post-processing strip runs after Haiku response and removes any hallucinated courtesy suffix not present in the raw transcription
   4. On a device where mic input volume is not settable (built-in Mac mic, most USB mics), recording proceeds normally with no error shown to the user
   5. App compiles and runs without regression on normal record/transcribe/paste workflow
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
 - [ ] 07-01: MicInputVolumeService — CoreAudio read/save/maximize/restore
