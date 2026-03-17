@@ -39,7 +39,7 @@
 **Milestone Goal:** Improve dictation accuracy and input quality — prevent phantom "gracias" from Haiku cleanup and auto-maximize mic input volume during recording.
 
 - [x] **Phase 7: Implementation** - Build MicInputVolumeService and add Haiku Rule 6 hallucination guard (completed 2026-03-17)
-- [ ] **Phase 8: Verification** - Validate both features against real speech, hardware, and regression baseline
+- [x] **Phase 8: Verification** - Validate both features against real speech, hardware, and regression baseline (completed 2026-03-17)
 
 ## Phase Details
 
@@ -86,4 +86,4 @@ Plans:
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 6. Integration Verification | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 7. Implementation | v1.2 | 3/3 | Complete | 2026-03-17 |
-| 8. Verification | v1.2 | 0/2 | Not started | - |
+| 8. Verification | 2/2 | Complete   | 2026-03-17 | - |

@@ -11,7 +11,7 @@ Requirements for v1.2 Dictation Quality. Each maps to roadmap phases.
 
 - [x] **HAIKU-01**: Haiku system prompt includes explicit Rule 6 prohibiting addition of words not present in the input (specifically "gracias", "de nada", "hasta luego")
 - [x] **HAIKU-02**: Post-processing suffix strip removes hallucinated courtesy phrases as safety net when not present in raw transcription
-- [ ] **HAIKU-03**: Existing cleanup behavior (punctuation, capitalization, filler removal, paragraph breaks) is unaffected by prompt changes — regression verified
+- [x] **HAIKU-03**: Existing cleanup behavior (punctuation, capitalization, filler removal, paragraph breaks) is unaffected by prompt changes — regression verified
 
 ### Input Volume
 
@@ -45,7 +45,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | HAIKU-01 | Phase 7 | Complete |
 | HAIKU-02 | Phase 7 | Complete |
-| HAIKU-03 | Phase 8 | Pending |
+| HAIKU-03 | Phase 8 | Complete |
 | VOL-01 | Phase 7 | Complete (07-01) |
 | VOL-02 | Phase 7 | Complete (07-01) |
 | VOL-03 | Phase 7 | Complete |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Dictation Quality
 status: executing
-stopped_at: Completed 07-02-PLAN.md
-last_updated: "2026-03-17T13:32:06.039Z"
+stopped_at: Completed 08-02-PLAN.md
+last_updated: "2026-03-17T15:37:09.638Z"
 last_activity: 2026-03-17 — Plan 07-03 complete, Haiku hallucination prevention implemented
 progress:
   total_phases: 2
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
   percent: 100
 ---
 
@@ -52,6 +52,9 @@ Progress: [██████████] 100%
 
 *Updated after each plan completion*
 | Phase 07-implementation P02 | 7 | 2 tasks | 4 files |
+| Phase 08-verification P02 | 3 | 1 tasks | 2 files |
+| Phase 08-verification P01 | 525606min | 1 tasks | 2 files |
+| Phase 08-verification P01 | 6min | 1 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -67,6 +70,10 @@ Recent decisions affecting current work:
 - [v1.2 Research]: Haiku Rule 6 must target the addition behavior structurally ("output only words present in input"), not blacklist the specific token "gracias"
 - [Phase 07-02]: restore() placed BEFORE audioRecorder.stop() in .recording case — covers VAD silence, STT error, Haiku error, and success paths via single placement
 - [Phase 07-02]: coordinator calls micVolumeService unconditionally — isEnabled guard lives inside MicInputVolumeService, not AppCoordinator
+- [Phase 08-02]: Test file structure: 4 sections (Exit Paths, Ordering, Delegation, Haiku Errors) matching plan exactly for traceability
+- [Phase 08-02]: speechBuffer() helper copied as private method in VolumeControlQATests — avoids cross-file dependency on AppCoordinatorTests
+- [Phase 08-01]: Empty STT edge case deferred to VAD gate — testSilentRecordingDoesNotTranscribe covers it; replaced with VeryLongText edge case
+- [Phase 08-01]: runPipeline() helper reduces boilerplate across 24 tests while preserving test semantics
 
 ### Pending Todos
 
@@ -102,6 +109,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-17T13:27:11.278Z
-Stopped at: Completed 07-02-PLAN.md
+Last session: 2026-03-17T15:36:55.236Z
+Stopped at: Completed 08-02-PLAN.md
 Resume file: None
