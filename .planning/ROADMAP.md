@@ -52,7 +52,7 @@ Plans:
   2. Recording with nothing playing completes without launching Music.app or producing spurious playback events
   3. Rapid double-tap hotkey does not leave media in wrong state
   4. Settings toggle OFF: complete recording cycle against Spotify produces zero pause/resume events
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 06-01-PLAN.md — Music.app launch guard (isAnyMediaAppRunning) + unit test
 - [ ] 06-02-PLAN.md — Manual QA checklist execution + VERIFICATION.md
@@ -66,4 +66,4 @@ Plans:
 | 3. Haiku Cleanup | v1.0 | 2/2 | Complete | 2026-03-16 |
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 6. Integration Verification | v1.1 | 0/2 | Not started | - |
+| 6. Integration Verification | 1/2 | In Progress|  | - |
