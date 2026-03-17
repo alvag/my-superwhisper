@@ -11,8 +11,23 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
 
     func pause() {
         guard isEnabled else { return }
+        guard isAnyMediaAppRunning() else { return }
         postMediaKeyToggle()
         pausedByApp = true
+    }
+
+    func isAnyMediaAppRunning() -> Bool {
+        let mediaApps: Set<String> = [
+            "com.spotify.client",
+            "com.apple.Music",
+            "org.videolan.vlc",
+            "com.apple.Safari",
+            "com.google.Chrome",
+            "org.mozilla.firefox"
+        ]
+        return NSWorkspace.shared.runningApplications
+            .compactMap(\.bundleIdentifier)
+            .contains { mediaApps.contains($0) }
     }
 
     func resume() {
