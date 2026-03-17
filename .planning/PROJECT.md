@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A local-first voice-to-text macOS menubar application for Apple Silicon. Press a configurable global hotkey (default Option+Space) to start recording, speak freely, press again to stop. Audio is transcribed locally via WhisperKit (large-v3, Spanish), cleaned up by Anthropic Haiku API (punctuation, filler removal), and the polished text is auto-pasted at the cursor. 3,445 lines of Swift, fully functional with settings, history, vocabulary corrections, and distribution pipeline.
+A local-first voice-to-text macOS menubar application for Apple Silicon. Press a configurable global hotkey (default Option+Space) to start recording, speak freely, press again to stop. Audio is transcribed locally via WhisperKit (large-v3, Spanish), cleaned up by Anthropic Haiku API (punctuation, filler removal), and the polished text is auto-pasted at the cursor. Media playback auto-pauses during recording and resumes after. ~3,900 lines of Swift, fully functional with settings, history, vocabulary corrections, media pause, and distribution pipeline.
 
 ## Core Value
 
@@ -29,18 +29,13 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 - ✓ Graceful error handling with fallback to raw text — v1.0
 - ✓ Idle RAM ~27MB (MAC-05 <200MB) — v1.0
 
+- ✓ Pause Playback: pausar automáticamente medios en reproducción al iniciar grabación y reanudar al terminar — v1.1
+- ✓ Toggle configurable en Settings para activar/desactivar Pause Playback — v1.1
+- ✓ Guard NSWorkspace: no enviar media keys si no hay reproductor activo (previene lanzamiento de Music.app) — v1.1
+
 ### Active
 
-- [ ] Pause Playback: pausar automáticamente medios en reproducción al iniciar grabación y reanudar al terminar
-- [ ] Toggle configurable en Settings para activar/desactivar Pause Playback
-
-## Current Milestone: v1.1 Pause Playback
-
-**Goal:** Pausar automáticamente cualquier medio en reproducción (música, video, etc.) al iniciar grabación y reanudar al terminar, con toggle configurable en Settings.
-
-**Target features:**
-- Pause/resume automático de medios al grabar (sistema + terceros)
-- Toggle en Settings para activar/desactivar
+(No active requirements — planning next milestone)
 
 ### Out of Scope
 
@@ -55,7 +50,7 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ## Context
 
-- **Shipped:** v1.0 on 2026-03-16 (3,445 LOC Swift, 4 phases, 13 plans)
+- **Shipped:** v1.1 on 2026-03-17 (~3,900 LOC Swift, 6 phases total, 17 plans)
 - Target hardware: Apple Silicon Macs (M1/M2/M3/M4) with Neural Engine and unified memory
 - Stack: Swift/SwiftUI, WhisperKit (local STT), Anthropic Haiku API (text cleanup), KeyboardShortcuts (hotkey), CoreAudio (mic selection)
 - User primarily dictates in Spanish
@@ -85,6 +80,9 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 | UserDefaults for settings/history/vocabulary | Simple, sufficient for v1 data sizes (20 history entries, small vocab list) | ✓ Good |
 | Developer ID distribution (not App Store) | CGEventPost blocked in sandboxed apps | ✓ Required |
 | Haiku fallback to raw text | User always gets text — degraded quality beats no output | ✓ Good |
+| HID media keys (not MediaRemote) | MediaRemote broken on macOS 15.4+; HID keys work system-wide including browsers | ✓ Good — works with Spotify, Apple Music, YouTube/Safari |
+| NSWorkspace guard for Music.app | Prevents rcd from launching Music.app when no media app is running | ✓ Good — solves cold-launch issue |
+| Toggle semantics (no NowPlaying) | Accept that pause key toggles even if nothing is playing in a running app | ✓ Acceptable trade-off |
 
 ---
-*Last updated: 2026-03-16 after v1.1 milestone started*
+*Last updated: 2026-03-17 after v1.1 milestone complete*
