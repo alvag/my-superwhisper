@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Dictation Quality
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-03-17T12:59:00Z"
-last_activity: 2026-03-17 — Plan 07-01 complete, MicInputVolumeService created
+stopped_at: Completed 07-03-PLAN.md
+last_updated: "2026-03-17T13:34:36Z"
+last_activity: 2026-03-17 — Plan 07-03 complete, Haiku hallucination prevention implemented
 progress:
   total_phases: 2
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
-  percent: 33
+  completed_plans: 3
+  percent: 100
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 7 of 8 (Implementation)
-Plan: 1 of 3 in current phase
+Plan: 3 of 3 in current phase
 Status: Executing
-Last activity: 2026-03-17 — Plan 07-01 complete, MicInputVolumeService created
+Last activity: 2026-03-17 — Plan 07-03 complete, Haiku hallucination prevention implemented
 
-Progress: [███░░░░░░░] 33%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -77,6 +77,13 @@ None.
 - [07-01]: AudioObjectIsPropertySettable checked every setVolume call — device capability can change (VOL-04)
 - [07-01]: kAudioObjectPropertyElementMain used throughout (not deprecated kAudioObjectPropertyElementMaster)
 
+### Decisions (07-03)
+
+- [07-03]: stripHallucinatedSuffix trims trailing punctuation BEFORE hasSuffix check to handle "Gracias." variant
+- [07-03]: confirmedPatterns = ["gracias"] — only expand with confirmed production evidence
+- [07-03]: Suffix strip placed AFTER haiku.clean() and BEFORE vocabularyService.apply() in transcription pipeline
+- [07-03]: MockURLProtocol must read httpBodyStream when httpBody is nil (URLSession converts body to stream for actor requests)
+
 ### Blockers/Concerns
 
 None.
@@ -88,9 +95,10 @@ None.
 | Phase | Plan | Duration | Files |
 |-------|------|----------|-------|
 | 07-implementation | 01 | ~9 min | 4 |
+| 07-implementation | 03 | ~24 min | 4 |
 
 ## Session Continuity
 
-Last session: 2026-03-17T12:59:00Z
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-implementation/07-01-SUMMARY.md
+Last session: 2026-03-17T13:34:36Z
+Stopped at: Completed 07-03-PLAN.md
+Resume file: .planning/phases/07-implementation/07-03-SUMMARY.md
