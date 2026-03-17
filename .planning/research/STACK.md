@@ -1,12 +1,13 @@
 # Stack Research
 
-**Domain:** macOS system-wide media playback pause/resume (v1.1 Pause Playback feature)
-**Researched:** 2026-03-16
-**Confidence:** HIGH
+**Domain:** v1.2 Dictation Quality — mic input volume auto-maximize + Haiku hallucination fix
+**Researched:** 2026-03-17
+**Confidence:** HIGH (CoreAudio volume API), HIGH (Haiku prompt patterns)
 
-> **Scope note:** This file covers only the NEW APIs needed for v1.1 Pause Playback.
+> **Scope note:** This file covers only the NEW capabilities needed for v1.2.
 > The existing validated stack (Swift/SwiftUI, WhisperKit, Haiku API, KeyboardShortcuts,
-> CoreAudio, CGEventPost) is unchanged and is not re-researched here.
+> CoreAudio device selection, CGEventPost, NSWorkspace media guard) is unchanged and
+> is not re-researched here.
 
 ---
 
@@ -16,78 +17,182 @@
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| AppKit (NSEvent) | macOS 13+ | Construct system-defined HID media key events | The only public way to synthesize a play/pause media key event at the system level. The `NSEvent.otherEvent(with: .systemDefined, ...)` API with subtype 8 is the established mechanism used by rogue amoeba, BeardedSpice, and dozens of open-source macOS utilities for 15+ years. |
-| CoreGraphics (CGEvent) | macOS 13+ | Post the synthesized media key event to the HID tap | Already imported and used in `TextInjector.swift` for Cmd+V simulation (`CGEvent.post(tap: .cgSessionEventTap)`). The media key variant uses `.cghidEventTap` instead. Zero new dependency. |
-| IOKit.hidsystem | macOS SDK | Provides `NX_KEYTYPE_PLAY = 16` and related key code constants | Header-only import (`import IOKit.hidsystem`), no linkage change. Defines the stable constant needed to target the play/pause key. |
+| CoreAudio HAL (AudioObjectGetPropertyData / AudioObjectSetPropertyData) | macOS 13+ | Read current mic input volume, write max volume on record start, restore on stop | Already imported in `MicrophoneDeviceService.swift`. The `AudioObjectPropertyAddress` + C function pattern is identical to what the project uses for device enumeration — zero new dependency, same paradigm. |
+| AudioObjectIsPropertySettable | macOS 13+ | Check before writing whether a given device supports volume control on its input scope | Some devices (most USB/Bluetooth mics, aggregate devices) report `kAudioDevicePropertyVolumeScalar` as read-only or absent on the input scope. Must check before attempting write to avoid silent failure or crash. |
+| Haiku system prompt update (no new library) | API version 2023-06-01 | Prevent "gracias" and similar hallucinated closings | Prompt engineering only — no new API call, no new SDK, no new dependency. The fix is a single sentence added to the existing `systemPrompt` in `HaikuCleanupService.swift`. |
 
 ### Supporting Libraries
 
-None required. All needed APIs exist in frameworks already imported by the project.
-
-### Development Tools
-
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| Existing `TextInjector.swift` | Reference implementation for CGEvent posting pattern | The media key posting code is structurally identical to the Cmd+V simulation already in place. |
+None required. All needed capabilities exist in frameworks already imported by the project.
 
 ---
 
 ## Installation
 
-No new SPM packages. No new entitlements. No Info.plist additions.
+No new SPM packages. No new frameworks. No Info.plist or entitlement changes.
 
-Add to the new `MediaController.swift` file:
+The only new import needed is already present in `MicrophoneDeviceService.swift`:
 
 ```swift
-import AppKit       // already in project
-import CoreGraphics // already in project (TextInjector.swift)
-import IOKit.hidsystem  // NEW — header-only, no link flag needed in Swift
+import CoreAudio   // already imported
 ```
-
-In Xcode, `IOKit` is auto-linked when imported via Swift. No `OTHER_LDFLAGS` change needed.
 
 ---
 
-## Implementation Pattern
+## CoreAudio Input Volume API — Exact Pattern
 
-The complete pause/resume toggle is ~20 lines of Swift. The pattern constructs an
-`NSEvent` of type `.systemDefined` with subtype 8 (the HID auxiliary key subtype),
-encodes `NX_KEYTYPE_PLAY` (= 16) in the upper 16 bits of `data1`, and posts it via
-`CGEvent.post`. macOS routes the event to whichever app currently owns the Now Playing
-session — Spotify, Apple Music, VLC, Safari/Chrome with HTML5 audio, any compliant app.
+### Property Address
 
 ```swift
-import AppKit
-import CoreGraphics
-import IOKit.hidsystem
+var address = AudioObjectPropertyAddress(
+    mSelector: kAudioDevicePropertyVolumeScalar,
+    mScope:    kAudioDevicePropertyScopeInput,
+    mElement:  kAudioObjectPropertyElementMain   // element 0 = master/main channel
+)
+```
 
-// NX_KEYTYPE_PLAY = 16  (from IOKit/hidsystem/ev_keymap.h)
-private let kPlayPauseKey: Int = 16
+`kAudioObjectPropertyElementMain` (= 0) addresses the master/main channel. This is what
+System Preferences and Audio MIDI Setup use for the input level slider.
 
-func postMediaPlayPauseKey() {
-    func post(keyDown: Bool) {
-        let flags = NSEvent.ModifierFlags(rawValue: keyDown ? 0xa00 : 0xb00)
-        let data1 = (kPlayPauseKey << 16) | (keyDown ? 0xa00 : 0xb00)
-        guard let event = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: flags,
-            timestamp: ProcessInfo.processInfo.systemUptime,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8,
-            data1: data1,
-            data2: -1
-        ) else { return }
-        event.cgEvent?.post(tap: .cghidEventTap)
-    }
-    post(keyDown: true)
-    post(keyDown: false)
+### Step 1 — Check settability before reading or writing
+
+Not all devices support input volume control at the driver level. Built-in MacBook mics may
+or may not expose a settable volume property (hardware-dependent; Apple Silicon MBPs
+generally do, some models do not). USB mics typically expose no settable input volume at all.
+Always call `AudioObjectIsPropertySettable` first:
+
+```swift
+var isSettable: DarwinBoolean = false
+let settableStatus = AudioObjectIsPropertySettable(deviceID, &address, &isSettable)
+guard settableStatus == noErr, isSettable.boolValue else {
+    // Property not settable on this device — skip silently, do not attempt write
+    return
 }
 ```
 
-Call once at recording start (pauses whatever is playing), call again at recording stop
-(resumes). Track internal state to avoid spurious resume if nothing was playing at start.
+### Step 2 — Read current value (to restore later)
+
+```swift
+var currentVolume: Float32 = 0.0
+var dataSize = UInt32(MemoryLayout<Float32>.size)
+let getStatus = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &currentVolume)
+guard getStatus == noErr else { return }
+```
+
+### Step 3 — Write maximum value
+
+```swift
+var maxVolume: Float32 = 1.0
+let setStatus = AudioObjectSetPropertyData(deviceID, &address, 0, nil,
+                                           UInt32(MemoryLayout<Float32>.size), &maxVolume)
+// setStatus == noErr on success
+```
+
+### Step 4 — Restore on recording stop
+
+```swift
+var savedVolume: Float32 = currentVolume  // from Step 2
+AudioObjectSetPropertyData(deviceID, &address, 0, nil,
+                           UInt32(MemoryLayout<Float32>.size), &savedVolume)
+```
+
+### Which device ID to use
+
+Use the same `AudioDeviceID` that `MicrophoneDeviceService.selectedDeviceID` resolves to,
+falling back to the system default input device via `kAudioHardwarePropertyDefaultInputDevice`
+if no device is explicitly selected — exactly how `AudioRecorder.start()` already selects
+the recording device.
+
+```swift
+// Resolve actual device ID used for recording (mirrors AudioRecorder.start() logic)
+func resolveInputDeviceID() -> AudioDeviceID? {
+    if let saved = microphoneService?.selectedDeviceID,
+       microphoneService?.availableInputDevices().map(\.id).contains(saved) == true {
+        return saved
+    }
+    // Fall back to system default
+    var defaultID: AudioDeviceID = 0
+    var defaultAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyDefaultInputDevice,
+        mScope:    kAudioObjectPropertyScopeGlobal,
+        mElement:  kAudioObjectPropertyElementMain
+    )
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
+                                     &defaultAddress, 0, nil, &size, &defaultID) == noErr,
+          defaultID != kAudioObjectUnknown else { return nil }
+    return defaultID
+}
+```
+
+---
+
+## Haiku Prompt Fix — Exact Pattern
+
+### Root cause
+
+Haiku (and Claude models generally) are trained on text that commonly ends with polite
+closings ("Gracias", "Thank you", "De nada", etc.). When transcribed dictation is short
+or ends ambiguously, the model occasionally completes what it perceives as an interrupted
+sentence or adds a social convention. This is hallucination by completion, not hallucination
+by invention.
+
+### Anthropic-recommended technique for this class of problem
+
+Official guidance ([Anthropic: Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)) calls for:
+
+- **Explicit constraint on additions** — tell the model not to add content not present in input.
+- **External knowledge restriction** — explicitly block the model from using knowledge outside the input.
+- **"Tell Claude what to do, not what not to do"** but for strict prohibition the negative form is acceptable as a standalone rule with a REASON (the reason increases compliance).
+
+Anthropic's own prompting docs note that adding context/reason behind an instruction
+significantly improves following:
+
+> "Your response will be read aloud by a TTS engine, so never use ellipses since TTS won't
+> know how to pronounce them." (principle: explain WHY so Claude generalises correctly)
+
+### Fix: one sentence addition to the existing systemPrompt
+
+Current rule 5 in `HaikuCleanupService.swift`:
+
+```
+5. PROHIBIDO: NO parafrasees, NO agregues palabras que no estaban, NO reestructures oraciones, NO cambies el registro ni el tono.
+```
+
+Replace with:
+
+```
+5. PROHIBIDO: NO parafrasees, NO agregues palabras que no estaban en el audio (esto incluye despedidas, saludos o frases de cortesía como "gracias", "de nada", "hasta luego" a menos que el usuario las haya dicho explícitamente), NO reestructures oraciones, NO cambies el registro ni el tono. Tu entrada es transcripción de voz cruda; si la oración termina abruptamente, termínala igual de abrupt amente.
+```
+
+**Why this formulation works:**
+1. Explicitly names the offending pattern ("gracias", "de nada", "hasta luego") so the model has a concrete anchor.
+2. Adds a conditional exception ("a menos que el usuario las haya dicho explícitamente") that prevents over-blocking legitimate use of these words.
+3. Provides the reasoning ("transcripción de voz cruda") so the model understands the task frame correctly — it is transforming, not composing.
+4. "si la oración termina abruptamente, termínala igual" directly counters completion hallucination by normalising abrupt endings as valid output.
+
+### Alternative approach: few-shot examples
+
+The official Anthropic prompting guide recommends 3–5 examples wrapped in `<example>` tags
+for the strongest steerability. For this specific case, a single explicit rule (above) is
+preferred over few-shot because:
+- The existing prompt uses a numbered-rules format; examples would change the structure.
+- The token overhead of examples is undesirable given the 5-second pipeline budget.
+- The rule formulation is precise enough to constrain the model without examples.
+
+If the rule alone proves insufficient across edge cases, add to the `messages` array a
+few-shot example via a prefilled exchange pattern (Haiku 4.5 still supports this):
+
+```swift
+"messages": [
+    ["role": "user",    "content": "y eso fue todo lo que pasó este"],
+    ["role": "assistant","content": "Y eso fue todo lo que pasó."],
+    ["role": "user",    "content": rawText]
+]
+```
+
+This shows the model that ending after removing a filler is the correct behaviour, not
+adding "gracias" or similar.
 
 ---
 
@@ -95,9 +200,10 @@ Call once at recording start (pauses whatever is playing), call again at recordi
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| HID media key posting (NSEvent + CGEvent) | NSAppleScript per-app | Only if per-app control is a hard requirement AND all target apps support AppleScript (Spotify, Apple Music, VLC do; browsers and most third-party players do not). Requires per-app user approval in System Settings > Privacy > Automation, separate AppleScript per app, fragile to app renames. Far more complexity for narrower coverage. |
-| HID media key posting (NSEvent + CGEvent) | MediaRemote private framework | Was viable until macOS 15.4 (2024). Apple restricted it to Apple-signed processes with a private entitlement. Third-party apps receive silent failures. Do not use on modern macOS. |
-| HID media key posting (NSEvent + CGEvent) | MPRemoteCommandCenter (MediaPlayer framework) | Controls only YOUR app's own AVPlayer session. It is a command receiver, not a command sender. Solves the wrong problem entirely. |
+| CoreAudio HAL direct (AudioObjectSetPropertyData) | SimplyCoreAudio Swift package | Only if the project had zero existing CoreAudio code and needed a high-level wrapper. SimplyCoreAudio was archived (read-only) in March 2024, making it a dead dependency. The project already speaks the HAL API directly — adding a dead package for two function calls is not justified. |
+| CoreAudio HAL direct | AVAudioSession.setInputGain() | AVAudioSession is the iOS/macOS Catalyst input gain API. It is NOT available in a standard macOS app (it is available on macOS 14.0+ in Mac Catalyst only). Do not use in a non-Catalyst macOS app — the API exists but the `inputGain` property throws at runtime outside Catalyst context. |
+| System-level volume via CoreAudio HAL | Applescript / osascript `set volume input volume` | osascript can set system input volume but only for the default input device, has ~200ms latency, and introduces a subprocess dependency. The CoreAudio HAL call is synchronous, in-process, and already targets the correct device. |
+| Prompt rule for "gracias" | Post-processing text filter (regex/string match) | A regex that strips "gracias" at end would also strip it when legitimately dictated ("...dile gracias de mi parte"). The prompt rule includes the conditional exception. Post-processing cannot distinguish dictated from hallucinated text. |
 
 ---
 
@@ -105,32 +211,30 @@ Call once at recording start (pauses whatever is playing), call again at recordi
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| MediaRemote private framework | Broken for third-party apps since macOS 15.4 (2024). The `mediaremoted` daemon requires an Apple-only entitlement; apps without it are silently denied. Widespread breakage reported across community and GitHub issues. | HID media key event posting |
-| MPRemoteCommandCenter / MPNowPlayingInfoCenter | These APIs register YOUR app as a Now Playing participant and let it receive play/pause commands. They do not send commands to other apps. Importing MediaPlayer framework adds unnecessary weight for this use case. | HID media key event posting |
-| NSAppleScript per-app scripting | Requires a separate script per app, per-app user approval popups, does not work for browsers or apps without AppleScript dictionaries, and is brittle to app updates. BackgroundMusic uses this approach as a last resort; it is not the primary mechanism. | HID media key event posting |
-| Third-party libraries (SPMediaKeyTap, MediaKeyTap, nhurden/MediaKeyTap) | These are event INTERCEPTORS (tap incoming media keys to reroute them), not event SENDERS. They solve the wrong problem — we need to send a pause command, not intercept an existing one. Also: SPMediaKeyTap is Objective-C and unmaintained. | Inline HID posting (~20 lines, no dependency) |
+| AVAudioSession.inputGain (macOS) | Available only in Mac Catalyst builds. Crashes or silently fails in standard AppKit/SwiftUI macOS apps. | CoreAudio HAL `kAudioDevicePropertyVolumeScalar` on `kAudioDevicePropertyScopeInput` |
+| SimplyCoreAudio (Swift package) | Archived and read-only since March 2024. No future maintenance. For this use case (get/set input volume) it wraps the same 10-line CoreAudio HAL pattern the project already uses. | Inline CoreAudio HAL calls |
+| Writing input volume without calling AudioObjectIsPropertySettable first | Most USB mics (Blue Yeti, Shure MV7, etc.) and Bluetooth devices expose no settable input volume at the CoreAudio HAL layer. Attempting `AudioObjectSetPropertyData` on an unsettable property returns `kAudioHardwareUnsupportedOperationError` and leaves state inconsistent. | Check settability first; skip gracefully if not settable |
+| Stripping "gracias" via post-processing regex | Removes the word even when the user legitimately dictated it. | Prompt rule with explicit conditional exception |
+| Increasing Haiku `max_tokens` budget for the prompt fix | The fix is one rule addition (~25 tokens). No token budget change needed. | Keep existing `estimateMaxTokens()` logic unchanged |
 
 ---
 
 ## Stack Patterns by Variant
 
-**Pause the system Now Playing app (universal, recommended):**
-- Post `NX_KEYTYPE_PLAY` via `CGEvent.post(tap: .cghidEventTap)`
-- macOS routes to the active Now Playing session automatically
-- Works with Spotify, Apple Music, VLC, browser-based media, podcast apps, etc.
-- No knowledge of which app is playing required
+**If the selected mic supports input volume control (most built-in mics, some USB interfaces):**
+- `AudioObjectIsPropertySettable` returns `true`
+- Read → maximize → restore flow executes normally
+- Save/restore happens in `MicInputVolumeService` (new file) or extended `MicrophoneDeviceService`
 
-**State tracking (avoid double-resume bug):**
-- Record whether media was playing when recording started
-- On recording start: send pause, set `didPauseMedia = true`
-- On recording stop: send resume ONLY IF `didPauseMedia == true`, then reset flag
-- Without this, starting recording when nothing is playing would erroneously start playback
+**If the selected mic does NOT support input volume control (most USB mics, Bluetooth, aggregate devices):**
+- `AudioObjectIsPropertySettable` returns `false` or the property is absent
+- Skip the feature silently — do not log an error to the user
+- Whisper still transcribes from whatever level the device provides
 
-**Detecting whether something is currently playing:**
-- No clean public API exists post-macOS 15.4 (MediaRemote blocked)
-- Pragmatic approach: always send pause on start, always send resume on stop
-- If nothing was playing, the toggle event is a no-op in most apps (they ignore play commands when already stopped)
-- If this is unacceptable, ship with a Settings toggle (already planned) so users can disable it
+**If no device is explicitly selected (user uses system default):**
+- Resolve `kAudioHardwarePropertyDefaultInputDevice` at recording start
+- Apply volume maximization to that device ID
+- Restore to that same device ID at stop
 
 ---
 
@@ -138,28 +242,32 @@ Call once at recording start (pauses whatever is playing), call again at recordi
 
 | API | macOS Support | Notes |
 |-----|--------------|-------|
-| `NSEvent.otherEvent(with: .systemDefined, ...)` | macOS 10.6+ | Stable API, unchanged across macOS versions through Sequoia (15.x) |
-| `CGEvent.post(tap: .cghidEventTap)` | macOS 10.4+ | Same pattern used in TextInjector; works in non-sandboxed Developer ID apps |
-| `NX_KEYTYPE_PLAY = 16` | macOS SDK constant | Defined in `IOKit/hidsystem/ev_keymap.h`; value has not changed across macOS versions |
-| MediaRemote private framework | Broken as of macOS 15.4 | Do not use — entitlement-gated as of 2024 |
+| `AudioObjectIsPropertySettable` | macOS 10.6+ | Stable HAL API, unchanged through macOS 15.x (Sequoia) |
+| `AudioObjectGetPropertyData` with `kAudioDevicePropertyVolumeScalar` + `kAudioDevicePropertyScopeInput` | macOS 10.6+ | Same API already used for device enumeration in the project |
+| `AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` | macOS 10.6+ | Standard HAL write; works in non-sandboxed apps without special entitlements |
+| `kAudioObjectPropertyElementMain` (= 0) | macOS 12+ (renamed from `kAudioObjectPropertyElementMaster`) | The old constant `kAudioObjectPropertyElementMaster` still compiles but generates a deprecation warning. Use `kAudioObjectPropertyElementMain` to keep the codebase warning-free. |
+| Haiku API `claude-haiku-4-5-20251001` | Current as of research date | The model identifier in the codebase is correct. No model change needed for the prompt fix. |
 
-**macOS version target:** The existing project requires macOS 14+ (WhisperKit). The HID media key API works on macOS 13+, so no deployment target change is needed.
+**macOS deployment target:** No change. Existing target is macOS 14+ (WhisperKit). All
+CoreAudio HAL APIs used here are available on macOS 13+, well within target.
 
-**Non-sandboxed requirement:** The existing app is already non-sandboxed (Developer ID distribution) because CGEventPost is used for paste simulation. HID event posting via `.cghidEventTap` has the same non-sandbox requirement — no new entitlement needed since the constraint is already satisfied.
+**Non-sandboxed requirement:** `AudioObjectSetPropertyData` for device input volume does
+NOT require entitlements or special permissions — it is a HAL call scoped to the hardware
+device, not a process-level permission like microphone access (which the app already has).
 
 ---
 
 ## Sources
 
-- [Apple Developer Docs: MPRemoteCommandCenter](https://developer.apple.com/documentation/mediaplayer/mpremotecommandcenter) — confirmed it handles INCOMING commands for own app, not outgoing commands to other apps; HIGH confidence
-- [Apple Developer Docs: MPNowPlayingInfoCenter](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfocenter) — confirmed it publishes Now Playing metadata, not for controlling other apps; HIGH confidence
-- [Rogue Amoeba: Apple Keyboard Media Key Event Handling (2007)](https://weblog.rogueamoeba.com/2007/09/29/apple-keyboard-media-key-event-handling/) — original reverse-engineering of the NSEvent systemDefined subtype 8 pattern; technique confirmed still in use by major apps; HIGH confidence
-- [MediaRemote breakage on macOS 15.4](https://github.com/feedback-assistant/reports/issues/637) — community-tracked breakage confirming entitlement restriction added in macOS 15.4; MEDIUM confidence (GitHub issue, multiple confirming reports)
-- [BackgroundMusic source](https://github.com/kyleneideck/BackgroundMusic) — confirmed AppleScript is used for app-specific pause; HID key posting is the system-wide approach; HIGH confidence (open source codebase)
-- [Apple Developer Forums: Play/Pause Now Playing with MediaRemote](https://developer.apple.com/forums/thread/688433) — developer discussion confirming MediaRemote route and its limitations; MEDIUM confidence
-- Existing `TextInjector.swift` in this codebase — confirms `CGEvent.post(.cgSessionEventTap)` already works without new entitlements; HIGH confidence (production code)
+- CoreAudio `AudioObjectPropertyAddress` + `kAudioDevicePropertyVolumeScalar` pattern — verified via gist.github.com/kimsungwhee (Swift 4 output device example showing same pattern); adapted to input scope; MEDIUM confidence (pattern confirmed, input scope variant inferred from identical structure)
+- `AudioObjectIsPropertySettable` signature — confirmed via Apple Developer Forums search result showing exact Swift signature; HIGH confidence
+- `kAudioObjectPropertyElementMaster` deprecation / `kAudioObjectPropertyElementMain` rename — confirmed via CoreAudio release notes for macOS 12 SDK; HIGH confidence (Swift compiler warnings confirm)
+- Built-in mic volume settability variability — confirmed via [Apple Community: How to adjust built-in mic gain](https://discussions.apple.com/thread/253852973) and [RØDE: Why Can't I Change the Input Volume in Mac Sound Settings](https://help.rode.com/hc/en-us/articles/9312496788239-Why-Can-t-I-Change-the-Input-Volume-in-Mac-Sound-Settings) showing USB mics have no settable input volume via macOS; HIGH confidence (multiple sources)
+- Haiku hallucination by completion pattern — confirmed via [Anthropic: Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) and [Anthropic: Prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices); HIGH confidence (official Anthropic documentation)
+- Prompt fix formulation — "explain WHY" principle from Anthropic prompting best practices; "negative examples + exception" pattern from hallucination guide; HIGH confidence
+- `AVAudioSession.inputGain` not available in non-Catalyst macOS — inferred from AVAudioSession documentation scope (UIKit/Mac Catalyst only); MEDIUM confidence (negative claim from SDK scope, not explicit API docs confirming failure mode)
 
 ---
 
-*Stack research for: v1.1 Pause Playback feature — macOS system-wide media control*
-*Researched: 2026-03-16*
+*Stack research for: v1.2 Dictation Quality — mic input volume auto-maximize + Haiku hallucination fix*
+*Researched: 2026-03-17*

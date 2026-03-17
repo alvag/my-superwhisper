@@ -1,208 +1,157 @@
 # Pitfalls Research
 
-**Domain:** Local voice-to-text macOS menubar app — v1.1 Pause Playback feature
-**Researched:** 2026-03-16
-**Confidence:** HIGH (MediaRemote breakage verified via multiple developer sources and official feedback reports), MEDIUM (edge cases around specific media apps), HIGH (CGEvent media key approach, FSM integration)
+**Domain:** Local voice-to-text macOS menubar app — v1.2 Dictation Quality features
+**Researched:** 2026-03-17
+**Confidence:** HIGH (CoreAudio limitations verified via Apple Developer Forums, framework headers, and CoreAudio documentation), HIGH (Haiku/LLM prompt hallucination patterns verified via official Anthropic docs and prompt engineering literature)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: MediaRemote is a Private Framework Broken Since macOS 15.4
+### Pitfall 1: CoreAudio Volume Property May Not Be Settable on All Devices
 
 **What goes wrong:**
-The most common approach for reading "now playing" state and sending pause/resume commands on macOS is `MediaRemote.framework` (private) via dlopen + dlsym, using functions like `MRMediaRemoteGetNowPlayingInfo` and `MRMediaRemoteSendCommand`. As of macOS 15.4, Apple added entitlement verification inside `mediaremoted` — any client process without the `com.apple.mediaremote` entitlement (available only to Apple-internal processes) is silently denied access to now-playing information. Apps like LyricsX broke entirely overnight. Third-party apps cannot obtain this entitlement.
+`AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` and `kAudioObjectPropertyScopeInput` returns `noErr` on some devices but silently does nothing. On others, it returns an error code. The built-in MacBook microphone is a known case where input volume is not software-settable via this API — Apple controls gain at hardware/driver level. Aggregate devices (a common macOS construct) explicitly do not expose volume controls at all.
+
+The failure mode is silent on some hardware: the call returns `noErr`, the get confirms the value changed, but the system ignores it and records at the same level.
 
 **Why it happens:**
-MediaRemote has worked via dlopen for over a decade with no public replacement. Developers build features on it without realizing it is private, has no ABI stability guarantee, and Apple can (and did) restrict it at any time. The breakage is silent — function calls succeed but return empty data.
+CoreAudio property settability is per-device and per-property. The API exposes `AudioObjectIsPropertySettable()` specifically for this reason, but many developers skip this check and call the setter directly. The property is settable on external USB microphones, some headsets, and interface-connected mics — but NOT reliably on built-in Apple Silicon mic hardware.
 
 **How to avoid:**
-Do NOT use `MediaRemote.framework` directly. Use `CGEvent`-based media key simulation instead — send a play/pause system key event via `NSEvent.otherEvent` with `NX_KEYTYPE_PLAY` (value 16), which works without any entitlement and is the same approach Superwhisper uses. This approach does not require reading "is something currently playing?" — it toggles whatever is currently playing, which is exactly the behavior needed.
-
-If reading now-playing state is required (to avoid sending "resume" when nothing was paused), the only working workaround on macOS 15.4+ is the Perl adapter pattern: spawn `/usr/bin/perl` (which is entitled) with a helper dylib. This is a fragile third-party hack, not a stable foundation.
+1. Always call `AudioObjectIsPropertySettable()` before any volume property set. If it returns false, skip the set operation entirely — do not attempt it.
+2. Capture the original volume via `AudioObjectGetPropertyData` before setting. If the get fails, abort the feature for that device.
+3. Treat the entire volume control feature as best-effort: if the property is not settable, record at the current system level and proceed silently (no error shown to user).
+4. On `stop()`, only call the restore if the initial `set()` succeeded.
 
 **Warning signs:**
-- `MRMediaRemoteGetNowPlayingInfo` callback receives empty dictionary.
-- Spotify/Apple Music does not respond to `MRMediaRemoteSendCommand`.
-- Code works on macOS 15.3 or earlier but breaks on 15.4+.
-- The framework loads successfully (dlopen returns non-nil) but returns no useful data.
+- `AudioObjectIsPropertySettable()` returns false for the selected device.
+- The get/set cycle shows the value "changed" but audio levels are identical before and after.
+- OSStatus error `-66749` (`kAudioHardwareUnknownPropertyError`) or `-66716` (`kAudioHardwareBadPropertySizeError`) returned from the setter.
+- Works on external USB mic but silently fails on built-in mic.
 
 **Phase to address:**
-Implementation phase (Phase 1 of v1.1). Do not start with MediaRemote — go straight to the CGEvent media key approach. This is the correct default, not a fallback.
+Implementation phase (Phase 1 of v1.2). Implement settability check before write. Treat non-settable as a no-op, not an error.
 
 ---
 
-### Pitfall 2: Resuming Media the User Had Already Paused Manually
+### Pitfall 2: Volume Not Restored on Abnormal Exit Paths
 
 **What goes wrong:**
-If the user manually paused Spotify before starting a recording, the app will:
-1. Record starts → sends play/pause (no-op — nothing was playing, or worse: starts playing something the user had intentionally stopped).
-2. Record ends → sends play/pause again → now music starts when the user wanted it off.
+The recording pipeline has multiple exit paths: normal stop, escape cancel, VAD silence gate (no speech detected), transcription error, Haiku API error, and app crash. If `restoreVolume()` is only called on the normal stop path, every other exit path permanently leaves the microphone at 100% volume until the user manually adjusts it or reboots.
 
-The app cannot distinguish "paused by user" from "paused by us." Without tracking this distinction, the resume on stop is wrong in common cases.
+The user experiences this as: after dictating and getting an API error or pressing Escape, their mic is now pegged at 100% for all other apps (Zoom, FaceTime, Voice Memos), which is disruptive and invisible.
 
 **Why it happens:**
-Reading the current playback state on macOS is non-trivial (requires MediaRemote, which is broken since 15.4). Developers assume "just send play/pause on both sides" is safe. It is not. The state they need ("was media playing before we paused it?") requires they observe state before acting, not just toggle blindly.
+The save/restore pattern requires a symmetric cleanup. In the existing `AppCoordinator`, there are currently 6 distinct paths that exit recording state: `handleHotkey()` normal stop, `handleEscape()`, VAD gate, STT error, Haiku cleanup error, and auth error. Developers typically handle the happy path first and add cleanup to the obvious exit, missing the error branches.
 
 **How to avoid:**
-Query the now-playing state before sending the pause on recording start:
-- If something is actively playing → send pause, record that `mediaPausedByApp = true`.
-- If nothing is playing → do not send pause, set `mediaPausedByApp = false`.
-On recording end: only send play/resume if `mediaPausedByApp == true`, then reset the flag.
+The correct pattern mirrors the existing `mediaPlayback?.resume()` placement in `AppCoordinator`:
 
-For the now-playing query, the CGEvent approach cannot read state — you need either:
-1. The Perl adapter workaround for macOS 15.4+ (fragile, adds process overhead).
-2. AppleScript targeted at specific apps (Spotify, Apple Music, Vox) — works without MediaRemote, but requires knowing which app is playing.
-3. Accept the simpler behavior: toggle on both sides and document the edge case, letting the user disable the feature if it causes issues.
-
-Option 3 (toggle + user toggle in Settings) is recommended for v1.1 scope. Option 2 (AppleScript per-app) is the right answer for v1.2 if users complain.
+- `mediaPlayback?.resume()` is already called at the TOP of the `.recording` → processing transition (line 73 in AppCoordinator), before any early returns — this ensures all paths resume media.
+- Apply the same "restore before the fork" discipline to volume: restore immediately when leaving `.recording` state, regardless of why.
+- Concretely: restore volume in `handleEscape()`, and at the start of the `.recording` case in `handleHotkey()` before any conditional returns.
+- Do NOT restore in a `defer` block inside `handleHotkey()` — `defer` lifetime is scoped to the function, and the function returns to await async operations, so it fires at the wrong time.
 
 **Warning signs:**
-- Music starts playing when recording ends, but user had paused it before recording.
-- Repeated recordings cause media to get out of sync (starts when it should be stopped, or vice versa).
-- Users report the feature "turns on their music randomly."
+- After pressing Escape, mic is louder in other apps.
+- After a network error on Haiku cleanup, mic stays at 100%.
+- `deinit` of the volume service is never called (app keeps running as a menubar app).
 
 **Phase to address:**
-Implementation phase. Design the `mediaPausedByApp` flag into the coordinator from the start. Even if you use the simple toggle approach initially, the flag slot prevents future regressions.
+Implementation phase (Phase 1 of v1.2). Design restore placement before writing any volume code — map all 6 exit paths and ensure each calls restore.
 
 ---
 
-### Pitfall 3: Media Key Events Land on the Wrong App
+### Pitfall 3: Haiku Prompt Changes May Introduce New Hallucination Modes
 
 **What goes wrong:**
-macOS routes media key events to the application that most recently registered as a media handler. This is not necessarily the frontmost app, and it is not necessarily the app the user thinks is "in control." Edge cases:
+The current system prompt bans adding words (rule 5: "NO agregues palabras que no estaban"). Despite this, Haiku adds "gracias" as a courteous closing phrase — a behavior rooted in RLHF training that makes the model "helpful" by adding polite endings to speech. Fixing this by adding "no termines con 'gracias'" to the rule list creates a whack-a-mole problem: fixing one hallucinated phrase does not prevent others ("de nada", "hasta luego", "que tengas un buen día").
 
-- Safari has a YouTube tab open but audio is paused → media keys now go to Safari, not Spotify running in the background.
-- A notification sound from Slack briefly takes media focus → subsequent media key goes to Slack (which does nothing visible) rather than Apple Music.
-- Multiple audio players are open → the wrong one receives the pause and the one the user cares about keeps playing.
-
-The app cannot control which app receives the media key event. It fires into the system and goes to whoever holds the "now playing" token.
+The prompt fix approach works only if the constraint is general and absolute, not enumerating specific forbidden words.
 
 **Why it happens:**
-macOS "Now Playing" focus is assigned to the last app that registered with `MPNowPlayingInfoCenter` and actively reported playback state. Browsers, video apps, and notification sounds all compete for this token. The system provides no way for a sender to target a specific app when using the media key approach.
+Claude Haiku is trained to be helpful and polite. When processing Spanish text, its RLHF training interprets a transcription ending mid-sentence (without closing punctuation or a natural ending) as incomplete, and "helpfully" completes it with a socially appropriate closing. This is an extrinsic hallucination: the model generates content not present in the input based on its training-derived expectation of how Spanish conversations end.
+
+The existing rule 5 says "NO agregues palabras" but this is too abstract — the model's training signal for politeness overrides the abstract rule because the model's internal representation of "a complete, helpful response to spoken Spanish" includes courteous endings.
 
 **How to avoid:**
-- Accept this as a known limitation and document it clearly in the Settings UI near the Pause Playback toggle: "Pauses the active media player. May not work if multiple media apps are open."
-- Do not attempt to solve this in v1.1 — the correct solution (per-app AppleScript targeting) is significantly more complex and requires maintaining an app whitelist.
-- Test against the most common scenarios: Spotify + Safari open, Apple Music + browser, YouTube in Safari only. Confirm the pause lands where the user expects in the common case.
+Replace the abstract prohibition with a concrete, verifiable constraint that appeals to the model's understanding of the task, not just a rule:
+
+1. Make the constraint structural and testable: "Si el texto de entrada termina con una frase incompleta, devuélvela incompleta. Si termina en medio de una oración, termina en medio de esa misma oración."
+2. Add an explicit anti-example (few-shot negative): show input "...me parece muy bien" → correct output "...me parece muy bien" (not "...me parece muy bien. ¡Gracias!").
+3. Add a meta-instruction about the source of the text: "El texto proviene de reconocimiento de voz automático y puede terminar abruptamente. Esto es normal. No lo corrijas ni lo completes."
+
+The Anthropic prompt engineering docs confirm that providing context/motivation for a constraint ("because the text comes from STT and may end mid-sentence") is more effective than stating the rule without justification.
 
 **Warning signs:**
-- Pause fires successfully (no error) but the wrong app is paused.
-- YouTube tab pauses but Spotify keeps playing.
-- User reports "sometimes it works, sometimes it doesn't."
+- Output contains any word not found verbatim in the input.
+- Output ends with punctuation or words that were not in the raw Whisper output.
+- The hallucination changes after a prompt update (different word added).
+- The issue reproduces consistently with specific input patterns (transcriptions that end without punctuation).
 
 **Phase to address:**
-Implementation phase. Add the limitation note to the Settings UI during integration. Test with multiple apps open explicitly.
+Prompt engineering phase (Phase 1 of v1.2). Test the updated prompt against at least 10 real transcription samples before shipping. Add a regression check: output word count should never exceed input word count by more than 3 (punctuation tokens).
 
 ---
 
-### Pitfall 4: AppCoordinator FSM State Corruption on Fast Hotkey Press During Pause/Resume
+### Pitfall 4: Volume Control Coupled to the Wrong Device ID
 
 **What goes wrong:**
-The user presses the hotkey rapidly twice. The first press triggers:
-- State: `idle → recording`
-- Sends media pause.
+`MicrophoneDeviceService.selectedDeviceID` stores the user's preferred device. But at recording time, `AVAudioEngine` may be using the system default if the stored ID is stale or invalid (the existing `AudioRecorder` already handles this by clearing stale IDs). If the volume setter uses `selectedDeviceID` but the engine is actually recording from the system default, the volume is set on the wrong device.
 
-Before the pause completes (it's async via CGEvent delivery), the second press fires:
-- State: `recording → processing`
-- Recording stops prematurely (near-zero audio buffer).
-- `mediaPausedByApp` flag is `true` but the resume fires immediately, before the pause even arrived at the media player.
-
-Result: media key events fire out of order (pause then resume arrives in the wrong sequence), and the user gets a near-empty transcription. This is an extension of the existing rapid-hotkey problem, now compounded by async media operations.
+The user gets 100% volume set on their (disconnected) Blue Yeti while the built-in mic records at whatever level it was already at.
 
 **Why it happens:**
-CGEvent-based media key delivery is asynchronous — the event is posted to the HID event tap and delivery is not guaranteed to be synchronous with the Swift code. If resume is sent immediately after pause, the ordering is not guaranteed if the system is under load.
+The device used for recording (`AVAudioEngine`'s current input device) and the device the user configured in Settings can diverge. The existing code already handles this divergence for engine setup (clearing stale device IDs) but a new volume service that reads `selectedDeviceID` independently will not see this cleared value until after `AudioRecorder.start()` has already resolved the effective device.
 
 **How to avoid:**
-- The existing AppCoordinator FSM already guards against re-entrant hotkey calls during `processing` state.
-- Extend the guard: during the `recording` state transition-in, add a brief delay (50–100ms) before enabling hotkey-to-stop, to prevent accidental double-tap recording starts.
-- The media key for pause should be sent before `AVAudioEngine.start()` (record the intent first, then start). Resume should be sent after the pipeline completes and state returns to `idle`, not immediately after `AVAudioEngine.stop()`.
+Query the effective device ID from the running `AVAudioEngine` after `start()`, not from `selectedDeviceID`. The effective device is retrievable via:
+```swift
+var deviceID: AudioDeviceID = 0
+var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
+AudioUnitGetProperty(
+    engine.inputNode.audioUnit!,
+    kAudioOutputUnitProperty_CurrentDevice,
+    kAudioUnitScope_Global,
+    0,
+    &deviceID,
+    &propertySize
+)
+```
+Use this `deviceID` — not `selectedDeviceID` — as the target for volume get/set.
 
 **Warning signs:**
-- Very short transcriptions with garbled or empty output followed by music unexpectedly resuming.
-- Log shows `recording → processing` transition firing within <200ms of `idle → recording`.
-- Media briefly pauses and immediately resumes (out-of-order events).
+- Volume set succeeds, but the recording level does not change.
+- The issue appears when user has a USB mic that was disconnected: engine falls back to built-in, volume service targets the non-existent USB device.
+- Debug log shows different device IDs between "volume target" and "engine input device."
 
 **Phase to address:**
-Implementation phase. Add an explicit ordering specification: pause before engine start, resume after pipeline idle. Add a minimum recording duration guard (e.g., 500ms minimum).
+Implementation phase (Phase 1 of v1.2). The volume service must derive device ID from the running engine, not from UserDefaults.
 
 ---
 
-### Pitfall 5: CGEvent Media Key Fails Silently When Input Monitoring Permission Is Missing
+### Pitfall 5: Prompt Constraint Causes Over-Truncation of Valid Endings
 
 **What goes wrong:**
-Sending media key events via `CGEventPost` with `NX_KEYTYPE_PLAY` does not require Accessibility permission — it can be posted to `kCGHIDEventTap`. However, the CGEventTap that the app is already using for the global hotkey does require Accessibility permission. If Accessibility is granted but Input Monitoring is not (or vice versa), the app's existing tap works but media key events may be routed unexpectedly, or the entire event tap can be silently disabled by macOS.
+Overcorrecting the "gracias" problem by instructing Haiku to strip closing courtesies results in removing valid dictated content. If the user actually says "muchas gracias" to the person they are talking to as part of their dictation, Haiku strips the word and corrupts the text.
 
-There is a second silent failure mode: after code re-signing (e.g., a new build or DMG distribution), macOS may silently disable the CGEventTap. The tap appears installed (`tapIsEnabled()` returns true initially) but events stop firing. This affects both the existing hotkey tap and any new event posting.
-
-**Why it happens:**
-TCC permission state is tied to code identity. Re-signing creates a new identity. The existing app (v1.0) already handled this for the global hotkey tap — but adding a new capability (posting media events) to the same tap may require re-granting in some edge cases.
-
-**How to avoid:**
-- The media key send via `CGEventPost` to `kCGHIDEventTap` does not require additional permissions beyond what v1.0 already has (Accessibility).
-- Verify this assumption explicitly during implementation by testing on a clean machine with only Accessibility granted.
-- Re-use the existing health check infrastructure from v1.0 — if the `AXIsProcessTrusted()` check fails, the media pause feature should also be disabled (they share the same permission dependency).
-- Add a periodic `CGEvent.tapIsEnabled(tap:)` check to the existing health monitor.
-
-**Warning signs:**
-- Hotkey works but media never pauses.
-- After updating the app, permissions are revoked unexpectedly.
-- No error logged from `CGEventPost` but media player does not respond.
-
-**Phase to address:**
-Implementation phase. Verify permission requirements before writing media key sending code.
-
----
-
-### Pitfall 6: Browsers and Progressive Web Apps Do Not Respond to Media Key Pause
-
-**What goes wrong:**
-Safari, Chrome, and Firefox implement their own media session handling. In macOS 15+, browser media sessions compete aggressively for the "Now Playing" token. Specific behaviors:
-
-- **YouTube in Safari**: Receives media key pause correctly in most cases. BUT if the user has multiple tabs with audio, the media key goes to the tab that most recently had audio activity — not necessarily the one currently playing.
-- **YouTube in Chrome**: Uses the Web Media Session API. Pause via media key works, but resume may not: Chrome's Web Media Session implementation sometimes requires the user to be focused on the tab for resume to work.
-- **Spotify Web Player in browser**: Has known issues where media keys work intermittently depending on whether the native Spotify app is also installed.
-- **Netflix, Disney+, other DRM video**: These apps may not respond to media key pause at all due to their custom playback implementations.
+The user dictates: "Por favor envíame el documento. Muchas gracias." — Haiku outputs: "Por favor envíame el documento." — The user's actual words are deleted.
 
 **Why it happens:**
-Browser media sessions are implemented at the browser level, not macOS system level. The browser acts as a proxy between the web page and the system Now Playing infrastructure. Each browser implements this proxy differently.
+A word-level blacklist ("never output 'gracias'") treats the word as forbidden regardless of whether the user said it. The issue is not the word "gracias" — it is Haiku adding words that were NOT in the transcription. The correct constraint targets the behavior (addition), not the token.
 
 **How to avoid:**
-- Accept that browser-based media has variable compatibility. Document this in Settings: "Works best with Spotify, Apple Music, and other native media players."
-- Test the most common user scenarios: Spotify native app, Apple Music, YouTube in Safari, YouTube in Chrome.
-- Do not attempt to solve DRM video (Netflix) — not feasible without per-app automation.
-- For the Superwhisper comparison: Superwhisper offers "Mute" as an alternative to "Pause" — muting the system audio is a 100% reliable fallback when media key routing fails.
+Never instruct the model to remove specific words from the output. The constraint must target addition, not content. The correct framing is: "every word in the output must have been present in the input" — not "do not use the word X."
+
+The fix for Pitfall 3 (making addition the forbidden behavior) automatically handles this correctly. A word-level blacklist is the wrong approach.
 
 **Warning signs:**
-- Pause works for Spotify native but not YouTube in browser.
-- Resume works for Apple Music but not for a browser-based player.
-- Users report the feature works on their machine but not a coworker's (different browser or setup).
+- User reports that real "gracias" in their transcriptions is being deleted.
+- Output is shorter than input in cases where Whisper correctly transcribed courtesy phrases the user said.
 
 **Phase to address:**
-Integration testing phase. Build a compatibility matrix (Spotify, Apple Music, YouTube/Safari, YouTube/Chrome) as part of verification.
-
----
-
-### Pitfall 7: Race Between AVAudioEngine Start and Media Player Pause Settling
-
-**What goes wrong:**
-The media player receives the pause command and begins its fade-out (Spotify uses a short fade, Apple Music uses an instant cut). Meanwhile, `AVAudioEngine.start()` captures this fade audio into the recording buffer. The Whisper transcription then receives 100–500ms of fading music audio at the start of every recording. For speech, this adds noise that degrades transcription accuracy, particularly for the first word.
-
-**Why it happens:**
-The order "send pause → start engine → wait → speak" is logical but the pause is not instantaneous. Spotify's pause fade takes ~100–200ms. The engine starts capturing immediately.
-
-**How to avoid:**
-- Send the media pause command before starting the engine, and add a 150–300ms delay between the pause command and `AVAudioEngine.start()`.
-- This delay is the same as the minimum recording duration guard from Pitfall 4 — they can share a single `Task.sleep(.milliseconds(200))` call.
-- The delay is imperceptible to the user and prevents music bleed into the recording.
-
-**Warning signs:**
-- First word of transcription is consistently garbled or missing.
-- Adding a manual delay before speaking improves results significantly.
-- Raw recording buffer shows audio signal at the start before speech begins.
-
-**Phase to address:**
-Implementation phase. Add the delay as part of the recording start sequence.
+Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated prompt must include cases where the user actually says "gracias" and "de nada" — verify these are preserved.
 
 ---
 
@@ -210,11 +159,11 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Use `MediaRemote.framework` via dlopen | Access to rich now-playing state | Completely broken on macOS 15.4+; private API with no ABI stability | Never — use CGEvent media key instead |
-| Toggle media without checking current state | Simpler code (no state query) | Resumes media the user had intentionally paused; frustrating UX | Acceptable in v1.1 with user-facing documentation of the limitation; fix in v1.2 |
-| Send pause and resume synchronously with no delay | Fastest implementation | Music audio bleeds into recording; resume and pause may arrive out of order | Never — always add 150ms delay between pause and engine start |
-| Hardcode list of supported media apps | Avoids complexity of per-app detection | Fails when user uses an unlisted app (e.g., VLC, Vox, Doppler) | Acceptable if the feature works for the 3 most common apps and gracefully does nothing for others |
-| Use the Perl adapter workaround for now-playing state | Access to playback state on 15.4+ | External process spawn, fragile API, may break on future macOS updates | Only if per-app state detection is required (v1.2+), never in v1.1 |
+| Skip `AudioObjectIsPropertySettable()` check | Shorter code | Silent failure on built-in mics; hard to debug | Never — always check settability before setting |
+| Restore volume only on happy path | Simpler code | Mic stays at 100% after every error, cancel, or Escape | Never — restore must cover all exit paths |
+| Word-level blacklist in prompt ("never output 'gracias'") | Immediately stops the "gracias" hallucination | Deletes real user-dictated courtesy phrases | Never — fix the addition behavior, not the specific token |
+| Set volume on `selectedDeviceID` without verifying it matches running engine | Consistent with how mic selection works elsewhere | Wrong device targeted when stored device is stale | Never — derive device from running engine |
+| Treat volume feature failure as a hard error | Simpler control flow | Feature is non-functional on built-in mic; unnecessarily blocks recording | Never — volume boost is best-effort; degrade silently |
 
 ---
 
@@ -222,11 +171,12 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| CGEvent media key send | Use `kCGSessionEventTap` tap location for sending | Use `kCGHIDEventTap` for sending synthetic media key events — it routes correctly to the media handler |
-| `NX_KEYTYPE_PLAY` event construction | Forget to send both key-down and key-up events | Construct two events: `data1 = (NX_KEYTYPE_PLAY << 16) | (0xa << 8)` (key-down) and `data1 = (NX_KEYTYPE_PLAY << 16) | (0xb << 8)` (key-up); post both via `CGEventPost` |
-| AppCoordinator FSM integration | Add media pause as a side effect inside `handleHotkey()` | Encapsulate all media control in a `MediaController` object; inject it into the coordinator — keeps the FSM clean and makes media behavior testable independently |
-| Settings toggle for Pause Playback | Read `UserDefaults` directly inside the media pause call | Gate the entire feature at the coordinator level: if `isMediaPauseEnabled == false`, skip the media pause step entirely — do not check inside the media controller |
-| macOS Accessibility permission | Assume Accessibility covers media key sending | Verify independently: `CGEventPost` with `kCGHIDEventTap` does not require Accessibility for sending. Do not gate the media feature on `AXIsProcessTrusted()` — it will work even if Accessibility was revoked (the hotkey would break, but not the media key send) |
+| CoreAudio volume scope | Use `kAudioObjectPropertyScopeGlobal` for input volume | Input volume requires `kAudioObjectPropertyScopeInput`; using Global scope silently reads/writes the wrong property channel |
+| CoreAudio channel for master volume | Use channel `0` (main) directly | Channel `0` is `kAudioObjectPropertyElementMain` (master); some devices expose per-channel volume only — read both and use whichever is settable |
+| `AudioObjectIsPropertySettable` | Call it once at app start and cache the result | Device can be changed by user at any time; re-check settability each time recording starts against the current effective device |
+| Haiku system prompt | Add "no agregues 'gracias'" as a specific rule | Enumerate the forbidden behavior (adding words absent from input), not the forbidden token — use context about STT source to motivate the constraint |
+| Volume restore on AppCoordinator | Place restore in `defer` block inside `handleHotkey()` | Swift `defer` fires at scope exit; `handleHotkey()` is `async` and returns to the run loop mid-execution — use explicit restore at each exit path instead |
+| AVAudioEngine device ID query | Read device ID before `engine.start()` | The effective input device is only set after `start()`; query it immediately after the `try engine.start()` call succeeds |
 
 ---
 
@@ -234,9 +184,9 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Spawning a process to query now-playing state | 50–200ms latency spike at hotkey press | Do not query state synchronously at hotkey time; use a background polling approach or accept the simpler toggle-only model | Every hotkey press if naive process spawn is used |
-| Observing `MPNowPlayingInfoCenter` for state changes | Callback may not fire for third-party apps (post-15.4 restriction) | Do not depend on `MPNowPlayingInfoCenter` observation for the `mediaPausedByApp` flag — set the flag based on your own action, not observed external state | Any macOS 15.4+ system |
-| Checking now-playing state via MediaRemote dlopen on 15.4+ | Returns empty data, takes ~200ms to timeout | Do not use — see Pitfall 1 | macOS 15.4+ (all current hardware) |
+| Calling `AudioObjectGetPropertyData` on every audio buffer callback | CPU spike every 20ms during recording | Volume read/write happens only at recording start and stop — never during the tap callback | Always — this is unnecessary; the tap callback runs at audio thread priority |
+| Testing volume change by playing back audio | Inaccurate — playback volume is separate from input gain on most devices | Use a VU meter or recording level indicator; don't infer input volume from playback | Every test run — misleads the developer |
+| Re-sending the full system prompt on every Haiku call when iterating on prompt | No performance issue per se, but slow iteration cycle | Use a dedicated test harness (script with 10 sample inputs) to validate prompt changes before updating app code | Every prompt iteration cycle |
 
 ---
 
@@ -244,28 +194,28 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Feature silently does nothing when media key goes to wrong app | User disables the feature thinking it's broken, when it's just an edge case | Show a brief "Media paused" notification on successful pause, so user gets confirmation. If pause is sent but nothing visibly happened, the notification is still reassuring. |
-| Feature always resumes even when user paused media intentionally | Unwanted media starts playing; user distrust | Implement `mediaPausedByApp` flag (Pitfall 2). At minimum, document the limitation prominently in Settings next to the toggle. |
-| Toggle is buried in Settings — user can't find it | Feature can't be discovered or disabled | Put the Pause Playback toggle in the main Settings view (top-level), not a sub-page. It's a primary behavior that affects every recording. |
-| No feedback when media key is sent but nothing was playing | User doesn't know if the feature is working | Silent success is fine — do not add a "Nothing was playing" alert. Only notify on positive pause confirmation. |
-| Feature enables itself by default | Unexpected behavior on first launch | Default the toggle to `true` (on) — this is the expected behavior. But on first use, if the user is not playing anything, the toggle-approach harmlessly does nothing. |
+| Show an error when mic volume is not settable | User is alarmed by an error they cannot fix and did not cause | Silent no-op — the recording still works at current mic level; the feature just doesn't boost it |
+| Set volume to exactly 1.0 (100%) | May overdrive some microphone inputs causing clipping | Target 0.85–0.90 as the "maximize" level; this avoids clipping headroom issues on sensitive mics |
+| Restore volume to 1.0 instead of the original captured value | Permanently changes the user's mic level if they had it set lower | Always restore to the exact value captured before the set — never restore to a hardcoded value |
+| No feedback that volume was boosted | User doesn't know the feature is active | Silent operation is correct — this is invisible infrastructure, not a visible mode the user switches |
+| "Gracias" fix changes other transcription behavior | Prompt tightening that stops hallucinations may also affect punctuation or filler removal | Test the full prompt against 10+ real samples after any system prompt change — regression on all existing behaviors, not just the target fix |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Media pause:** Tested with Spotify native app playing — verify pause fires when recording starts, resumes when recording ends
-- [ ] **Media pause:** Tested with Apple Music playing — verify same behavior
-- [ ] **Media pause:** Tested with YouTube in Safari playing — verify pause works (resume may have caveats — document if so)
-- [ ] **Media pause:** Tested with nothing playing — verify app does not crash or start playback unexpectedly
-- [ ] **Media pause:** Tested with user-paused Spotify (no active playback) — verify recording start does not accidentally start playback
-- [ ] **Media pause:** Tested with Settings toggle OFF — verify no media keys are sent during recording
-- [ ] **Ordering:** Verified via logging that pause event is sent BEFORE `AVAudioEngine.start()`
-- [ ] **Ordering:** Verified that resume is sent AFTER the pipeline completes (state = idle), not immediately after engine stop
-- [ ] **Delay:** Verified 150–200ms gap between pause command and engine start (no music audio in recording buffer)
-- [ ] **FSM guard:** Rapid double-tap hotkey does not send double-pause or double-resume
-- [ ] **Error path:** Recording errors (mic permission revoked mid-recording) still send resume if `mediaPausedByApp == true`
-- [ ] **Settings persistence:** Toggle state survives app restart (UserDefaults)
+- [ ] **Volume settability:** `AudioObjectIsPropertySettable()` called before every set — verify on built-in mic (expected: not settable) and external USB mic (expected: settable)
+- [ ] **Volume restore on Escape:** User presses Escape during recording — mic level is restored to pre-recording value
+- [ ] **Volume restore on VAD silence:** Recording stops because no speech was detected — mic level is restored
+- [ ] **Volume restore on Haiku error:** Network error or auth failure during cleanup — mic level is restored
+- [ ] **Volume restore on transcription error:** WhisperKit throws during transcription — mic level is restored
+- [ ] **Stale device ID:** USB mic was selected, then unplugged — recording works (falls back to built-in), volume is set on the correct effective device (not the disconnected USB)
+- [ ] **Hallucination fix — gracias present:** User dictates "muchas gracias" — output preserves "gracias" verbatim
+- [ ] **Hallucination fix — gracias absent:** Haiku output does not end with "gracias" when Whisper output did not contain it
+- [ ] **Hallucination fix — other courtesy phrases:** Output does not add "de nada", "hasta luego", or similar phrases not in Whisper output
+- [ ] **Hallucination fix — mid-sentence ending:** Transcription that ends mid-sentence is returned mid-sentence, not "helpfully" completed
+- [ ] **Existing behavior preserved:** Punctuation, filler removal, and paragraph breaks still work after prompt change (run full regression against v1.1 test cases)
+- [ ] **Volume level after restore:** Volume in System Preferences > Sound > Input matches the value it had before the first recording of the session
 
 ---
 
@@ -273,11 +223,11 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Built on MediaRemote, now broken on 15.4 | HIGH | Full rewrite of media control subsystem to CGEvent approach. Any shipped version is non-functional on 15.4+ for users. |
-| Toggle-based pause resumes music user had paused | LOW | Add `mediaPausedByApp` flag in a patch release; no user action required. Can also add a "Only resume if we paused it" Settings option. |
-| Media bleeds into recording (no delay) | LOW | Add 150–200ms delay in a patch. Users may not notice this is causing their issue — it manifests as first-word accuracy degradation. |
-| Wrong app gets paused | MEDIUM | Ship per-app AppleScript targeting for Spotify and Apple Music as optional advanced mode. Requires maintaining app list. |
-| CGEvent tap silently disabled after update | LOW | The existing v1.0 permission health check covers this. Ensure it covers the new feature in the same check. |
+| Volume not restored on error paths | LOW | Add restore call to each missing exit path in AppCoordinator; patch release |
+| Wrong device targeted for volume | LOW | Change volume service to read device ID from running engine; 1-line fix |
+| Prompt fix causes over-truncation | LOW | Revert to previous prompt as immediate rollback; redesign constraint to target addition behavior not specific tokens |
+| Prompt fix stops working on new Haiku model version | MEDIUM | Add a prompt version/model version check; monitor Anthropic changelog for model updates; test prompt on each model update |
+| Volume set causes mic clipping | LOW | Reduce target to 0.85 instead of 1.0; patch release |
 
 ---
 
@@ -285,50 +235,45 @@ Implementation phase. Add the delay as part of the recording start sequence.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| MediaRemote private API (broken on 15.4) | v1.1 Phase 1: Design | Confirm implementation uses CGEvent approach, not MediaRemote — no dlopen of MediaRemote.framework |
-| Resuming user-paused media | v1.1 Phase 1: Implementation | Test: pause Spotify manually, start recording, stop recording — Spotify does not resume |
-| Media key to wrong app | v1.1 Phase 2: Integration testing | Test matrix: Spotify + Safari open simultaneously — correct player pauses |
-| FSM state corruption on rapid hotkey | v1.1 Phase 1: FSM extension | Rapid double-tap test: second tap during recording does not cause double-pause/resume |
-| CGEvent permissions silent failure | v1.1 Phase 1: Implementation | Test on clean machine with only Accessibility granted — media key still fires |
-| Browser media compat issues | v1.1 Phase 2: Integration testing | YouTube/Safari and YouTube/Chrome tested; behavior documented in Settings if limited |
-| Audio engine start / pause race | v1.1 Phase 1: Implementation | Raw recording buffer inspection: no music audio in first 150ms of recording |
-| Settings toggle not respected | v1.1 Phase 1: Implementation | Toggle OFF → record → confirm no media events sent (add log assertion) |
+| Volume not settable on built-in mic | v1.2 Phase 1: Implementation | Test `AudioObjectIsPropertySettable()` on built-in mic before writing any set logic |
+| Volume not restored on error paths | v1.2 Phase 1: Implementation | Map all 6 exit paths from recording; each must call restore if volume was set |
+| Haiku adds "gracias" and similar phrases | v1.2 Phase 1: Prompt engineering | Run 10 sample transcriptions; zero outputs should contain words absent from the Whisper input |
+| Prompt fix over-truncates valid "gracias" | v1.2 Phase 1: Prompt engineering | Include test case where user said "gracias" — output must preserve it |
+| Volume set on wrong device (stale ID) | v1.2 Phase 1: Implementation | Test with USB mic selected, then unplugged — verify volume targets correct fallback device |
+| Prompt change breaks existing punctuation/filler behavior | v1.2 Phase 2: Verification | Run full regression of v1.1 Haiku behavior after any system prompt change |
+| Other RLHF courtesy phrases added (not "gracias") | v1.2 Phase 2: Verification | Expand test suite to include transcriptions ending mid-sentence and without closing punctuation |
 
 ---
 
 ## Sources
 
-- [FB17228659: Please add public API for now playing information — feedback-assistant/reports Issue #637](https://github.com/feedback-assistant/reports/issues/637)
-- [mediaremote-adapter: Fully functional MediaRemote access for all macOS versions — ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter)
-- [Dev:MediaRemote.framework — The Apple Wiki](https://theapplewiki.com/wiki/Dev:MediaRemote.framework)
-- [media-remote Swift bindings — nohackjustnoobb/media-remote](https://github.com/nohackjustnoobb/media-remote)
-- [Play/Pause now playing with MediaRemote framework — Apple Developer Forums thread/688433](https://developer.apple.com/forums/thread/688433)
-- [Apple Keyboard Media Key Event Handling — Rogue Amoeba (2007, still accurate for CGEvent approach)](https://weblog.rogueamoeba.com/2007/09/29/apple-keyboard-media-key-event-handling/)
-- [Mac Replication of Media Key Press — CopyProgramming](https://copyprogramming.com/howto/emulate-media-key-press-on-mac)
-- [CGEvent Taps and Code Signing: The Silent Disable Race — Daniel Raffel (2026-02-19)](https://danielraffel.me/til/2026/02/19/cgevent-taps-and-code-signing-the-silent-disable-race/)
-- [MPNowPlayingInfoCenter — Apple Developer Documentation](https://developer.apple.com/documentation/mediaplayer/mpnowplayinginfocenter)
-- [Now Playing menu bar item not behaving properly — mpv-player/mpv Issue #11233](https://github.com/mpv-player/mpv/issues/11233)
-- [Mac media keys don't work if another app takes lock — mpv-player/mpv Issue #4834](https://github.com/mpv-player/mpv/issues/4834)
-- [MediaKeyTap — Access media key events from Swift — nhurden/MediaKeyTap](https://github.com/nhurden/MediaKeyTap)
-- [superwhisper "pause music while recording" option — @superwhisperapp on X (2025)](https://x.com/superwhisperapp/status/1963687889193095282)
-- [Accessibility Permission in macOS — jano.dev (2025)](https://jano.dev/apple/macos/swift/2025/01/08/Accessibility-Permission.html)
-- [NowPlaying State Not Updating — Apple Developer Forums thread/728212](https://developer.apple.com/forums/thread/728212)
+- [Core Audio Essentials — Apple Developer Documentation (archive)](https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/CoreAudioOverview/CoreAudioEssentials/CoreAudioEssentials.html)
+- [Audio APIs, Part 1: Core Audio / macOS — bastibe.de (2017, silent failure section still accurate)](https://bastibe.de/2017-06-17-audio-apis-coreaudio.html)
+- [AudioObjectSetPropertyData with Bluetooth device — Apple Developer Forums thread/693516](https://developer.apple.com/forums/thread/693516)
+- [Core Audio App with mic input — Apple Developer Forums thread/133283](https://developer.apple.com/forums/thread/133283)
+- [SimplyCoreAudio — Swift CoreAudio wrapper (rnine/SimplyCoreAudio)](https://github.com/rnine/SimplyCoreAudio)
+- [setInputGain — Apple Developer Documentation (AVAudioSession, iOS only — no macOS equivalent)](https://developer.apple.com/documentation/avfaudio/avaudiosession/1616546-setinputgain)
+- [Reduce hallucinations — Anthropic Claude API Docs](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
+- [Prompting best practices — Anthropic Claude API Docs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices)
+- [Avoiding Hallucinations — Anthropic Courses (prompt engineering tutorial)](https://github.com/anthropics/courses/blob/master/prompt_engineering_interactive_tutorial/Anthropic%201P/08_Avoiding_Hallucinations.ipynb)
+- [Extrinsic Hallucinations in LLMs — Lil'Log (Lilian Weng, 2024)](https://lilianweng.github.io/posts/2024-07-07-hallucination/)
+- [Technical Note TN2091: Device input using the HAL Output Audio Unit — Apple Developer](https://developer.apple.com/library/archive/technotes/tn2091/_index.html)
 
 ---
 
-## Appendix: Pre-existing Pitfalls from v1.0 (Still Applicable)
+## Appendix: Pre-existing Pitfalls (Still Applicable)
 
-The following pitfalls from v1.0 research remain valid for v1.1. They are documented in detail in the 2026-03-15 version of this file and not duplicated here:
+The following pitfalls from prior milestones remain valid. They are documented in the 2026-03-16 version of this file (v1.1 Pause Playback) and not duplicated here:
 
-- Pitfall: Ctrl+Space conflicts with macOS Input Source switching (Phase 1 — already addressed)
-- Pitfall: CGEventPost blocked in sandboxed apps (Phase 1 — already addressed, still applicable)
-- Pitfall: Accessibility permission lost on Xcode rebuild (Phase 1 — already addressed)
-- Pitfall: Whisper hallucination on silence (Phase 2 — already addressed)
-- Pitfall: Whisper CoreML first-load latency (Phase 2 — already addressed)
-- Pitfall: LLM rewrites text meaning (Phase 3 — already addressed)
-- Pitfall: macOS permission resets after major OS updates (Phase 1 — already addressed)
-- Pitfall: AVAudioEngine sample rate mismatch (Phase 2 — already addressed)
+- MediaRemote private API broken on macOS 15.4+ (v1.1 addressed)
+- Resuming user-paused media (v1.1 addressed with toggle semantics)
+- AVAudioEngine sample rate mismatch (v1.0 addressed)
+- Whisper hallucination on silence / VAD gate (v1.0 addressed)
+- CGEventPost blocked in sandboxed apps (v1.0 addressed — non-sandboxed distribution)
+- Accessibility permission lost on Xcode rebuild (v1.0 addressed)
+- LLM rewrites text meaning (v1.0 addressed — existing rule 5 in system prompt)
+- Stale microphone device ID from UserDefaults (v1.0 addressed in AudioRecorder.start())
 
 ---
-*Pitfalls research for: v1.1 Pause Playback feature — macOS media control*
-*Researched: 2026-03-16*
+*Pitfalls research for: v1.2 Dictation Quality — CoreAudio mic volume control + Haiku hallucination fix*
+*Researched: 2026-03-17*

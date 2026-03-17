@@ -1,8 +1,8 @@
 # Feature Research
 
 **Domain:** Local voice-to-text macOS menubar application
-**Researched:** 2026-03-15 (v1.0) / Updated 2026-03-16 (v1.1 Pause Playback milestone)
-**Confidence:** HIGH (primary sources: SuperWhisper official docs, Sotto, WhisperFlow, Wispr Flow, macOS Dictation official docs, multiple competitor analyses)
+**Researched:** 2026-03-15 (v1.0) / Updated 2026-03-16 (v1.1 Pause Playback milestone) / Updated 2026-03-17 (v1.2 Dictation Quality milestone)
+**Confidence:** HIGH (primary sources: SuperWhisper official docs, Sotto, WhisperFlow, Wispr Flow, macOS Dictation official docs, multiple competitor analyses, OpenAI Whisper GitHub discussions, Anthropic prompt engineering docs, CoreAudio documentation)
 
 ---
 
@@ -25,6 +25,7 @@ Features users assume exist. Missing these = product feels incomplete.
 | Configurable hotkey | Different users have different shortcuts. Ctrl+Space conflicts with some apps (e.g. Spotlight-adjacent shortcuts) | LOW | Settings UI to remap. Persist to user defaults. Validate for conflicts |
 | Reasonable latency (under 5s for typical dictation) | Users break flow if they wait too long. 3-5s is the accepted ceiling for 30-60s recordings | HIGH | Apple Silicon Neural Engine makes local Whisper viable. Whisper.cpp with MLX achieves 2-4x realtime on M1/M2 |
 | Microphone selection | Users may have multiple audio inputs (USB mic, headset, built-in). Must be able to choose | LOW | Use macOS AVAudioSession/CoreAudio device enumeration |
+| **LLM output must not hallucinate new words** | Users expect the cleaned text to be their words only — any added word breaks trust | MEDIUM | Whisper-to-Haiku pipeline: both the STT model and LLM can add words not spoken. Requires explicit prompt constraints. Documented issue: Whisper large-v3 hallucinates 4x more than v2 |
 
 ### Differentiators (Competitive Advantage)
 
@@ -41,6 +42,7 @@ Features that set the product apart. Not required, but valued.
 | Custom vocabulary / corrections | Names, technical terms, brand names that Whisper consistently mishears. Users expect to teach the app | MEDIUM | Post-processing correction dictionary: map "Miguel" → correct spelling, "Kubernetes" → exact casing. Applied after LLM cleanup |
 | Transaction history / recent transcriptions | Users need to recover accidentally dismissed text, or re-read what they said | LOW | In-memory list of last N transcriptions. Copy from history. No persistent disk storage required for v1 |
 | Configurable LLM cleanup aggressiveness | Some users want light touch (just punctuation), others want heavy cleanup (restructure sentences) | MEDIUM | Two modes: "Light" (punctuation + capitalization only) and "Full" (filler removal + light restructuring). Single LLM call with different prompts |
+| **Auto-maximize microphone input volume during recording** | Low mic gain is the most common cause of poor transcription quality. Users don't know to check System Settings. Auto-maxing on record start silently solves it | MEDIUM | CoreAudio: read `kAudioDevicePropertyVolumeScalar` with input scope before recording, set to 1.0, restore on stop. Not all devices expose this property — graceful fallback required |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
@@ -56,6 +58,9 @@ Features that seem good but create problems.
 | Meeting recording & summarization | Record entire meetings and get notes | Background recording raises serious consent and privacy concerns on macOS, requires much larger storage, completely different product mode | Separate product concern. Scope dictation app for active dictation only |
 | AI reformulation / professional rewriting modes | Rewrite casual speech as formal email or JIRA ticket | Requires powerful LLM and significantly longer processing time. Quality degrades heavily with small local models. Creates uncertain output users can't predict | V1: punctuation + filler removal only, output is recognizably what the user said. Add reformulation modes after validating local LLM quality |
 | Continuous/always-on dictation | App stays in listening mode permanently | Massively increases CPU/memory usage, creates accidental transcription risk, complicates "when does it paste?" logic | Explicit toggle/push-to-talk is superior UX for intentional dictation |
+| **Aggressive VAD (voice activity detection) filtering before STT** | Prevent Whisper from hallucinating on silence | Cutting audio aggressively can clip the start/end of speech. False positives cause missed words | Use Whisper's built-in no-speech probability. Only hard-discard if no speech detected at all. Do not aggressively trim silence |
+| **Prompt-level wordlist blacklist as sole defense** | Block "gracias" by telling Haiku "never output this word" | LLM word blacklists are unreliable — model may rephrase the forbidden word into synonyms, or ignore the prohibition. Brittle maintenance as hallucinations evolve | Post-processing string detection is the reliable final defense. Prompt constraints are supporting layer only |
+| **Always set mic volume to max (no restore)** | Simplest implementation | Leaves user's system audio input at 100% permanently. User has carefully calibrated their mic gain — overwriting without restoring is hostile | Read current value before set; restore exactly on stop. Never change without restoring. Skip the set if device does not support it |
 
 ---
 
@@ -114,6 +119,22 @@ Features that seem good but create problems.
     └──requires──> [Settings toggle enabled]
     └──uses──> [Media key simulation via CGEvent/NSEvent]
     └──no new permissions required (non-sandboxed app)
+
+[Prevent "gracias" hallucination]
+    └──addresses──> [Whisper large-v3 known end-of-phrase hallucination bug]
+    └──addresses──> [Haiku LLM adding courtesy words not in STT output]
+    └──layer-1──> [Haiku system prompt: explicit PROHIBIDO rule for adding words]
+    └──layer-2──> [Post-processing: strip known hallucination strings after LLM output]
+    └──no new permissions required]
+
+[Auto-maximize mic input volume]
+    └──triggered-by──> [Recording starts]
+    └──reverses-on──> [Recording stops (any path: complete, cancel, error)]
+    └──uses──> [CoreAudio: AudioObjectGetPropertyData / AudioObjectSetPropertyData]
+    └──uses──> [kAudioDevicePropertyVolumeScalar with kAudioDevicePropertyScopeInput]
+    └──reads──> [AudioObjectHasProperty — must check support before set]
+    └──depends-on──> [MicrophoneDeviceService.selectedDeviceID (existing)]
+    └──no new permissions required]
 ```
 
 ### Dependency Notes
@@ -124,6 +145,9 @@ Features that seem good but create problems.
 - **Waveform enhances Recording State:** Waveform animation is the most important visual signal during recording. Menubar icon state alone is not sufficient feedback.
 - **Custom Vocabulary post-processes LLM output:** Correction dictionary applies after LLM cleanup to fix persistent misrecognitions. Applying before LLM would allow LLM to "fix" the corrections.
 - **Pause Playback requires no new permissions:** The app is non-sandboxed (Developer ID). Simulating media key events via CGEventPost is already used for paste simulation. No Accessibility or Input Monitoring entitlements beyond what v1.0 already has.
+- **"Gracias" fix is a two-layer defense:** Prompt engineering alone is not reliable — LLMs can ignore prohibitions or rephrase. Post-processing string detection is the safe last line. Both layers together provide defense-in-depth.
+- **Mic volume auto-max requires graceful fallback:** Not all microphone devices expose `kAudioDevicePropertyVolumeScalar` on input scope. Built-in mic on many Macs does not support software volume control at the driver level. Must check `AudioObjectHasProperty` before attempting set/restore. Feature silently no-ops if device does not support it.
+- **Mic volume restore must run on every stop path:** Recording can end via: (a) hotkey stop, (b) Escape cancel, (c) error/timeout. All three paths must restore the saved volume level to avoid leaving user's mic permanently at max.
 
 ---
 
@@ -148,7 +172,9 @@ Minimum viable product — what's needed to validate the concept.
 
 Features to add once core is working.
 
-- [ ] **Pause Playback (v1.1):** Auto-pause media when recording starts, resume when recording ends, with Settings toggle — see detailed breakdown below
+- [x] **Pause Playback (v1.1):** Auto-pause media when recording starts, resume when recording ends, with Settings toggle — **SHIPPED v1.1**
+- [ ] **Prevent "gracias" hallucination (v1.2):** Dual-layer fix — Haiku prompt constraint + post-processing strip
+- [ ] **Auto-maximize mic input volume (v1.2):** CoreAudio read/set/restore on recording start/stop, with graceful fallback
 - [ ] Push-to-talk mode (hold hotkey vs toggle) — many users prefer this, low complexity to add
 - [ ] Configurable LLM cleanup aggressiveness (light/full modes) — nice to have, not blocking
 
@@ -162,105 +188,125 @@ Features to defer until product-market fit is established.
 
 ---
 
-## v1.1 Milestone: Pause Playback — Feature Detail
+## v1.2 Milestone: Dictation Quality — Feature Detail
 
-### What the Feature Does
+### Feature 1: Prevent "gracias" Hallucination
 
-When the user starts recording (hotkey press), the app sends a media play/pause key event to macOS. This pauses whatever is currently playing (Spotify, Apple Music, VLC, YouTube in a browser, etc.). When recording ends (hotkey press to stop, or transcription pipeline completes), the app sends the key event again to resume playback.
+#### What the Problem Is
 
-The feature is controlled by a single toggle in Settings. Off by default; user opts in.
+Two distinct sources can add words the user never said:
 
-### Mechanism: Media Key Simulation via CGEvent/NSEvent
+1. **Whisper large-v3 hallucinations:** Whisper is known to hallucinate end-of-phrase words from its training data (YouTube subtitles: "thanks for watching", "gracias", "thank you"). This affects large-v3 more than v2 — large-v3 hallucinates ~4x more. Occurs especially at the end of recordings where silence or low-energy audio precedes the model's final token prediction. Spanish language model output commonly adds "gracias" as a polite closing.
 
-**Approach:** Simulate pressing the physical Play/Pause media key (F8 / keyboard media key) programmatically using `NSEvent` with `NSSystemDefined` type and subtype 8 with `NX_KEYTYPE_PLAY` (value 16). Post the event via `CGEventPost(.cghidEventTap)`.
+2. **Haiku LLM adding courtesy words:** Even if Whisper transcribes cleanly, the Haiku cleanup model may "helpfully" add closing phrases to what it perceives as complete conversational text. The current system prompt (rule 5: "NO agregues palabras que no estaban") is good but does not specifically call out the "gracias" pattern as a known failure mode.
 
-This is the same mechanism used by:
-- BackgroundMusic (auto-pause utility)
-- BeardedSpice (media key forwarder)
-- Mac Media Key Forwarder
-- SuperWhisper v1.44.0+ (confirmed: "Media will now pause when recording is started and play when recording ends")
+#### Mechanism: Two-Layer Defense
 
-**Why this approach:**
-- Works with all apps that respond to the physical Play/Pause media key (Spotify, Apple Music, VLC, browsers, Pocket Casts, etc.)
-- No private API usage — NSEvent + CGEventPost are public APIs
-- No additional permissions required for non-sandboxed apps (app already uses CGEventPost for paste simulation)
-- Single code path, no per-app logic
-- Identical to pressing F8 on the keyboard from the OS's perspective
+**Layer 1 — Prompt reinforcement (Haiku system prompt):**
+Add explicit language to the existing system prompt rule 5 that names the specific failure: "NO agregues palabras de cortesía ni cierres como 'gracias', 'de nada', 'hasta luego' ni equivalentes." The pattern of naming the exact forbidden output (rather than only describing the category) is the most effective prompt constraint technique per Anthropic's own prompting best practices.
 
-**Alternative rejected — MediaRemote private framework:**
-- Private framework (`/System/Library/PrivateFrameworks/MediaRemote.framework`)
-- macOS 15.4+ introduced entitlement verification in mediaremoted; clients without entitlement are denied NowPlaying access
-- Would break on future macOS updates without warning
-- App Store ineligible (already the case, but still bad practice)
+**Layer 2 — Post-processing string strip:**
+After Haiku returns cleaned text, scan the end of the string for known hallucination patterns using case-insensitive suffix matching. Strip matches before passing to auto-paste. Known patterns for Spanish Whisper large-v3: "gracias", "gracias.", "gracias!", "muchas gracias", "de nada". This layer catches both Whisper hallucinations and any Haiku additions that slip past the prompt.
 
-**Alternative rejected — AppleScript per-app (BackgroundMusic approach):**
-- Requires knowing which apps are playing and scripting each one individually
-- Does not cover browser tabs (YouTube, Netflix)
-- Brittle: each new app needs explicit support
-- BackgroundMusic only supports: iTunes, Spotify, VLC, VOX, Decibel, Hermes, Swinsian, GPMDP
+**Why both layers are needed:**
+Prompt constraints alone are not reliable — LLMs can ignore prohibitions or produce semantically equivalent output. Post-processing string detection alone would miss novel variants. Defense-in-depth is the standard pattern for LLM output control.
 
-### Table Stakes for Pause Playback Feature
+#### Table Stakes for "gracias" Fix
 
 | Behavior | Why Expected | Complexity | Notes |
 |----------|--------------|------------|-------|
-| Pause on recording start | Core premise of the feature; user expectation from SuperWhisper, AutoPause, etc. | LOW | Send `NX_KEYTYPE_PLAY` key down + key up on `recordingDidStart` |
-| Resume on recording end | Without resume, user must manually restart media after every dictation — breaks flow | LOW | Send `NX_KEYTYPE_PLAY` key down + key up after paste completes (not at stop-hotkey press, since processing takes 3-5s) |
-| Settings toggle to enable/disable | Feature is disruptive if user doesn't want it. Single toggle in Settings panel | LOW | UserDefaults bool, default `false`. Show in Settings alongside other behavioral options |
-| Works with Spotify | Most common audio player on macOS; users expect it to work | LOW | Media key approach handles Spotify natively |
-| Works with Apple Music | Second most common; built into macOS | LOW | Media key approach handles Apple Music natively |
-| Works with browser media (YouTube, etc.) | Users routinely have YouTube/Netflix playing in background | LOW | Media key approach works for browser tabs that have media focus |
+| Text output contains only what was dictated | Core product promise: voice in = same text out, just cleaned | LOW | Prompt constraint — modify existing `systemPrompt` in `HaikuCleanupService.swift` |
+| Known hallucinated patterns stripped | Defense against both STT and LLM hallucination sources | LOW | Post-processing after `HaikuCleanupService.clean()` returns, before paste |
+| Vocabulary corrections still apply after strip | Existing correction pipeline must not be disrupted | LOW | Strip happens in coordinator after Haiku, before vocabulary correction step |
+| No false positives on legitimate "gracias" | If user dictated "gracias" intentionally, it must survive | MEDIUM | Post-processing must only match isolated trailing "gracias" — not "te doy las gracias porque..." in the middle of text. Use suffix match with word boundary. |
 
-### Differentiators for Pause Playback Feature
+#### Differentiators for "gracias" Fix
 
 | Behavior | Value | Complexity | Notes |
 |----------|-------|------------|-------|
-| Resume after processing completes (not at stop-hotkey) | More polished than resuming immediately at stop-press, since processing takes 3-5s more — resuming during transcription noise is jarring | LOW | Track "was paused by us" state; resume in `transcriptionDidComplete` or `pipelineDidComplete` |
-| Guard against double-resume | If user manually resumed media during the processing window, a second resume would pause it again | LOW | Track boolean `pausedByApp`. Only resume if we were the ones who paused |
-| Silent no-op when nothing is playing | Sending media key when nothing plays should not open Music app or cause side effects | MEDIUM | macOS behavior: sending play/pause when nothing plays can launch Music.app on some configurations. Test and add guard if needed |
-| VLC support | VLC is common among power users for video files | LOW | Media key approach handles VLC natively |
+| Configurable strip list in Settings | Power users may want to add their own known-bad patterns | MEDIUM | UserDefaults array of strings. UI would be a small text field list in Settings. Probably v1.3 scope |
+| Logging hallucinationed strips for debugging | User can see that something was stripped (e.g., "cleaned: removed trailing 'gracias'") in History entry | LOW | Flag in TranscriptionHistoryService that a strip occurred — visible in History as indicator |
 
-### Anti-Features for Pause Playback
+#### Anti-Features for "gracias" Fix
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Per-app pause logic (pause Spotify specifically, not others) | Seems more surgical | Requires AppleScript per app, misses browser tabs, brittle with app updates, 10x implementation complexity | Media key simulation is universal and correct |
-| Pause on push-to-talk hold (not just toggle) | Consistency with hold-to-talk mode | Push-to-talk recordings are typically very short (2-5s); media key round-trip adds complexity for negligible benefit | Start with toggle mode only; extend later if users request it |
-| Resume to different track / smart resume | Remember position in podcast or video | Requires state tracking per media type, AppleScript, different APIs per app | Not needed: media key resume is native behavior |
-| Mute system audio instead of pause | Alternative approach | Muting leaves the audio running (CPU, network for streams); pausing is what users expect and what competitors do | Always pause, not mute |
-| Chrome extension integration | Required for YouTube pause in some implementations | Media key simulation works without any browser extension for standard HTML5 players; extension adds distribution complexity | Media key approach sufficient |
+| Wordlist-only approach (no prompt change) | Simpler than modifying prompt | Prompt is the first line of defense; skipping it means post-processing does all the work. Post-processing is fragile for novel variants | Use both layers |
+| Aggressive sentence-end stripping | "Remove all Whisper hallucination patterns we know about" | Broadening the strip list without testing creates false positives on legitimate speech | Narrow initial list to confirmed patterns. Expand with evidence |
+| Suppress tokens in WhisperKit transcription | Block "gracias" at STT level | WhisperKit exposes limited suppress_tokens control; suppressing a common Spanish word can degrade transcription for dictated "gracias" | Layer approach preserves dictated "gracias" |
 
-### Edge Cases to Handle
+---
+
+### Feature 2: Auto-Maximize Microphone Input Volume
+
+#### What the Feature Does
+
+When recording starts, the app reads the current system-level input volume for the active microphone device, saves it, then sets the input volume to 1.0 (maximum). When recording ends (any path: complete, cancel, error), the app restores the saved original volume. The feature is transparent to the user — no new UI toggle unless they ask for it.
+
+#### Why This Matters
+
+Low microphone input gain is the single most common cause of poor transcription quality with local Whisper models. WhisperKit's large-v3 needs a clean, loud-enough signal to produce accurate Spanish transcription. Users who have their mic at 50-70% (common for video calls where auto-gain is used) will experience degraded transcription. Auto-maximizing on each recording ensures the model gets the best signal without requiring the user to manually adjust System Settings before each session.
+
+#### Mechanism: CoreAudio kAudioDevicePropertyVolumeScalar
+
+**API:**
+```
+AudioObjectGetPropertyData(deviceID, &propertyAddress, 0, nil, &dataSize, &volume)
+AudioObjectSetPropertyData(deviceID, &propertyAddress, 0, nil, dataSize, &volume)
+```
+Where `propertyAddress` uses:
+- `mSelector: kAudioDevicePropertyVolumeScalar`
+- `mScope: kAudioDevicePropertyScopeInput`
+- `mElement: kAudioObjectPropertyElementMain` (for master/global channel) or per-channel
+
+**Critical limitation:** Not all audio input devices expose `kAudioDevicePropertyVolumeScalar` on the input scope. Many built-in microphones on Macs do not support software input volume control at the driver level. The app must call `AudioObjectHasProperty` first. If the property is not available, the feature silently no-ops — recording proceeds at whatever level the system is set to.
+
+**Scope of change:**
+- New `MicVolumeService` (or extension of existing `MicrophoneDeviceService`) with `readVolume(deviceID:)`, `setVolume(deviceID:value:)`, `hasVolumeControl(deviceID:)` methods.
+- `AppCoordinator` calls `micVolumeService.boost()` on `recordingDidStart`, and `micVolumeService.restore()` on all recording stop paths.
+- Saved volume is instance state; cleared after restore.
+
+**What controls macOS input volume in System Settings vs CoreAudio:**
+The System Settings > Sound > Input slider sets `kAudioDevicePropertyVolumeScalar` on the input scope. Reading and writing this property via CoreAudio is exactly what the System Settings slider does — there is no separate privileged API.
+
+#### Table Stakes for Mic Volume Feature
+
+| Behavior | Why Expected | Complexity | Notes |
+|----------|--------------|------------|-------|
+| Input volume set to 1.0 on recording start | Core premise: maximize signal before transcription | LOW | `AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar`, input scope |
+| Original volume restored on recording complete | User's calibration preserved — this is the critical UX contract | LOW | Store Float32 before set; restore on stop |
+| Original volume restored on recording cancel (Escape) | Cancel path must restore — otherwise Escape leaves mic at max | LOW | All stop paths must call restore. Check AppCoordinator cancel flow |
+| Original volume restored on error | Error path (e.g., STT failure) must also restore | LOW | Error handling in AppCoordinator must include restore |
+| Graceful no-op if device has no volume control | Built-in mic on many Macs does not expose input volume via CoreAudio | MEDIUM | Check `AudioObjectHasProperty` before any read/write. Log debug message if not supported |
+| Works with user-selected microphone, not just default | User may have selected an external USB mic in Settings | LOW | Use `MicrophoneDeviceService.selectedDeviceID` to get the active device ID — same device used by `AudioRecorder` |
+
+#### Differentiators for Mic Volume Feature
+
+| Behavior | Value | Complexity | Notes |
+|----------|-------|------------|-------|
+| Optional Settings toggle | User who relies on manual gain staging (podcasters, musicians) may not want auto-max | LOW | UserDefaults bool `autoMaxMicVolume`, default `true`. Single toggle in Settings |
+| Smooth ramp instead of hard jump to 1.0 | Avoids audio pop/click if recording starts while gain changes | MEDIUM | Probably not needed — AVAudioEngine taps start after volume is set. Likely not perceptible in practice. Defer unless user reports audio artifacts |
+| Per-device saved volume | If user switches mics between sessions, the saved original per-device is maintained | MEDIUM | Store `[AudioDeviceID: Float32]` in UserDefaults. V1: just use a single in-memory Float32 — simpler, sufficient for within-session use |
+
+#### Anti-Features for Mic Volume Feature
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Set volume without restore | Simpler implementation | Leaves user's system audio input at max permanently. Hostile to users who carefully calibrated their mic. Support burden | Always restore. Make restore the invariant, not the optimization |
+| Use AVAudioSession input gain | Seems more Swift-native | AVAudioSession on macOS does not support `setInputGain` — that is an iOS-only API. CoreAudio is the correct macOS approach | Use `AudioObjectSetPropertyData` with CoreAudio directly |
+| Expose volume level in UI | Show current mic level in Settings or recording overlay | Adds visual complexity; user's system Settings already shows this | Not needed. Silent behavior is better UX |
+| Hard-coded device ID | Skip device lookup by reusing AVAudioEngine inputNode | AVAudioEngine uses the currently active system default, which may differ from the user's selected device | Always use `MicrophoneDeviceService.selectedDeviceID` (falling back to default device ID from `AudioObjectID(kAudioObjectSystemObject)`) |
+
+#### Edge Cases to Handle
 
 | Scenario | Expected Behavior | Implementation Note |
 |----------|-------------------|---------------------|
-| Nothing is playing when recording starts | No-op; do not open Music.app or cause any side effect | Test on macOS: sending play/pause when nothing plays may launch Music.app. If so, guard with NowPlaying check or accept limitation |
-| User manually pauses during transcription (3-5s window) | App should not resume media (user explicitly paused) | Problematic: we cannot distinguish "user paused" from "we paused." Track `pausedByApp` flag, only resume if flag is set. Flag is cleared if recording cancelled |
-| Recording cancelled (user presses Escape or cancels) | Resume media since the recording was abandoned, not completed | Resume on cancel the same as on completion — user interrupted dictation, media should come back |
-| Rapid back-to-back recordings | Media paused → resumed → paused again in quick succession | Each recording cycle should independently pause and resume. No cumulative state issues |
-| Bluetooth headphones in use | macOS switches Bluetooth headphones to SCO (lower quality) profile when microphone activates — separate from this feature but often reported together | This is a macOS/hardware behavior, not fixable in app. Document in settings tooltip: "Media pauses during recording; Bluetooth headphones may switch audio profile while mic is active." |
-| Browser tab has media focus vs background music | Sending play/pause pauses whichever app currently "owns" the Now Playing widget | macOS determines media key target via the NowPlaying focus mechanism. This is correct behavior — pause whatever is currently "playing" per the OS |
-| Multiple apps playing simultaneously | Rare but possible (Spotify + browser) | Media key pauses the NowPlaying-registered app. Other audio continues. Acceptable limitation |
-| App that intercepts media keys (Discord, Teams) | These apps can steal media key focus, causing pause to affect call audio instead of music | Known ecosystem conflict. Superwhisper v2.2.1 flagged Discord and Obsidian as problematic. Document in release notes. No reliable workaround without per-app AppleScript |
-| User disables toggle mid-session | If recording is already in progress when toggle is turned off, do not resume media when recording ends | Check toggle state at resume time, not just at pause time |
-
-### Feature Dependencies (Pause Playback Specific)
-
-```
-[Pause Playback Toggle]
-    └──stored-in──> [UserDefaults (existing)]
-    └──displayed-in──> [Settings Panel (existing)]
-
-[Pause on Recording Start]
-    └──triggered-by──> [RecordingManager.startRecording() (existing)]
-    └──uses──> [CGEventPost / NSEvent systemDefined (same API as paste simulation)]
-    └──sets──> [pausedByApp: Bool = true]
-
-[Resume on Recording End]
-    └──triggered-by──> [Pipeline completion: paste done OR recording cancelled]
-    └──guard──> [pausedByApp == true]
-    └──clears──> [pausedByApp = false]
-    └──uses──> [same CGEventPost / NSEvent path as pause]
-```
+| Device has no volume control (built-in mic on MacBook) | Silent no-op; feature is disabled for this device | `AudioObjectHasProperty` check returns false → skip set/restore entirely |
+| User changes mic selection mid-session | New device gets volume-maxed on next recording | Volume service re-reads device ID on each `boost()` call, not cached at app start |
+| Recording starts while previous recording is still restoring | Edge case: rapid back-to-back hotkey presses | `restore()` must complete before new `boost()` reads the original. Use a serial dispatch queue or actor for safety |
+| App crashes during recording | Volume left at max until next run | On `applicationDidFinishLaunching`, check if there is a saved "boosted" state flag; if so, restore immediately. Store boost flag in UserDefaults during set, clear on restore |
+| External USB mic disconnected during recording | Device ID becomes invalid; restore fails silently | Wrap restore in a guard; if device not available, the user already lost audio, no further action needed |
+| Multi-channel mic (stereo input) | Per-channel volume set needed for some devices | Use `kAudioDevicePropertyPreferredChannelsForStereo` to enumerate channels; set each. Fall back to `kAudioObjectPropertyElementMain` if mono/main |
 
 ---
 
@@ -278,8 +324,10 @@ This is the same mechanism used by:
 | Permission prompts (first launch) | HIGH | LOW | P1 (shipped) |
 | Configurable hotkey | MEDIUM | LOW | P1 (shipped) |
 | Microphone selection | MEDIUM | LOW | P1 (shipped) |
-| **Pause Playback (auto-pause media)** | **HIGH** | **LOW** | **P1 (v1.1)** |
-| **Pause Playback Settings toggle** | **HIGH** | **LOW** | **P1 (v1.1)** |
+| Pause Playback (auto-pause media) | HIGH | LOW | P1 (v1.1 shipped) |
+| Pause Playback Settings toggle | HIGH | LOW | P1 (v1.1 shipped) |
+| **Prevent "gracias" hallucination** | **HIGH** | **LOW** | **P1 (v1.2)** |
+| **Auto-maximize mic input volume** | **HIGH** | **LOW-MEDIUM** | **P1 (v1.2)** |
 | Push-to-talk mode | MEDIUM | LOW | P2 |
 | Configurable LLM cleanup aggressiveness | LOW | LOW | P2 |
 | Reformulation modes | LOW | HIGH | P3 |
@@ -307,7 +355,9 @@ This is the same mechanism used by:
 | Spanish support | Yes (100+ langs) | Yes (cloud) | Yes | Yes (system language) | Yes (primary language, optimized) — shipped |
 | Custom vocabulary | Yes | Unknown | Yes | No | Yes — shipped |
 | History log | Yes (search) | Unknown | No | No | Yes (last 20) — shipped |
-| **Pause media while recording** | **Yes (v1.44.0+, default in v2.7.0)** | **Unknown** | **Unknown** | **No** | **v1.1 — in progress** |
+| Pause media while recording | Yes (v1.44.0+, default in v2.7.0) | Unknown | Unknown | No | v1.1 — shipped |
+| **Prevent hallucinated output words** | **Unknown (not documented)** | **Unknown** | **Unknown** | **No** | **v1.2 — in progress** |
+| **Auto-maximize mic volume** | **Unknown** | **Unknown** | **Unknown** | **No** | **v1.2 — in progress** |
 | Menubar app | Yes | Yes | Yes | N/A (system feature) | Yes — shipped |
 | Context capture (clipboard/screen) | Yes (Super Mode) | Yes | No | No | No (out of scope) |
 | Cloud required | No | Yes | No | Optional | Never |
@@ -332,8 +382,21 @@ This is the same mechanism used by:
 - [Apple Developer Forums: Play/Pause now playing with MediaRemote](https://developer.apple.com/forums/thread/688433) — MediaRemote private framework discussion
 - [macOS Prevent Bluetooth Headphones Microphone switch](https://www.codejam.info/2024/05/macos-prevent-bluetooth-headphones-microphone.html) — Bluetooth SCO profile switching on mic activation
 - [macOS Dictation Apple Support](https://support.apple.com/guide/mac-help/use-dictation-mh40584/mac) — built-in dictation capabilities
+- [OpenAI Whisper Discussion #679](https://github.com/openai/whisper/discussions/679) — Whisper hallucination solutions
+- [OpenAI Whisper Discussion #1455](https://github.com/openai/whisper/discussions/1455) — Random words / hallucination at end of recording
+- [OpenAI Whisper Discussion #1606](https://github.com/openai/whisper/discussions/1606) — Hallucination on audio with no speech
+- [Deepgram: Whisper-v3 Hallucinations on Real World Data](https://deepgram.com/learn/whisper-v3-results) — v3 hallucinates 4x more than v2
+- [WhisperLive Issue #185](https://github.com/collabora/WhisperLive/issues/185) — Hallucinating "Thanks for watching" / conclusive remarks with near-silence
+- [arxiv: Investigation of Whisper ASR Hallucinations Induced by Non-Speech Audio](https://arxiv.org/html/2501.11378v1) — Academic analysis of hallucination triggers
+- [GitHub: STT-Basic-Cleanup-System-Prompt](https://github.com/danielrosehill/STT-Basic-Cleanup-System-Prompt) — Pattern for preventing LLM from adding words not in STT output
+- [Anthropic Claude Prompting Best Practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) — Naming the exact forbidden output is more effective than describing the category
+- [SimplyCoreAudio GitHub](https://github.com/rnine/SimplyCoreAudio) — Swift CoreAudio framework; confirms `virtualMainVolume(scope:)` method for input/output volume
+- [CoreAudio Swift output device methods Gist](https://gist.github.com/kimsungwhee/91a4cbd7855089c302fc93f03a0fb15c) — `kAudioDevicePropertyVolumeScalar` with input scope pattern
+- [Apple Developer: AudioObjectSetPropertyData](https://developer.apple.com/documentation/coreaudio/audioobjectsetpropertydata(_:_:_:_:_:_:)?language=objc) — Official CoreAudio API docs
+- [Apple Support: Change sound input settings on Mac](https://support.apple.com/guide/mac-help/change-the-sound-input-settings-mchlp2567/mac) — Confirms System Settings slider controls input volume (same CoreAudio property)
 
 ---
 *Feature research for: local voice-to-text macOS menubar app*
 *Originally researched: 2026-03-15*
 *Updated: 2026-03-16 — added v1.1 Pause Playback milestone feature detail*
+*Updated: 2026-03-17 — added v1.2 Dictation Quality milestone feature detail (prevent "gracias" + auto-max mic volume)*

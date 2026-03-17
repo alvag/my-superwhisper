@@ -1,216 +1,261 @@
 # Architecture Research
 
-**Domain:** Pause Playback integration into existing macOS menubar voice-to-text app
-**Researched:** 2026-03-16
-**Confidence:** HIGH (existing codebase read directly; media key approach cross-verified with multiple sources)
+**Domain:** v1.2 feature integration — Haiku prompt fix + mic input volume control
+**Researched:** 2026-03-17
+**Confidence:** HIGH (existing codebase read directly; CoreAudio volume API pattern confirmed via official Apple docs and existing MicrophoneDeviceService pattern in codebase)
 
 ---
 
-## Standard Architecture
-
-### System Overview — v1.1 with Pause Playback
+## System Overview — v1.2 with New Features
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        AppDelegate (wiring)                      │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌───────────────┐  ┌────────────────┐  ┌────────────────────┐  │
-│  │ HotkeyMonitor │  │  EscapeMonitor │  │ MenubarController  │  │
-│  └──────┬────────┘  └───────┬────────┘  └─────────┬──────────┘  │
-│         │                  │                      │              │
-├─────────▼──────────────────▼──────────────────────▼─────────────┤
-│                      AppCoordinator (FSM)                        │
-│              idle ↔ recording ↔ processing ↔ error               │
-│                                                                  │
-│   ON ENTER recording:  → MediaPlaybackService.pause()  [NEW]    │
-│   ON EXIT  recording:  → MediaPlaybackService.resume() [NEW]    │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐ ┌────────────┐ ┌───────────────────────────┐  │
-│  │ AudioRecorder│ │ STTEngine  │ │  HaikuCleanupService      │  │
-│  └──────────────┘ └────────────┘ └───────────────────────────┘  │
-│  ┌──────────────┐ ┌────────────┐ ┌──────────────┐               │
-│  │ TextInjector │ │VocabService│ │HistoryService│               │
-│  └──────────────┘ └────────────┘ └──────────────┘               │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │   MediaPlaybackService  [NEW]                            │    │
-│  │   Wraps: CGEventPost — NX_KEYTYPE_PLAY media key sim     │    │
-│  │   Setting: UserDefaults "pausePlaybackEnabled"           │    │
-│  └──────────────────────────────────────────────────────────┘    │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │  SettingsWindowController  [MODIFIED — add toggle row]    │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                       AppDelegate (wiring)                        │
+├──────────────────────────────────────────────────────────────────┤
+│  ┌───────────────┐  ┌────────────────┐  ┌────────────────────┐   │
+│  │ HotkeyMonitor │  │  EscapeMonitor │  │  MenubarController │   │
+│  └──────┬────────┘  └───────┬────────┘  └─────────┬──────────┘   │
+│         │                  │                      │               │
+├─────────▼──────────────────▼──────────────────────▼──────────────┤
+│                      AppCoordinator (FSM)                         │
+│              idle ↔ recording ↔ processing ↔ error                │
+│                                                                   │
+│   ON ENTER recording: mediaPlayback?.pause()                      │
+│                       micVolumeService?.maximizeAndSave()  [NEW]  │
+│   ON EXIT  recording: mediaPlayback?.resume()                     │
+│                       micVolumeService?.restore()          [NEW]  │
+│   ON ESCAPE cancel:   mediaPlayback?.resume()                     │
+│                       micVolumeService?.restore()          [NEW]  │
+├──────────────────────────────────────────────────────────────────┤
+│  ┌────────────────┐ ┌────────────┐ ┌─────────────────────────┐   │
+│  │  AudioRecorder │ │ STTEngine  │ │  HaikuCleanupService     │   │
+│  │                │ │            │ │  [MODIFIED — prompt fix] │   │
+│  └────────────────┘ └────────────┘ └─────────────────────────┘   │
+│  ┌────────────────┐ ┌────────────┐ ┌────────────────────────┐    │
+│  │  TextInjector  │ │VocabService│ │    HistoryService       │    │
+│  └────────────────┘ └────────────┘ └────────────────────────┘    │
+│  ┌────────────────────────────────┐                              │
+│  │  MediaPlaybackService (v1.1)   │                              │
+│  └────────────────────────────────┘                              │
+│  ┌────────────────────────────────┐                              │
+│  │  MicInputVolumeService  [NEW]  │                              │
+│  │  CoreAudio: get/set volume on  │                              │
+│  │  kAudioDevicePropertyScopeInput│                              │
+│  └────────────────────────────────┘                              │
+└──────────────────────────────────────────────────────────────────┘
 ```
-
-### Component Responsibilities
-
-| Component | Responsibility | Status |
-|-----------|----------------|--------|
-| `AppCoordinator` | FSM transitions; calls `MediaPlaybackService` at `idle→recording` and `recording→*` | Modified |
-| `MediaPlaybackService` | Sends system-wide play/pause media key event via `CGEventPost`; reads enabled setting | New |
-| `SettingsWindowController` | Renders Pause Playback toggle (`NSButton` checkbox); persists to `UserDefaults` | Modified |
-| `AppDelegate` | Instantiates `MediaPlaybackService`; injects into `AppCoordinator` | Modified |
-| `AppCoordinatorDependencies` | Declares `MediaPlaybackServiceProtocol` for testability | Modified |
 
 ---
 
 ## New vs Modified Components
 
-### New: `MediaPlaybackService`
+### Feature 1: Haiku Prompt Fix ("gracias" phantom suffix)
 
-Single-responsibility service. All media-key logic lives here so `AppCoordinator` stays clean.
+**What changes:** `HaikuCleanupService.swift` only — the system prompt string.
 
-File location: `MyWhisper/System/MediaPlaybackService.swift`
+**Root cause:** The current system prompt ends with rule 5 ("PROHIBIDO") but does not explicitly forbid appending closing phrases. Haiku occasionally adds a Spanish conversational sign-off ("gracias", "hasta luego", etc.) that mimics a well-formed dictation ending. A single explicit rule eliminates this.
 
-Responsibilities:
-- Read `UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")` at call time (defaults `true`)
-- Send `NX_KEYTYPE_PLAY` key-down + key-up via `CGEventPost(.cghidEventTap)` when `pause()` is called
-- Send the same event when `resume()` is called (play/pause is a hardware toggle — same keycode for both directions)
-- Guard: if `!isEnabled`, return immediately without posting any events
-
-Protocol (for testability in unit tests):
+**Change:** Add one rule to the `systemPrompt` string inside `HaikuCleanupService`:
 
 ```swift
-protocol MediaPlaybackServiceProtocol: AnyObject {
-    func pause()
-    func resume()
-    var isEnabled: Bool { get }
+// Add as Rule 6 in the existing numbered list:
+"6. CIERRE: NO añadas palabras de despedida ni agradecimiento al final \
+(\"gracias\", \"hasta luego\", etc.) salvo que estén en el texto original."
+```
+
+No protocol changes. No new types. No wiring changes. The `HaikuCleanupProtocol` signature is unaffected.
+
+**File touched:** `MyWhisper/Cleanup/HaikuCleanupService.swift` (systemPrompt string only)
+
+---
+
+### Feature 2: Mic Input Volume — New Service
+
+**What changes:**
+
+| Change | File | Type |
+|--------|------|------|
+| New protocol `MicInputVolumeServiceProtocol` | `AppCoordinatorDependencies.swift` | Modified |
+| New service `MicInputVolumeService` | `MyWhisper/Audio/MicInputVolumeService.swift` | New |
+| New coordinator property + 3 call sites | `AppCoordinator.swift` | Modified |
+| Wire service at startup | `AppDelegate.swift` | Modified |
+
+#### Protocol (added to `AppCoordinatorDependencies.swift`)
+
+```swift
+protocol MicInputVolumeServiceProtocol: AnyObject {
+    /// Read current input volume, store it, then set input volume to 1.0.
+    func maximizeAndSave()
+    /// Restore the input volume saved by the last maximizeAndSave() call.
+    func restore()
 }
 ```
 
-Implementation sketch:
+Kept minimal — coordinator needs only these two operations. The saved volume is internal state of the service.
+
+#### `MicInputVolumeService` implementation sketch
 
 ```swift
-final class MediaPlaybackService: MediaPlaybackServiceProtocol {
-    var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")
+final class MicInputVolumeService: MicInputVolumeServiceProtocol {
+    private var savedVolume: Float32? = nil
+    private let microphoneService: MicrophoneDeviceService
+
+    init(microphoneService: MicrophoneDeviceService) {
+        self.microphoneService = microphoneService
     }
 
-    func pause()  { sendMediaKey() }
-    func resume() { sendMediaKey() }
-
-    private func sendMediaKey() {
-        guard isEnabled else { return }
-        let key = Int(NX_KEYTYPE_PLAY)
-        postMediaKey(key, down: true)
-        postMediaKey(key, down: false)
+    func maximizeAndSave() {
+        guard let deviceID = resolveActiveDeviceID() else { return }
+        savedVolume = getVolume(deviceID: deviceID)
+        setVolume(1.0, deviceID: deviceID)
     }
 
-    private func postMediaKey(_ key: Int, down: Bool) {
-        let flags = NSEvent.ModifierFlags(rawValue: down ? 0xA00 : 0xB00)
-        let event = NSEvent.otherEvent(
-            with: .systemDefined,
-            location: .zero,
-            modifierFlags: flags,
-            timestamp: 0,
-            windowNumber: 0,
-            context: nil,
-            subtype: 8,
-            data1: (key << 16) | ((down ? 0xA : 0xB) << 8),
-            data2: -1
+    func restore() {
+        guard let volume = savedVolume,
+              let deviceID = resolveActiveDeviceID() else { return }
+        setVolume(volume, deviceID: deviceID)
+        savedVolume = nil
+    }
+
+    private func resolveActiveDeviceID() -> AudioDeviceID? {
+        // Prefer the user-selected device (mirrors AudioRecorder selection logic).
+        // Fall back to system default input device if none selected.
+        if let selected = microphoneService.selectedDeviceID {
+            let available = microphoneService.availableInputDevices().map(\.id)
+            if available.contains(selected) { return selected }
+        }
+        return systemDefaultInputDeviceID()
+    }
+
+    private func systemDefaultInputDeviceID() -> AudioDeviceID? {
+        var deviceID = AudioDeviceID(0)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDefaultInputDevice,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
         )
-        event?.cgEvent?.post(tap: .cghidEventTap)
+        guard AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject),
+            &address, 0, nil, &size, &deviceID
+        ) == noErr, deviceID != kAudioDeviceUnknown else { return nil }
+        return deviceID
+    }
+
+    private func getVolume(deviceID: AudioDeviceID) -> Float32? {
+        var volume = Float32(0)
+        var size = UInt32(MemoryLayout<Float32>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(
+            deviceID, &address, 0, nil, &size, &volume
+        ) == noErr else { return nil }
+        return volume
+    }
+
+    private func setVolume(_ volume: Float32, deviceID: AudioDeviceID) {
+        var vol = volume
+        let size = UInt32(MemoryLayout<Float32>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyVolumeScalar,
+            mScope: kAudioDevicePropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        AudioObjectSetPropertyData(deviceID, &address, 0, nil, size, &vol)
     }
 }
 ```
 
-### Modified: `AppCoordinatorDependencies.swift`
+**Key design decisions:**
 
-Add `MediaPlaybackServiceProtocol` declaration alongside the existing protocols (`AudioRecorderProtocol`, `TextInjectorProtocol`, etc.). No other change.
+- Uses the same `MicrophoneDeviceService` that `AudioRecorder` already uses for device selection. No new device resolution logic; no duplicate code.
+- `savedVolume` is instance state. If the app crashes after `maximizeAndSave()` but before `restore()`, the OS keeps the volume at 1.0 — acceptable risk for a desktop utility.
+- `kAudioObjectPropertyElementMain` (element 0) targets the master channel. This is correct for consumer microphones. Multi-channel interfaces may require per-channel iteration — flag as a known edge case (see PITFALLS).
+- No `isSettable` guard in the sketch; add `AudioObjectIsPropertySettable` check before `AudioObjectSetPropertyData` if some devices return errors. Silent failure on `setVolume` is acceptable — worst case: volume is not changed.
+- No new entitlements required. `AudioObjectGetPropertyData` / `AudioObjectSetPropertyData` for device volume are available to non-sandboxed apps. (The app is already Developer ID signed and non-sandboxed.)
 
-### Modified: `AppCoordinator.swift`
+---
 
-Add one stored property:
-
-```swift
-var mediaPlayback: (any MediaPlaybackServiceProtocol)?
-```
-
-Add three call sites within `handleHotkey()` and `handleEscape()`:
-
-| Location | Call | Reason |
-|----------|------|--------|
-| `.idle` branch — before `audioRecorder?.start()` | `mediaPlayback?.pause()` | Pause before mic opens |
-| `.recording` branch — after `escapeMonitor?.stopMonitoring()` | `mediaPlayback?.resume()` | Resume after normal stop |
-| `handleEscape()` — after `audioRecorder?.cancel()` | `mediaPlayback?.resume()` | Resume after cancelled recording |
-
-No other changes to coordinator logic.
-
-### Modified: `AppDelegate.swift`
+## Modified: `AppCoordinator.swift`
 
 Add one stored property:
 
 ```swift
-private var mediaPlaybackService: MediaPlaybackService?
+var micVolumeService: (any MicInputVolumeServiceProtocol)?
 ```
 
-In `applicationDidFinishLaunching`, after existing service instantiations:
+Add call sites within `handleHotkey()` and `handleEscape()`:
+
+| Location | Call | Rationale |
+|----------|------|-----------|
+| `.idle` branch — after `mediaPlayback?.pause()`, before `audioRecorder?.start()` | `micVolumeService?.maximizeAndSave()` | Maximize before engine starts so volume takes effect during capture |
+| `.recording` branch — after `mediaPlayback?.resume()`, before `audioRecorder?.stop()` | `micVolumeService?.restore()` | Restore as soon as recording ends, before processing begins |
+| `handleEscape()` — after `mediaPlayback?.resume()` | `micVolumeService?.restore()` | Restore on cancel path as well |
+
+---
+
+## Modified: `AppDelegate.swift`
+
+Add stored property:
 
 ```swift
-let mediaPlaybackService = MediaPlaybackService()
-coordinator.mediaPlayback = mediaPlaybackService
-self.mediaPlaybackService = mediaPlaybackService
+private var micInputVolumeService: MicInputVolumeService?
 ```
 
-### Modified: `SettingsWindowController.swift`
-
-Add Section 6 below the existing "Launch at Login" checkbox. The toggle writes directly to `UserDefaults` — no reference to `MediaPlaybackService` needed:
+In `applicationDidFinishLaunching`, after `microphoneService` is initialized:
 
 ```swift
-let pauseCheckbox = NSButton(
-    checkboxWithTitle: "Pausar reproducción al grabar",
-    target: self,
-    action: #selector(pausePlaybackChanged(_:))
-)
-pauseCheckbox.state = UserDefaults.standard.bool(forKey: "pausePlaybackEnabled") ? .on : .off
+let micInputVolumeService = MicInputVolumeService(microphoneService: microphoneService)
+coordinator.micVolumeService = micInputVolumeService
+self.micInputVolumeService = micInputVolumeService
 ```
 
-```swift
-@objc private func pausePlaybackChanged(_ sender: NSButton) {
-    UserDefaults.standard.set(sender.state == .on, forKey: "pausePlaybackEnabled")
-}
-```
-
-The `SettingsWindowController` init signature does not change — no new dependency injection required.
+`MicInputVolumeService` depends on `MicrophoneDeviceService` (already instantiated). No other dependency changes.
 
 ---
 
 ## Data Flow
 
-### Pause Flow (hotkey pressed while idle)
+### Recording Start (idle → recording)
 
 ```
-User presses Option+Space
+User presses Option+Space  [state: .idle]
     ↓
-HotkeyMonitor fires → AppCoordinator.handleHotkey()  [state: .idle]
-    ↓  mic permission check passes, API-key check passes
-MediaPlaybackService.pause()
-    → reads UserDefaults["pausePlaybackEnabled"]
-    → if true: CGEventPost NX_KEYTYPE_PLAY (down + up)
-    → system media server routes event to Now Playing app → pauses
+AppCoordinator.handleHotkey()
+    ↓  permission check + API key check pass
+mediaPlayback?.pause()                     (v1.1 — pause media)
+    ↓  150ms sleep (existing)
+micVolumeService?.maximizeAndSave()        [NEW — read+save current volume, set to 1.0]
+    → resolveActiveDeviceID()              (selected or system default)
+    → getVolume() via AudioObjectGetPropertyData(kAudioDevicePropertyVolumeScalar)
+    → save to savedVolume
+    → setVolume(1.0) via AudioObjectSetPropertyData
     ↓
-audioRecorder?.start()
+audioRecorder?.start()                     (engine starts, mic now at max volume)
 transitionTo(.recording)
-overlay shows, waveform begins
 ```
 
-### Resume Flow — Normal Stop (hotkey pressed while recording)
+### Recording Stop (recording → processing)
 
 ```
 User presses Option+Space  [state: .recording]
     ↓
+AppCoordinator.handleHotkey()
 escapeMonitor?.stopMonitoring()
 stopAudioLevelPolling()
-MediaPlaybackService.resume()
-    → reads UserDefaults["pausePlaybackEnabled"]
-    → if true: CGEventPost NX_KEYTYPE_PLAY (down + up)
-    → system media server routes event → resumes playback
+mediaPlayback?.resume()                    (v1.1 — resume media)
+micVolumeService?.restore()               [NEW — restore saved volume]
+    → getVolume: use savedVolume
+    → setVolume(savedVolume) via AudioObjectSetPropertyData
+    → savedVolume = nil
     ↓
-audioRecorder?.stop() → VAD check → transcription pipeline...
+audioRecorder?.stop() → VAD → transcription → Haiku cleanup → paste
 ```
 
-### Resume Flow — Escape Cancel
+### Escape Cancel
 
 ```
 User presses Escape  [state: .recording]
@@ -220,58 +265,156 @@ escapeMonitor?.stopMonitoring()
 stopAudioLevelPolling()
 overlayController?.hide()
 audioRecorder?.cancel()
-MediaPlaybackService.resume()
-    → CGEventPost NX_KEYTYPE_PLAY
+mediaPlayback?.resume()                    (v1.1)
+micVolumeService?.restore()               [NEW]
 NSSound.beep()
 transitionTo(.idle)
 ```
 
-### Settings Toggle Flow
+### Haiku Cleanup (unchanged flow, prompt only)
 
 ```
-User opens Preferences → checks/unchecks "Pausar reproducción al grabar"
+rawText (from WhisperKit)
     ↓
-SettingsWindowController.pausePlaybackChanged(_:)
+HaikuCleanupService.clean(rawText)
+    → system prompt now includes Rule 6: no closing phrases
+    → Haiku returns corrected text without phantom "gracias"
     ↓
-UserDefaults.standard.set(Bool, forKey: "pausePlaybackEnabled")
-
-MediaPlaybackService reads this key at each pause()/resume() call.
-Change takes effect on the next recording session. No restart needed.
+vocabularyService.apply(to: cleanedText)
+    ↓
+textInjector?.inject(correctedText)
 ```
+
+---
+
+## Component Boundaries
+
+| Component | Responsibility | Communicates With |
+|-----------|----------------|-------------------|
+| `MicInputVolumeService` | Read/save/restore CoreAudio input volume for the active device | `MicrophoneDeviceService` (device resolution), CoreAudio HAL |
+| `MicrophoneDeviceService` | Device enumeration and selection persistence | `MicInputVolumeService`, `AudioRecorder`, Settings UI |
+| `AppCoordinator` | FSM orchestration; calls `micVolumeService` at state boundaries | `MicInputVolumeService` (via protocol), all other services |
+| `HaikuCleanupService` | Text cleanup via Anthropic API | Anthropic API, `KeychainService` |
+| `AppDelegate` | Wiring; owns strong references to all services | All services |
 
 ---
 
 ## Architectural Patterns
 
-### Pattern 1: FSM Side-Effect Injection
+### Pattern 1: FSM Side-Effect Injection (same as v1.1 MediaPlayback)
 
-**What:** `AppCoordinator` holds a protocol reference (`MediaPlaybackServiceProtocol`). It calls `pause()`/`resume()` as side effects at state transition boundaries. No media-control logic lives in the coordinator.
+**What:** `AppCoordinator` holds a protocol reference injected by `AppDelegate`. Side effects at state boundaries are delegated to specialized services.
 
-**When to use:** Any external system action that must happen at a state boundary but has no bearing on state itself.
+**When to use:** Any external system action at a state transition boundary that has no bearing on the FSM state itself.
 
-**Trade-offs:** Keeps coordinator focused and testable. Adds one optional dependency. No meaningful downsides at this feature size.
+**Trade-offs:** Coordinator stays focused and testable. Services are independently mockable.
 
-### Pattern 2: CGEventPost Media Key (NX_KEYTYPE_PLAY)
+### Pattern 2: Symmetric Save/Restore
 
-**What:** Post a synthetic `NSSystemDefined` event (type 14, subtype 8) with `NX_KEYTYPE_PLAY` (keyCode 16) to `.cghidEventTap`. This mimics the hardware Play/Pause key. One post pauses, the next post resumes — identical to the physical key.
+**What:** `MicInputVolumeService.maximizeAndSave()` atomically reads the current value and saves it before mutating. `restore()` writes the saved value back and clears it. The pair is always called at the same FSM boundary (one on enter recording, one on exit recording).
 
-**When to use:** System-wide media control for any player (Spotify, Apple Music, YouTube in Safari, podcast apps, video players) without app-specific knowledge.
+**When to use:** Any resource that must be temporarily overridden and then returned to its original state.
 
-**Why this over alternatives:**
-- The app is already non-sandboxed (Developer ID distribution) — `CGEventPost` is already in use by `TextInjector` for paste simulation. No new permissions required.
-- Works with every app that responds to hardware media keys, which is essentially all media players.
-- If nothing is playing, the key press is silently ignored — no crash, no error.
-- macOS 15.4 entitlement restrictions apply to the private `MediaRemote.framework`. They do not affect `CGEventPost` media key simulation, which is an independent, lower-level mechanism.
+**Trade-offs:** Saved state is instance-scoped, not persisted. Crash between save and restore leaves mic at 1.0. Acceptable for this use case — the OS resets mic volume to user preference after reboot; the volume setting persists in System Preferences, not in app state.
 
-**Confidence:** HIGH. The pattern is well-established and already in use in the same codebase for `TextInjector`.
+### Pattern 3: Prompt Rule Addition (Haiku)
 
-### Pattern 3: UserDefaults Read at Call Time (No Subscription)
+**What:** Add an explicit numbered rule to the existing system prompt. Do not restructure the prompt or change other rules.
 
-**What:** `MediaPlaybackService` reads `UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")` at the moment `pause()` or `resume()` is called, rather than subscribing to changes.
+**When to use:** When Claude adds content that is not in the input and the system prompt does not explicitly forbid it. A direct prohibition in the same format as existing rules is the lowest-risk fix.
 
-**When to use:** Boolean feature flags that change only from a Settings panel interaction.
+**Trade-offs:** Minimal prompt change reduces regression risk. No model version change. No API contract change. Easy to test by sending a known transcription through the cleaned pipeline.
 
-**Trade-offs:** Zero coupling between `SettingsWindowController` and `MediaPlaybackService`. No Combine/observation boilerplate. Toggle takes effect on the next recording session — expected UX for a settings panel.
+---
+
+## Build Order
+
+Dependencies determine order. Feature 1 (Haiku fix) and Feature 2 (mic volume) are fully independent and can be built in parallel.
+
+```
+FEATURE 1 — Haiku Prompt Fix (no dependencies)
+
+  Step 1: HaikuCleanupService.swift
+          → Add Rule 6 to systemPrompt
+          → No protocol changes, no wiring changes
+          → Self-contained; testable by sending a transcription through clean()
+
+FEATURE 2 — Mic Input Volume (has internal dependencies)
+
+  Step 2: AppCoordinatorDependencies.swift
+          → Add MicInputVolumeServiceProtocol
+          → Must come first; both Service and Coordinator depend on this
+
+  Step 3: MicInputVolumeService.swift  (new file in MyWhisper/Audio/)
+          → Implement service conforming to MicInputVolumeServiceProtocol
+          → Depends on: Step 2 (protocol) + MicrophoneDeviceService (already exists)
+
+  Step 4: AppCoordinator.swift
+          → Add micVolumeService property
+          → Add 3 call sites (maximizeAndSave on idle→recording, restore on recording→*, restore on escape)
+          → Depends on: Step 2 (protocol)
+
+  Step 5: AppDelegate.swift
+          → Instantiate MicInputVolumeService(microphoneService: microphoneService)
+          → Wire: coordinator.micVolumeService = micInputVolumeService
+          → Depends on: Steps 3 and 4
+
+TESTING
+
+  Step 6 (Feature 1): Unit test for HaikuCleanupService
+          → Mock URLSession to return a Haiku-style response with "gracias" appended
+          → Verify clean() strips it
+
+  Step 7 (Feature 2): Unit tests for AppCoordinator
+          → Mock MicInputVolumeServiceProtocol
+          → Verify maximizeAndSave() called when transitioning idle→recording
+          → Verify restore() called on recording→processing transition
+          → Verify restore() called from handleEscape()
+```
+
+---
+
+## Anti-Patterns
+
+### Anti-Pattern 1: Using AVAudioSession for Volume (iOS API)
+
+**What people do:** Call `AVAudioSession.sharedInstance().setInputGain()` to control mic volume.
+
+**Why it's wrong:** `AVAudioSession` input gain is an iOS/iPadOS API. On macOS it is unavailable. The macOS equivalent is CoreAudio HAL via `AudioObjectSetPropertyData`.
+
+**Do this instead:** `AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` and `kAudioDevicePropertyScopeInput`.
+
+### Anti-Pattern 2: Re-resolving the Device ID in MicInputVolumeService Independently
+
+**What people do:** Duplicate device-enumeration logic inside `MicInputVolumeService` instead of delegating to `MicrophoneDeviceService`.
+
+**Why it's wrong:** Creates two sources of truth for which device is active. If the user changes the selected device in Settings, the AudioRecorder and MicInputVolumeService would target different devices.
+
+**Do this instead:** Inject `MicrophoneDeviceService` and call `selectedDeviceID` / `availableInputDevices()` from there. Mirror the same fallback logic as `AudioRecorder.start()`.
+
+### Anti-Pattern 3: Saving Volume in UserDefaults
+
+**What people do:** Persist the saved mic volume to UserDefaults so it survives a crash.
+
+**Why it's wrong:** Adds a stale-state risk: if the user changed mic volume between the crash and relaunch, restoring a stale value would be worse than doing nothing. The physical System Preferences value is the real source of truth. Let the OS own it.
+
+**Do this instead:** Keep `savedVolume` as instance-scoped `Float32?`. On cold launch, `savedVolume` is `nil`, so `restore()` is a no-op. No stale state possible.
+
+### Anti-Pattern 4: Addressing a Specific Element Channel for Consumer Mics
+
+**What people do:** Iterate all channels (elements > 0) and set each individually, assuming element 0 (main) is always wrong.
+
+**Why it's wrong:** `kAudioObjectPropertyElementMain` (value 0) is the master/main element and is the correct target for per-device volume on consumer microphones. Per-channel addressing is only necessary for professional multi-channel interfaces.
+
+**Do this instead:** Start with element 0. Detect failure (non-noErr return) as the signal that per-channel addressing may be needed, and handle as an edge case.
+
+### Anti-Pattern 5: Restructuring the Haiku System Prompt
+
+**What people do:** Rewrite the entire system prompt to address the "gracias" issue.
+
+**Why it's wrong:** The existing prompt was tuned over real dictation sessions. A full rewrite risks regressing on punctuation quality, filler-word removal accuracy, or paragraph-break behavior.
+
+**Do this instead:** Append a single targeted rule (Rule 6) in the same style as existing rules. Surgical change, no regression surface.
 
 ---
 
@@ -281,106 +424,32 @@ Change takes effect on the next recording session. No restart needed.
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| `AppCoordinator` → `MediaPlaybackService` | Protocol method call at state transitions | Injected by `AppDelegate` at startup |
-| `SettingsWindowController` → `MediaPlaybackService` | None — decoupled via `UserDefaults` | No new init parameter needed |
-| `MediaPlaybackService` → macOS media system | `CGEventPost(.cghidEventTap)` with `NSSystemDefined` event | Same entitlement scope as `TextInjector` |
+| `AppCoordinator` → `MicInputVolumeService` | Protocol method calls at state transitions | Injected by `AppDelegate` at startup |
+| `MicInputVolumeService` → `MicrophoneDeviceService` | Direct method calls for device resolution | Constructor injection; same instance used by `AudioRecorder` |
+| `MicInputVolumeService` → CoreAudio HAL | `AudioObjectGetPropertyData` / `AudioObjectSetPropertyData` | Same API already used by `MicrophoneDeviceService` for device enumeration |
+| `HaikuCleanupService` → Anthropic API | URLSession POST | Unchanged; only system prompt string changes |
 
-### System-Level Boundary
+### No New External Boundaries
 
-The `NX_KEYTYPE_PLAY` event posted to `.cghidEventTap` is routed by the macOS media server to whichever app currently holds the Now Playing session. The app does not need to know what is playing or which app is playing it. This is the same routing that happens when the user presses the physical Play/Pause key on an Apple keyboard.
-
----
-
-## Build Order (Implementation Sequence)
-
-Dependencies determine order. Steps 4 and 5 are independent and can proceed in parallel.
-
-```
-Step 1: AppCoordinatorDependencies.swift
-        → Add MediaPlaybackServiceProtocol
-        → No other dependencies; do this first
-
-Step 2: MediaPlaybackService.swift  (new file)
-        → Implement service conforming to protocol
-        → Depends on: Step 1 (protocol)
-
-Step 3: AppCoordinator.swift
-        → Add mediaPlayback property
-        → Add 3 call sites (pause on idle→recording, resume on recording→*, resume on escape)
-        → Depends on: Step 1 (protocol)
-
-Step 4: AppDelegate.swift
-        → Instantiate MediaPlaybackService
-        → Wire into coordinator
-        → Depends on: Steps 2 and 3
-
-Step 5: SettingsWindowController.swift  (independent of Steps 2-4)
-        → Add pausePlaybackEnabled checkbox
-        → Persists to UserDefaults
-        → No new dependency injection
-
-Step 6: Unit tests
-        → Mock MediaPlaybackServiceProtocol
-        → Verify pause() called on .idle → .recording transition
-        → Verify resume() called on .recording → * transition
-        → Verify resume() called from handleEscape()
-        → Verify no calls when isEnabled == false
-```
-
----
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Using Private MediaRemote Framework
-
-**What people do:** `dlopen`/`dlsym` `MediaRemote.framework` and call `MRMediaRemoteSendCommand`.
-
-**Why it's wrong:** Apple introduced entitlement verification in `mediaremoted` with macOS 15.4. Third-party apps without `com.apple.mediaremote` entitlement are denied. Cannot obtain this entitlement outside of Apple. Will silently fail or crash on current and future macOS versions.
-
-**Do this instead:** `CGEventPost` with `NX_KEYTYPE_PLAY` — system-wide, stable, and already within the app's permission scope.
-
-### Anti-Pattern 2: App-Specific AppleScript Targeting
-
-**What people do:** Use `NSAppleScript` to target specific apps (`tell application "Spotify" to pause`).
-
-**Why it's wrong:** Breaks for YouTube in browsers, podcast apps, video players, and any app not in a hardcoded list. Requires Automation permission per target app (TCC dialog). Fragile to app name changes and updates. Maintenance burden grows with the list.
-
-**Do this instead:** The media key approach pauses whatever holds the current Now Playing session — universal, zero per-app configuration.
-
-### Anti-Pattern 3: Tracking "Was Playing" State Before Pause
-
-**What people do:** Check whether media is currently playing before pausing, then conditionally skip the resume call.
-
-**Why it's wrong:** No public API provides reliable "is something currently playing" state to a non-entitled app on macOS 15.4+. The play/pause toggle is effectively idempotent in practice — if nothing is playing, pressing Play is a no-op or silently resumes from where the user last stopped (acceptable behavior). Attempting to track state requires the private MediaRemote framework.
-
-**Trade-off to document:** If the user was already paused before starting a recording, the recording-stop event will resume their media. This is an edge case worth noting in PITFALLS.md. Accept the toggle semantics for v1.1; revisit only if user reports make it a priority.
-
-**Do this instead:** Always send pause on recording start, always send resume on recording stop. Simpler, no private API required.
-
-### Anti-Pattern 4: Pause Logic Inline in AppCoordinator
-
-**What people do:** Put the `CGEventPost` call directly inside `AppCoordinator.handleHotkey()`.
-
-**Why it's wrong:** Makes `AppCoordinator` unit tests dependent on actually posting system events. Mixes media system concern with recording FSM concern. Harder to disable in test environments.
-
-**Do this instead:** Wrap in `MediaPlaybackService` with a protocol. Inject the protocol. The coordinator calls `mediaPlayback?.pause()` — testable with a mock that records calls.
+Both features operate entirely within existing system boundaries: CoreAudio HAL (already used) and Anthropic API (already used). No new frameworks, no new entitlements, no new network endpoints.
 
 ---
 
 ## Scaling Considerations
 
-This is a local single-user macOS app. Scalability is not a concern. The resource impact of this feature is two `CGEventPost` calls per recording session — effectively zero overhead.
+Single-user local macOS app. Not applicable. The CoreAudio API calls in `MicInputVolumeService` complete synchronously in microseconds — no async overhead, no UI blocking.
 
 ---
 
 ## Sources
 
 - Existing source code read directly from `/Users/max/Personal/repos/my-superwhisper/MyWhisper/` — HIGH confidence
-- CGEventPost media key simulation pattern: [Qiita: macOS media key emulation in Swift](https://qiita.com/nak435/items/53d952147c3986afd7fc) — MEDIUM confidence (pattern independently confirmed by multiple forum sources)
-- MediaRemote macOS 15.4 entitlement restriction: [GitHub: ungive/mediaremote-adapter](https://github.com/ungive/mediaremote-adapter) — MEDIUM confidence (multiple sources confirm the restriction)
-- CGEventPost sandbox restriction (confirming non-sandboxed requirement is already met by this project): [Apple Developer Forums thread 103992](https://developer.apple.com/forums/thread/103992) — HIGH confidence
+- [CoreAudio AudioObjectSetPropertyData — Apple Developer Documentation](https://developer.apple.com/documentation/coreaudio/1422920-audioobjectsetpropertydata) — HIGH confidence (official API reference)
+- [kAudioDevicePropertyVolumeScalar — CoreAudio HAL](https://developer.apple.com/documentation/coreaudio) — HIGH confidence (same property family already used in MicrophoneDeviceService for device enumeration)
+- [SimplyCoreAudio — Swift framework confirming kAudioDevicePropertyVolumeScalar + ScopeInput pattern](https://github.com/rnine/SimplyCoreAudio) — MEDIUM confidence (community; confirms API usage pattern)
+- [Anthropic: Minimizing Hallucinations](https://docs.anthropic.com/en/docs/minimizing-hallucinations) — MEDIUM confidence (confirms explicit prohibition in system prompt is correct approach)
 
 ---
 
-*Architecture research for: Pause Playback integration — my-superwhisper v1.1*
-*Researched: 2026-03-16*
+*Architecture research for: v1.2 Dictation Quality — Haiku prompt fix + mic input volume control*
+*Researched: 2026-03-17*
