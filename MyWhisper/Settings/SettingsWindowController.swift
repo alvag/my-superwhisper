@@ -34,7 +34,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
         vocabEntries = vocabularyService.entries
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 590),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -148,6 +148,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
         pauseCheckbox.state = UserDefaults.standard.bool(forKey: "pausePlaybackEnabled") ? .on : .off
         contentView.addSubview(pauseCheckbox)
 
+        // ---- Section 7: Maximize Mic Volume ----
+        let volumeCheckbox = NSButton(checkboxWithTitle: "Maximizar volumen al grabar", target: self, action: #selector(maximizeMicVolumeChanged(_:)))
+        volumeCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        volumeCheckbox.state = UserDefaults.standard.bool(forKey: "maximizeMicVolumeEnabled") ? .on : .off
+        contentView.addSubview(volumeCheckbox)
+
         // ---- Auto Layout ----
         allConstraints += [
             // Section 1: Hotkey
@@ -194,7 +200,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
             // Section 6: Pause Playback
             pauseCheckbox.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 10),
             pauseCheckbox.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            pauseCheckbox.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
+
+            // Section 7: Maximize Mic Volume
+            volumeCheckbox.topAnchor.constraint(equalTo: pauseCheckbox.bottomAnchor, constant: 10),
+            volumeCheckbox.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            volumeCheckbox.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
         ]
 
         NSLayoutConstraint.activate(allConstraints)
@@ -253,6 +263,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
 
     @objc private func pausePlaybackChanged(_ sender: NSButton) {
         UserDefaults.standard.set(sender.state == .on, forKey: "pausePlaybackEnabled")
+    }
+
+    @objc private func maximizeMicVolumeChanged(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "maximizeMicVolumeEnabled")
     }
 
     // MARK: - NSTableViewDataSource

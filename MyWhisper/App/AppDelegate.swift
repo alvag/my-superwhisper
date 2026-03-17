@@ -20,10 +20,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var microphoneService: MicrophoneDeviceService?
     private var historyWindowController: HistoryWindowController?
     private var mediaPlaybackService: MediaPlaybackService?
+    private var micVolumeService: MicInputVolumeService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        UserDefaults.standard.register(defaults: ["pausePlaybackEnabled": true])
+        UserDefaults.standard.register(defaults: [
+            "pausePlaybackEnabled": true,
+            "maximizeMicVolumeEnabled": true
+        ])
 
         // Initialize core components FIRST — menubar must always be visible
         coordinator = AppCoordinator()
@@ -44,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let historyService = TranscriptionHistoryService()
         let microphoneService = MicrophoneDeviceService()
         let mediaPlaybackService = MediaPlaybackService()
+        let micVolumeService = MicInputVolumeService(microphoneService: microphoneService)
 
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
@@ -58,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.vocabularyService = vocabularyService
         coordinator.historyService = historyService
         coordinator.mediaPlayback = mediaPlaybackService
+        coordinator.micVolumeService = micVolumeService
 
         // Wire microphone selection into AudioRecorder
         audioRecorder.microphoneService = microphoneService
@@ -73,6 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.historyService = historyService
         self.microphoneService = microphoneService
         self.mediaPlaybackService = mediaPlaybackService
+        self.micVolumeService = micVolumeService
 
         // Create History window controller
         let historyWindowController = HistoryWindowController(historyService: historyService)
