@@ -358,6 +358,58 @@ final class AppCoordinatorTests: XCTestCase {
         // No crash — optional chaining handles nil
     }
 
+    // MARK: - Suffix Strip (HAIKU-02)
+
+    func testSuffixStripRemovesHallucinatedGracias() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "hola esto es una prueba"
+        mockHaiku.mockCleanedText = "Hola, esto es una prueba. Gracias"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> Haiku -> strip -> paste
+
+        // "Gracias" was NOT in raw STT, so it should be stripped
+        XCTAssertEqual(mockInjector.lastInjectedText, "Hola, esto es una prueba")
+    }
+
+    func testSuffixStripPreservesLegitimateGracias() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "dile gracias de mi parte"
+        mockHaiku.mockCleanedText = "Dile gracias de mi parte."
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> STT -> Haiku -> strip -> paste
+
+        // "gracias" WAS in raw STT, so it must be preserved
+        XCTAssertEqual(mockInjector.lastInjectedText, "Dile gracias de mi parte.")
+    }
+
+    func testSuffixStripHandlesGraciasDotVariant() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "nos vemos manana"
+        mockHaiku.mockCleanedText = "Nos vemos manana. Gracias."
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        // "Gracias." with trailing period — strip handles punctuation via trimming
+        let output = mockInjector.lastInjectedText ?? ""
+        XCTAssertFalse(output.lowercased().contains("gracias"),
+                       "Hallucinated 'Gracias.' should be stripped")
+    }
+
+    func testSuffixStripNoOpWhenNoPattern() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "el clima esta bien"
+        mockHaiku.mockCleanedText = "El clima esta bien."
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        // No "gracias" in output, strip is no-op
+        XCTAssertEqual(mockInjector.lastInjectedText, "El clima esta bien.")
+    }
+
     // MARK: - Helpers
 
     private func speechBuffer() -> [Float] {

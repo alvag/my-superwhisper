@@ -5,11 +5,29 @@ import XCTest
 
 final class MockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var lastCapturedBody: Data?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
+        // URLSession may convert httpBody to httpBodyStream; read from stream if needed
+        if let bodyData = request.httpBody {
+            MockURLProtocol.lastCapturedBody = bodyData
+        } else if let stream = request.httpBodyStream {
+            stream.open()
+            var data = Data()
+            let bufferSize = 4096
+            let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+            while stream.hasBytesAvailable {
+                let read = stream.read(buffer, maxLength: bufferSize)
+                if read > 0 { data.append(buffer, count: read) }
+            }
+            buffer.deallocate()
+            stream.close()
+            MockURLProtocol.lastCapturedBody = data
+        }
+
         guard let handler = MockURLProtocol.requestHandler else {
             client?.urlProtocol(self, didFailWithError: URLError(.unknown))
             return
@@ -46,6 +64,7 @@ class HaikuCleanupServiceTests: XCTestCase {
 
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
+        MockURLProtocol.lastCapturedBody = nil
         try? KeychainService.delete()
         service = nil
         mockSession = nil
@@ -150,19 +169,18 @@ class HaikuCleanupServiceTests: XCTestCase {
 
     func testRequestBodyContainsModelAndSystemPrompt() async throws {
         try KeychainService.save("test-key-123")
-        var capturedRequest: URLRequest?
+        MockURLProtocol.lastCapturedBody = nil
 
-        MockURLProtocol.requestHandler = { [weak self] request in
+        MockURLProtocol.requestHandler = { [weak self] _ in
             guard let self else { throw URLError(.unknown) }
-            capturedRequest = request
             return (self.makeResponse(statusCode: 200), self.validResponseData(text: "Resultado."))
         }
 
         let rawText = "hola esto es una prueba"
         _ = try await service.clean(rawText)
 
-        guard let req = capturedRequest, let body = req.httpBody else {
-            XCTFail("No request captured")
+        guard let body = MockURLProtocol.lastCapturedBody else {
+            XCTFail("No request body captured")
             return
         }
 
@@ -179,6 +197,34 @@ class HaikuCleanupServiceTests: XCTestCase {
         let messages = json["messages"] as? [[String: Any]]
         XCTAssertEqual(messages?.first?["content"] as? String, rawText,
                        "Message content must be exactly the raw text (PRV-02)")
+    }
+
+    func testRequestBodyContainsRule6() async throws {
+        try KeychainService.save("test-key-123")
+        MockURLProtocol.lastCapturedBody = nil
+
+        MockURLProtocol.requestHandler = { [weak self] _ in
+            guard let self else { throw URLError(.unknown) }
+            return (self.makeResponse(statusCode: 200), self.validResponseData(text: "Resultado."))
+        }
+
+        _ = try await service.clean("texto de prueba")
+
+        guard let body = MockURLProtocol.lastCapturedBody else {
+            XCTFail("No request body captured")
+            return
+        }
+
+        let json = try JSONSerialization.jsonObject(with: body) as! [String: Any]
+        let systemPrompt = json["system"] as? String
+
+        XCTAssertNotNil(systemPrompt)
+        XCTAssertTrue(systemPrompt?.contains("ORIGEN STT") == true,
+                      "System prompt must contain Rule 6 header 'ORIGEN STT'")
+        XCTAssertTrue(systemPrompt?.contains("gracias, de nada, hasta luego") == true,
+                      "Rule 6 must name specific hallucination examples")
+        XCTAssertTrue(systemPrompt?.contains("NO completes ni agregues") == true,
+                      "Rule 6 must contain prohibition")
     }
 
     func testSaveAPIKeyValidatesBeforeSaving() async throws {
