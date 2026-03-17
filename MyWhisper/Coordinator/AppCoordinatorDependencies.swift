@@ -37,3 +37,12 @@ protocol MediaPlaybackServiceProtocol: AnyObject {
     func resume()
     var isEnabled: Bool { get }
 }
+
+protocol MicInputVolumeServiceProtocol: AnyObject {
+    /// Read current input volume, store it, then set input volume to 1.0.
+    func maximizeAndSave()
+    /// Restore the input volume saved by the last maximizeAndSave() call.
+    func restore()
+    /// Whether the feature is enabled (UserDefaults toggle).
+    var isEnabled: Bool { get }
+}
