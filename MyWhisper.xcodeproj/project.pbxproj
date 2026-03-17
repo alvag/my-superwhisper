@@ -56,6 +56,7 @@
 		AA000053001 /* AboutWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000053002 /* AboutWindowController.swift */; };
 		AA000054001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000054002 /* Assets.xcassets */; };
 		AA000063001 /* MediaPlaybackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000063000 /* MediaPlaybackService.swift */; };
+		AA000064001 /* MediaPlaybackServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000064000 /* MediaPlaybackServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -120,6 +121,7 @@
 		AA000053002 /* AboutWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutWindowController.swift; sourceTree = "<group>"; };
 		AA000054002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000063000 /* MediaPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackService.swift; sourceTree = "<group>"; };
+		AA000064000 /* MediaPlaybackServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -226,6 +228,7 @@
 				AA000048000 /* VocabularyServiceTests.swift */,
 				AA000049000 /* TranscriptionHistoryServiceTests.swift */,
 				AA000050002 /* MicrophoneDeviceServiceTests.swift */,
+				AA000064000 /* MediaPlaybackServiceTests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -463,6 +466,7 @@
 				AA000048001 /* VocabularyServiceTests.swift in Sources */,
 				AA000049001 /* TranscriptionHistoryServiceTests.swift in Sources */,
 				AA000050001 /* MicrophoneDeviceServiceTests.swift in Sources */,
+				AA000064001 /* MediaPlaybackServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
