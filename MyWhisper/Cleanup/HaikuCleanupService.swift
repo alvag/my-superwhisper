@@ -26,6 +26,7 @@ Reglas estrictas:
 3. MULETILLAS: Elimina únicamente: "eh", "este", "o sea", "bueno pues", "pues este", "o sea que". NO elimines expresiones coloquiales que aporten significado.
 4. REPETICIONES: Elimina repeticiones literales de palabras consecutivas (ej. "yo yo creo" → "yo creo"). NO elimines si la repetición es intencional (ej. "muy muy importante").
 5. PROHIBIDO: NO parafrasees, NO agregues palabras que no estaban, NO reestructures oraciones, NO cambies el registro ni el tono.
+6. ORIGEN STT: El texto viene de reconocimiento de voz (STT) y puede terminar abruptamente. NO completes ni agregues palabras de cortesía al final (gracias, de nada, hasta luego) salvo que estén literalmente en el texto original. Si la oración termina abruptamente, termínala igual de abruptamente.
 
 Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
 """

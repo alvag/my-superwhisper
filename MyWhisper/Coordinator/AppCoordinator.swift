@@ -130,12 +130,15 @@ final class AppCoordinator {
                     finalText = rawText
                 }
 
+                // Strip hallucinated suffix (HAIKU-02) — safety net after Haiku cleanup
+                let strippedText = stripHallucinatedSuffix(from: finalText, rawInput: rawText)
+
                 // Apply vocabulary corrections AFTER Haiku cleanup (VOC-02)
                 let correctedText: String
                 if let vocab = vocabularyService {
-                    correctedText = vocab.apply(to: finalText)
+                    correctedText = vocab.apply(to: strippedText)
                 } else {
-                    correctedText = finalText
+                    correctedText = strippedText
                 }
 
                 overlayController?.hide()
@@ -197,5 +200,29 @@ final class AppCoordinator {
     private func stopAudioLevelPolling() {
         audioLevelTimer?.invalidate()
         audioLevelTimer = nil
+    }
+
+    // MARK: - Hallucination Strip
+
+    private func stripHallucinatedSuffix(from output: String, rawInput: String) -> String {
+        let confirmedPatterns = ["gracias"]  // Only expand with confirmed evidence
+        let lowercasedInput = rawInput.lowercased()
+        var result = output
+        for pattern in confirmedPatterns {
+            // Trim trailing punctuation before checking suffix
+            let trimmedResult = result
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Only strip if pattern is at the END of output AND was NOT in raw STT text
+            guard trimmedResult.lowercased().hasSuffix(pattern),
+                  !lowercasedInput.contains(pattern) else { continue }
+            let suffixStart = trimmedResult.index(trimmedResult.endIndex, offsetBy: -pattern.count)
+            result = String(trimmedResult[..<suffixStart])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: ".,;:!?"))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 }
