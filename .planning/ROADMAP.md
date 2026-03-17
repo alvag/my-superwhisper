@@ -40,19 +40,22 @@
   5. The toggle state persists across app restarts
 **Plans:** 2/2 plans complete
 Plans:
-- [ ] 05-01-PLAN.md — MediaPlaybackService + AppCoordinator wiring + Settings toggle
-- [ ] 05-02-PLAN.md — Unit tests for media playback integration
+- [x] 05-01-PLAN.md — MediaPlaybackService + AppCoordinator wiring + Settings toggle
+- [x] 05-02-PLAN.md — Unit tests for media playback integration
 
 ### Phase 6: Integration Verification
 **Goal**: Pause Playback behavior is confirmed correct across all player and edge-case scenarios before shipping
 **Depends on**: Phase 5
-**Requirements**: (none — validates Phase 5 requirements)
+**Requirements**: (none — validates Phase 5 requirements MEDIA-01..04, SETT-01..02)
 **Success Criteria** (what must be TRUE):
-  1. Spotify, Apple Music, VLC, and YouTube in Safari each pause on recording start and resume on stop
+  1. Spotify, Apple Music, and YouTube in Safari each pause on recording start and resume on stop
   2. Recording with nothing playing completes without launching Music.app or producing spurious playback events
-  3. Rapid double-tap hotkey does not leave media in wrong state (minimum-duration guard holds)
+  3. Rapid double-tap hotkey does not leave media in wrong state
   4. Settings toggle OFF: complete recording cycle against Spotify produces zero pause/resume events
-**Plans**: TBD
+**Plans:** 2 plans
+Plans:
+- [ ] 06-01-PLAN.md — Music.app launch guard (isAnyMediaAppRunning) + unit test
+- [ ] 06-02-PLAN.md — Manual QA checklist execution + VERIFICATION.md
 
 ## Progress
 
@@ -62,5 +65,5 @@ Plans:
 | 2. Audio + Transcription | v1.0 | 3/3 | Complete | 2026-03-16 |
 | 3. Haiku Cleanup | v1.0 | 2/2 | Complete | 2026-03-16 |
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
-| 5. Pause Playback Implementation | 2/2 | Complete   | 2026-03-17 | - |
-| 6. Integration Verification | v1.1 | 0/? | Not started | - |
+| 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
+| 6. Integration Verification | v1.1 | 0/2 | Not started | - |
