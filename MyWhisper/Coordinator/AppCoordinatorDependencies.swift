@@ -31,3 +31,9 @@ protocol STTEngineProtocol: AnyObject, Sendable {
     /// Model download/load progress (0.0-1.0). Observable for UI.
     var loadProgress: Double { get async }
 }
+
+protocol MediaPlaybackServiceProtocol: AnyObject {
+    func pause()
+    func resume()
+    var isEnabled: Bool { get }
+}
