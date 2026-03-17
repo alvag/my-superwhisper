@@ -34,7 +34,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
         vocabEntries = vocabularyService.entries
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 520),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -142,6 +142,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
         launchAtLoginCheckbox.state = SMAppService.mainApp.status == .enabled ? .on : .off
         contentView.addSubview(launchAtLoginCheckbox)
 
+        // ---- Section 6: Pause Playback ----
+        let pauseCheckbox = NSButton(checkboxWithTitle: "Pausar reproduccion al grabar", target: self, action: #selector(pausePlaybackChanged(_:)))
+        pauseCheckbox.translatesAutoresizingMaskIntoConstraints = false
+        pauseCheckbox.state = UserDefaults.standard.bool(forKey: "pausePlaybackEnabled") ? .on : .off
+        contentView.addSubview(pauseCheckbox)
+
         // ---- Auto Layout ----
         allConstraints += [
             // Section 1: Hotkey
@@ -184,7 +190,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
             // Section 5: Launch at Login
             launchAtLoginCheckbox.topAnchor.constraint(equalTo: addButton.bottomAnchor, constant: 16),
             launchAtLoginCheckbox.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
-            launchAtLoginCheckbox.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
+
+            // Section 6: Pause Playback
+            pauseCheckbox.topAnchor.constraint(equalTo: launchAtLoginCheckbox.bottomAnchor, constant: 10),
+            pauseCheckbox.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 20),
+            pauseCheckbox.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -20),
         ]
 
         NSLayoutConstraint.activate(allConstraints)
@@ -239,6 +249,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate, NSTableViewDat
             // Revert checkbox to actual state
             sender.state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
+    }
+
+    @objc private func pausePlaybackChanged(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "pausePlaybackEnabled")
     }
 
     // MARK: - NSTableViewDataSource
