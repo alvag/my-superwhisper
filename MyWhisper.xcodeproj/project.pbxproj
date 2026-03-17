@@ -59,6 +59,8 @@
 		AA000064001 /* MediaPlaybackServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000064000 /* MediaPlaybackServiceTests.swift */; };
 		AA000065001 /* MicInputVolumeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000065000 /* MicInputVolumeService.swift */; };
 		AA000066001 /* MicInputVolumeServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000066000 /* MicInputVolumeServiceTests.swift */; };
+		AA000067001 /* HaikuCleanupQATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000067000 /* HaikuCleanupQATests.swift */; };
+		AA000068001 /* VolumeControlQATests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000068000 /* VolumeControlQATests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -126,6 +128,8 @@
 		AA000064000 /* MediaPlaybackServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackServiceTests.swift; sourceTree = "<group>"; };
 		AA000065000 /* MicInputVolumeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicInputVolumeService.swift; sourceTree = "<group>"; };
 		AA000066000 /* MicInputVolumeServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicInputVolumeServiceTests.swift; sourceTree = "<group>"; };
+		AA000067000 /* HaikuCleanupQATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupQATests.swift; sourceTree = "<group>"; };
+		AA000068000 /* VolumeControlQATests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeControlQATests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -234,6 +238,8 @@
 				AA000050002 /* MicrophoneDeviceServiceTests.swift */,
 				AA000064000 /* MediaPlaybackServiceTests.swift */,
 				AA000066000 /* MicInputVolumeServiceTests.swift */,
+				AA000067000 /* HaikuCleanupQATests.swift */,
+				AA000068000 /* VolumeControlQATests.swift */,
 			);
 			path = MyWhisperTests;
 			sourceTree = "<group>";
@@ -475,6 +481,8 @@
 				AA000050001 /* MicrophoneDeviceServiceTests.swift in Sources */,
 				AA000064001 /* MediaPlaybackServiceTests.swift in Sources */,
 				AA000066001 /* MicInputVolumeServiceTests.swift in Sources */,
+				AA000067001 /* HaikuCleanupQATests.swift in Sources */,
+				AA000068001 /* VolumeControlQATests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
