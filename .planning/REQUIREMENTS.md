@@ -42,20 +42,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HAIKU-01 | — | Pending |
-| HAIKU-02 | — | Pending |
-| HAIKU-03 | — | Pending |
-| VOL-01 | — | Pending |
-| VOL-02 | — | Pending |
-| VOL-03 | — | Pending |
-| VOL-04 | — | Pending |
-| VOL-05 | — | Pending |
+| HAIKU-01 | Phase 7 | Pending |
+| HAIKU-02 | Phase 7 | Pending |
+| HAIKU-03 | Phase 8 | Pending |
+| VOL-01 | Phase 7 | Pending |
+| VOL-02 | Phase 7 | Pending |
+| VOL-03 | Phase 7 | Pending |
+| VOL-04 | Phase 7 | Pending |
+| VOL-05 | Phase 7 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 8 total
-- Mapped to phases: 0
-- Unmapped: 8 ⚠️
+- Mapped to phases: 8
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-17*
-*Last updated: 2026-03-17 after initial definition*
+*Last updated: 2026-03-17 after roadmap creation*
