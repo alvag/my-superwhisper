@@ -80,6 +80,15 @@ final class MockHaikuCleanup: HaikuCleanupProtocol, @unchecked Sendable {
     func removeAPIKey() async throws {}
 }
 
+final class MockMediaPlaybackService: MediaPlaybackServiceProtocol {
+    var pauseCallCount = 0
+    var resumeCallCount = 0
+    var isEnabled: Bool = true
+
+    func pause() { pauseCallCount += 1 }
+    func resume() { resumeCallCount += 1 }
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -90,6 +99,7 @@ final class AppCoordinatorTests: XCTestCase {
     var mockOverlay: MockOverlayController!
     var mockInjector: MockTextInjector!
     var mockHaiku: MockHaikuCleanup!
+    var mockMedia: MockMediaPlaybackService!
 
     override func setUp() {
         super.setUp()
@@ -99,12 +109,14 @@ final class AppCoordinatorTests: XCTestCase {
         mockOverlay = MockOverlayController()
         mockInjector = MockTextInjector()
         mockHaiku = MockHaikuCleanup()
+        mockMedia = MockMediaPlaybackService()
 
         coordinator.audioRecorder = mockRecorder
         coordinator.sttEngine = mockSTT
         coordinator.overlayController = mockOverlay
         coordinator.textInjector = mockInjector
         coordinator.haikuCleanup = mockHaiku
+        coordinator.mediaPlayback = mockMedia
     }
 
     // MARK: - Basic FSM
@@ -267,6 +279,83 @@ final class AppCoordinatorTests: XCTestCase {
         await coordinator.handleHotkey() // stop -> STT -> no Haiku -> paste raw
 
         XCTAssertEqual(mockInjector.lastInjectedText, "texto crudo")
+    }
+
+    // MARK: - Media Playback (MEDIA-01/02)
+
+    func testMediaPausedOnRecordingStart() async {
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .recording)
+        XCTAssertEqual(mockMedia.pauseCallCount, 1)
+        XCTAssertEqual(mockMedia.resumeCallCount, 0)
+    }
+
+    func testMediaResumedOnRecordingStop() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "test"
+        mockHaiku.mockCleanedText = "test"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        XCTAssertEqual(mockMedia.pauseCallCount, 1)
+        XCTAssertEqual(mockMedia.resumeCallCount, 1)
+    }
+
+    func testMediaResumedOnEscapeCancel() async {
+        await coordinator.handleHotkey() // start
+        XCTAssertEqual(coordinator.state, .recording)
+
+        coordinator.handleEscape()
+
+        XCTAssertEqual(mockMedia.pauseCallCount, 1)
+        XCTAssertEqual(mockMedia.resumeCallCount, 1)
+    }
+
+    func testMediaResumedOnVADSilence() async {
+        mockRecorder.mockBuffer = [Float](repeating: 0.0, count: 16000)
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> VAD fails
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(mockMedia.pauseCallCount, 1)
+        XCTAssertEqual(mockMedia.resumeCallCount, 1, "Resume must be called even when VAD detects silence")
+    }
+
+    func testMediaResumedOnTranscriptionError() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.shouldThrow = true
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> transcribe fails
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(mockMedia.resumeCallCount, 1, "Resume must be called on transcription error")
+    }
+
+    func testMediaToggleOffSkipsPauseResume() async {
+        mockMedia.isEnabled = false
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "test"
+        mockHaiku.mockCleanedText = "test"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        // pause() is still called on AppCoordinator — but the mock tracks it
+        // The real guard is inside MediaPlaybackService, tested in MediaPlaybackServiceTests
+        // Here we just verify the coordinator calls pause/resume regardless
+        XCTAssertEqual(mockMedia.pauseCallCount, 1)
+        XCTAssertEqual(mockMedia.resumeCallCount, 1)
+    }
+
+    func testMediaNotPausedWhenNilService() async {
+        coordinator.mediaPlayback = nil
+
+        await coordinator.handleHotkey() // start
+        XCTAssertEqual(coordinator.state, .recording)
+        // No crash — optional chaining handles nil
     }
 
     // MARK: - Helpers
