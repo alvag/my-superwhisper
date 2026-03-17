@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A local-first voice-to-text macOS menubar application for Apple Silicon. Press a configurable global hotkey (default Option+Space) to start recording, speak freely, press again to stop. Audio is transcribed locally via WhisperKit (large-v3, Spanish), cleaned up by Anthropic Haiku API (punctuation, filler removal), and the polished text is auto-pasted at the cursor. Media playback auto-pauses during recording and resumes after. ~3,900 lines of Swift, fully functional with settings, history, vocabulary corrections, media pause, and distribution pipeline.
+A local-first voice-to-text macOS menubar application for Apple Silicon. Press a configurable global hotkey (default Option+Space) to start recording, speak freely, press again to stop. Audio is transcribed locally via WhisperKit (large-v3, Spanish), cleaned up by Anthropic Haiku API (punctuation, filler removal, hallucination prevention), and the polished text is auto-pasted at the cursor. Media playback auto-pauses during recording and resumes after. Mic input volume auto-maximizes during recording for optimal capture quality. ~4,700 lines of Swift, fully functional with settings, history, vocabulary corrections, media pause, volume control, and distribution pipeline.
 
 ## Core Value
 
@@ -33,10 +33,16 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 - ✓ Toggle configurable en Settings para activar/desactivar Pause Playback — v1.1
 - ✓ Guard NSWorkspace: no enviar media keys si no hay reproductor activo (previene lanzamiento de Music.app) — v1.1
 
+- ✓ Haiku Rule 6: prohibir adición de frases de cortesía alucinadas (gracias, de nada, hasta luego) — v1.2
+- ✓ Post-processing suffix strip para "gracias" alucinado como safety net — v1.2
+- ✓ Auto-maximize mic input volume al grabar, restore en todos los exit paths — v1.2
+- ✓ Settings toggle "Maximizar volumen al grabar" (default: ON) — v1.2
+- ✓ Explicit pause/play via MediaRemote (reemplaza toggle HID) — v1.2
+- ✓ Regression QA: 24 tests Haiku + 15 tests volume control — v1.2
+
 ### Active
 
-- [ ] Prevent Haiku from adding "gracias" at end of phrases unless actually dictated
-- [ ] Auto-maximize microphone input volume when recording starts, restore original level on stop
+(No active requirements — plan next milestone)
 
 ### Out of Scope
 
@@ -51,7 +57,7 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ## Context
 
-- **Shipped:** v1.1 on 2026-03-17 (~3,900 LOC Swift, 6 phases total, 17 plans)
+- **Shipped:** v1.2 on 2026-03-17 (~4,700 LOC Swift, 8 phases total, 22 plans)
 - Target hardware: Apple Silicon Macs (M1/M2/M3/M4) with Neural Engine and unified memory
 - Stack: Swift/SwiftUI, WhisperKit (local STT), Anthropic Haiku API (text cleanup), KeyboardShortcuts (hotkey), CoreAudio (mic selection)
 - User primarily dictates in Spanish
@@ -81,17 +87,10 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 | UserDefaults for settings/history/vocabulary | Simple, sufficient for v1 data sizes (20 history entries, small vocab list) | ✓ Good |
 | Developer ID distribution (not App Store) | CGEventPost blocked in sandboxed apps | ✓ Required |
 | Haiku fallback to raw text | User always gets text — degraded quality beats no output | ✓ Good |
-| HID media keys (not MediaRemote) | MediaRemote broken on macOS 15.4+; HID keys work system-wide including browsers | ✓ Good — works with Spotify, Apple Music, YouTube/Safari |
+| MediaRemote explicit pause/play | Replace HID toggle with MRMediaRemoteSendCommand for explicit pause (1) and play (0); query NowPlayingIsPlaying before pausing | ✓ Good — fixes false resume of paused media |
 | NSWorkspace guard for Music.app | Prevents rcd from launching Music.app when no media app is running | ✓ Good — solves cold-launch issue |
-| Toggle semantics (no NowPlaying) | Accept that pause key toggles even if nothing is playing in a running app | ✓ Acceptable trade-off |
-
-## Current Milestone: v1.2 Dictation Quality
-
-**Goal:** Improve dictation accuracy and input quality — prevent phantom "gracias" from Haiku cleanup and auto-maximize mic input volume during recording.
-
-**Target features:**
-- Prevent Haiku from adding "gracias" unless actually dictated
-- Auto-maximize mic input volume on recording start, restore on stop
+| Haiku Rule 6 + suffix strip | Dual-layer defense: prompt rule + post-processing strip for hallucinated courtesy phrases | ✓ Good — eliminates "gracias" hallucination |
+| CoreAudio HAL for volume control | Direct AudioObjectGet/SetPropertyData with settability guard; instance-scoped saved volume (not UserDefaults) | ✓ Good — works on settable devices, silent no-op on others |
 
 ---
-*Last updated: 2026-03-17 after v1.2 milestone started*
+*Last updated: 2026-03-17 after v1.2 milestone complete*

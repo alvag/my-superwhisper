@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-03-16)
 - ✅ **v1.1 Pause Playback** — Phases 5-6 (shipped 2026-03-17)
-- 🚧 **v1.2 Dictation Quality** — Phases 7-8 (in progress)
+- ✅ **v1.2 Dictation Quality** — Phases 7-8 (shipped 2026-03-17)
 
 ## Phases
 
@@ -34,46 +34,17 @@
 
 </details>
 
-### v1.2 Dictation Quality (In Progress)
+<details>
+<summary>✅ v1.2 Dictation Quality (Phases 7-8) — SHIPPED 2026-03-17</summary>
 
-**Milestone Goal:** Improve dictation accuracy and input quality — prevent phantom "gracias" from Haiku cleanup and auto-maximize mic input volume during recording.
+- [x] Phase 7: Implementation (3/3 plans) — completed 2026-03-17
+- [x] Phase 8: Verification (2/2 plans) — completed 2026-03-17
 
-- [x] **Phase 7: Implementation** - Build MicInputVolumeService and add Haiku Rule 6 hallucination guard (completed 2026-03-17)
-- [x] **Phase 8: Verification** - Validate both features against real speech, hardware, and regression baseline (completed 2026-03-17)
+**Total:** 2 phases, 5 plans, 9 requirements satisfied
 
-## Phase Details
+**Delivered:** Haiku hallucination prevention (Rule 6 + suffix strip), mic input volume auto-maximize/restore via CoreAudio HAL, explicit MediaRemote pause/play (replaces HID toggle), Settings toggle for volume control, 39 QA tests.
 
-### Phase 7: Implementation
-**Goal**: Both dictation quality features are coded, wired, and building — mic volume auto-maximizes on record start and restores on every exit, and Haiku never appends hallucinated courtesy phrases
-**Depends on**: Phase 6 (v1.1 complete)
-**Requirements**: HAIKU-01, HAIKU-02, VOL-01, VOL-02, VOL-03, VOL-04, VOL-05, VOL-06
-**Success Criteria** (what must be TRUE):
-  1. Recording a voice note causes mic input volume to jump to 1.0 (max) at start and return to its original level when recording stops, is cancelled, or errors out
-  2. Haiku system prompt contains a structural Rule 6 prohibiting addition of words absent from the STT input, with "gracias", "de nada", "hasta luego" named as concrete examples
-  3. Post-processing strip runs after Haiku response and removes any hallucinated courtesy suffix not present in the raw transcription
-  4. On a device where mic input volume is not settable (built-in Mac mic, most USB mics), recording proceeds normally with no error shown to the user
-  5. App compiles and runs without regression on normal record/transcribe/paste workflow
-**Plans**: 3 plans
-
-Plans:
-- [x] 07-01: MicInputVolumeService — CoreAudio read/save/maximize/restore
-- [x] 07-02: AppCoordinator wiring — inject service, call at all 6 exit paths
-- [x] 07-03: HaikuCleanupService Rule 6 + suffix strip
-
-### Phase 8: Verification
-**Goal**: Both features are empirically validated against real speech samples and real hardware configurations — hallucination is eliminated, legitimate dictation is preserved, volume control is robust on all exit paths, and v1.1 behavior is unaffected
-**Depends on**: Phase 7
-**Requirements**: HAIKU-03
-**Success Criteria** (what must be TRUE):
-  1. 10+ real Spanish transcription samples produce zero hallucinated appended phrases in Haiku output
-  2. Transcriptions that legitimately contain "gracias" or "de nada" preserve those words verbatim in the cleaned output
-  3. Punctuation, capitalization, filler word removal, and paragraph breaks behave identically to the v1.1 baseline — no regression
-  4. Mic volume restore fires correctly when recording is stopped normally, cancelled via Escape, stopped by VAD silence gate, and terminated by a transcription or API error
-**Plans**: 2 plans
-
-Plans:
-- [ ] 08-01-PLAN.md — Haiku hallucination QA: 11+ hallucination samples, 4+ legitimate preservation, 6+ regression baseline
-- [ ] 08-02-PLAN.md — Volume control QA: 6 exit paths, ordering verification, service delegation, Haiku error variants
+</details>
 
 ## Progress
 
@@ -86,4 +57,4 @@ Plans:
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 6. Integration Verification | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 7. Implementation | v1.2 | 3/3 | Complete | 2026-03-17 |
-| 8. Verification | 2/2 | Complete   | 2026-03-17 | - |
+| 8. Verification | v1.2 | 2/2 | Complete | 2026-03-17 |

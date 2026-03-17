@@ -2,6 +2,27 @@
 
 All notable changes to My SuperWhisper will be documented in this file.
 
+## [v1.2] - 2026-03-17 — Dictation Quality
+
+### Added
+- Haiku Rule 6: prohibir adicion de frases de cortesia alucinadas (gracias, de nada, hasta luego) en el system prompt
+- Post-processing suffix strip que remueve "gracias" alucinado cuando no esta en el input STT original
+- Auto-maximize mic input volume (1.0) al iniciar grabacion via CoreAudio HAL
+- Restaurar volumen original del mic al terminar grabacion (todos los exit paths: stop, Escape, VAD, error)
+- Settings toggle "Maximizar volumen al grabar" (default: ON)
+- Degradacion silenciosa en dispositivos sin volumen de entrada ajustable
+
+### Changed
+- MediaPlaybackService: reemplazado HID media key toggle por MRMediaRemoteSendCommand explicito (pause=1, play=0) via framework privado MediaRemote
+- MediaPlaybackService: consulta MRMediaRemoteGetNowPlayingApplicationIsPlaying antes de pausar para no reanudar media que ya estaba en pausa
+
+### Technical
+- MicInputVolumeService con CoreAudio AudioObjectGet/SetPropertyData y AudioObjectIsPropertySettable guard
+- MicInputVolumeServiceProtocol para DI injection en AppCoordinator
+- resolveActiveDeviceID() valida dispositivo seleccionado contra availableInputDevices() en cada llamada
+- stripHallucinatedSuffix() con trimming de puntuacion para variantes "Gracias"/"Gracias."
+- 39 tests nuevos: 24 Haiku QA (hallucination, preservation, regression, edge cases) + 15 Volume QA (exit paths, ordering, delegation)
+
 ## [v1.1] - 2026-03-17 — Pause Playback
 
 ### Added

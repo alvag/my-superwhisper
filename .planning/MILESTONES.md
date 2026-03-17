@@ -1,5 +1,14 @@
 # Milestones
 
+## v1.2 Dictation Quality (Shipped: 2026-03-17)
+
+**Phases completed:** 2 phases, 5 plans, 0 tasks
+
+**Key accomplishments:**
+- (none recorded)
+
+---
+
 ## v1.1 Pause Playback (Shipped: 2026-03-17)
 
 **Phases completed:** 2 phases, 4 plans, 8 tasks
