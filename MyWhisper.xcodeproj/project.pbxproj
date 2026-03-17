@@ -55,6 +55,7 @@
 		AA000052001 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000052002 /* HistoryWindowController.swift */; };
 		AA000053001 /* AboutWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000053002 /* AboutWindowController.swift */; };
 		AA000054001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000054002 /* Assets.xcassets */; };
+		AA000063001 /* MediaPlaybackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000063000 /* MediaPlaybackService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -118,6 +119,7 @@
 		AA000050002 /* MicrophoneDeviceServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicrophoneDeviceServiceTests.swift; sourceTree = "<group>"; };
 		AA000053002 /* AboutWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutWindowController.swift; sourceTree = "<group>"; };
 		AA000054002 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AA000063000 /* MediaPlaybackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPlaybackService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -189,6 +191,7 @@
 				AA000016000 /* TextInjector.swift */,
 				AA000036000 /* NotificationHelper.swift */,
 				AA000037000 /* KeychainService.swift */,
+				AA000063000 /* MediaPlaybackService.swift */,
 			);
 			path = System;
 			sourceTree = "<group>";
@@ -427,6 +430,7 @@
 				AA000027001 /* STTEngine.swift in Sources */,
 				AA000036001 /* NotificationHelper.swift in Sources */,
 				AA000037001 /* KeychainService.swift in Sources */,
+				AA000063001 /* MediaPlaybackService.swift in Sources */,
 				AA000038001 /* HaikuCleanupProtocol.swift in Sources */,
 				AA000039001 /* HaikuCleanupError.swift in Sources */,
 				AA000040002 /* HaikuCleanupService.swift in Sources */,

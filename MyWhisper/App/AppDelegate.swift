@@ -19,9 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var historyService: TranscriptionHistoryService?
     private var microphoneService: MicrophoneDeviceService?
     private var historyWindowController: HistoryWindowController?
+    private var mediaPlaybackService: MediaPlaybackService?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        UserDefaults.standard.register(defaults: ["pausePlaybackEnabled": true])
 
         // Initialize core components FIRST — menubar must always be visible
         coordinator = AppCoordinator()
@@ -41,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let vocabularyService = VocabularyService()
         let historyService = TranscriptionHistoryService()
         let microphoneService = MicrophoneDeviceService()
+        let mediaPlaybackService = MediaPlaybackService()
 
         // Wire coordinator dependencies
         coordinator.menubarController = menubarController
@@ -54,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator.apiKeyWindowController = apiKeyWindowController
         coordinator.vocabularyService = vocabularyService
         coordinator.historyService = historyService
+        coordinator.mediaPlayback = mediaPlaybackService
 
         // Wire microphone selection into AudioRecorder
         audioRecorder.microphoneService = microphoneService
@@ -68,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.vocabularyService = vocabularyService
         self.historyService = historyService
         self.microphoneService = microphoneService
+        self.mediaPlaybackService = mediaPlaybackService
 
         // Create History window controller
         let historyWindowController = HistoryWindowController(historyService: historyService)

@@ -18,6 +18,7 @@ final class AppCoordinator {
     var apiKeyWindowController: APIKeyWindowController?
     var vocabularyService: VocabularyService?
     var historyService: TranscriptionHistoryService?
+    var mediaPlayback: (any MediaPlaybackServiceProtocol)?
     private var apiKeyMarkedInvalid = false
 
     private var audioLevelTimer: Timer?
@@ -49,10 +50,15 @@ final class AppCoordinator {
                 }
             }
 
+            // Pause media BEFORE starting audio engine (MEDIA-01, MEDIA-03)
+            mediaPlayback?.pause()
+            try? await Task.sleep(for: .milliseconds(150))
+
             // Start recording
             do {
                 try audioRecorder?.start()
             } catch {
+                mediaPlayback?.resume()  // Resume on start failure
                 transitionTo(.error("microphone"))
                 return
             }
@@ -64,6 +70,7 @@ final class AppCoordinator {
         case .recording:
             escapeMonitor?.stopMonitoring()
             stopAudioLevelPolling()
+            mediaPlayback?.resume()   // MEDIA-02 — resume BEFORE stop so ALL exit paths (VAD fail, error, success) are covered
 
             // Get accumulated audio buffer
             let buffer = audioRecorder?.stop() ?? []
@@ -165,6 +172,7 @@ final class AppCoordinator {
         stopAudioLevelPolling()
         overlayController?.hide()
         audioRecorder?.cancel()
+        mediaPlayback?.resume()   // Resume on cancel
         NSSound.beep()
         transitionTo(.idle)
     }
