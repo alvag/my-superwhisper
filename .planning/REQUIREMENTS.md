@@ -15,11 +15,11 @@ Requirements for v1.2 Dictation Quality. Each maps to roadmap phases.
 
 ### Input Volume
 
-- [ ] **VOL-01**: App saves current mic input volume level before recording starts
-- [ ] **VOL-02**: App sets mic input volume to maximum (1.0) when recording starts
+- [x] **VOL-01**: App saves current mic input volume level before recording starts
+- [x] **VOL-02**: App sets mic input volume to maximum (1.0) when recording starts
 - [ ] **VOL-03**: App restores original mic input volume when recording stops (all exit paths: success, cancel, error)
-- [ ] **VOL-04**: App silently skips volume control when device does not expose settable input volume (graceful degradation)
-- [ ] **VOL-05**: Volume restore works correctly when mic device changes between start and stop
+- [x] **VOL-04**: App silently skips volume control when device does not expose settable input volume (graceful degradation)
+- [x] **VOL-05**: Volume restore works correctly when mic device changes between start and stop
 - [ ] **VOL-06**: Settings toggle "Maximizar volumen al grabar" (default: ON) to enable/disable auto-max volume
 
 ## Future Requirements
@@ -46,11 +46,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HAIKU-01 | Phase 7 | Pending |
 | HAIKU-02 | Phase 7 | Pending |
 | HAIKU-03 | Phase 8 | Pending |
-| VOL-01 | Phase 7 | Pending |
-| VOL-02 | Phase 7 | Pending |
+| VOL-01 | Phase 7 | Complete (07-01) |
+| VOL-02 | Phase 7 | Complete (07-01) |
 | VOL-03 | Phase 7 | Pending |
-| VOL-04 | Phase 7 | Pending |
-| VOL-05 | Phase 7 | Pending |
+| VOL-04 | Phase 7 | Complete (07-01) |
+| VOL-05 | Phase 7 | Complete (07-01) |
 | VOL-06 | Phase 7 | Pending |
 
 **Coverage:**

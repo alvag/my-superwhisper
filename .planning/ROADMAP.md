@@ -56,7 +56,7 @@
 **Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: MicInputVolumeService — CoreAudio read/save/maximize/restore
+- [x] 07-01: MicInputVolumeService — CoreAudio read/save/maximize/restore
 - [ ] 07-02: AppCoordinator wiring — inject service, call at all 6 exit paths
 - [ ] 07-03: HaikuCleanupService Rule 6 + suffix strip
 
@@ -85,5 +85,5 @@ Plans:
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 6. Integration Verification | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 7. Implementation | v1.2 | 0/3 | Not started | - |
+| 7. Implementation | v1.2 | 1/3 | In Progress | - |
 | 8. Verification | v1.2 | 0/2 | Not started | - |

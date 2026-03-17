@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Dictation Quality
-status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-17T12:09:42.879Z"
-last_activity: 2026-03-17 — Roadmap created, Phase 7 ready to plan
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-03-17T12:59:00Z"
+last_activity: 2026-03-17 — Plan 07-01 complete, MicInputVolumeService created
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
+  percent: 33
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-17)
 ## Current Position
 
 Phase: 7 of 8 (Implementation)
-Plan: 0 of 3 in current phase
-Status: Ready to plan
-Last activity: 2026-03-17 — Roadmap created, Phase 7 ready to plan
+Plan: 1 of 3 in current phase
+Status: Executing
+Last activity: 2026-03-17 — Plan 07-01 complete, MicInputVolumeService created
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -69,12 +69,28 @@ Recent decisions affecting current work:
 
 None.
 
+### Decisions (07-01)
+
+- [07-01]: savedVolume stored as instance-scoped Float32? not UserDefaults — avoids stale state on crash/relaunch
+- [07-01]: restore() does NOT guard on isEnabled — must restore even if toggle turned off after maximize
+- [07-01]: resolveActiveDeviceID() called fresh at both maximize and restore (no app-launch caching, VOL-05)
+- [07-01]: AudioObjectIsPropertySettable checked every setVolume call — device capability can change (VOL-04)
+- [07-01]: kAudioObjectPropertyElementMain used throughout (not deprecated kAudioObjectPropertyElementMaster)
+
 ### Blockers/Concerns
 
-- Volume target timing: maximizeAndSave() must be called after AVAudioEngine.start(), not before — exact call-site placement to confirm in Phase 7 implementation.
+None.
+
+## Performance Metrics
+
+**v1.2 Phase 7:**
+
+| Phase | Plan | Duration | Files |
+|-------|------|----------|-------|
+| 07-implementation | 01 | ~9 min | 4 |
 
 ## Session Continuity
 
-Last session: 2026-03-17T12:09:42.876Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-implementation/07-CONTEXT.md
+Last session: 2026-03-17T12:59:00Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: .planning/phases/07-implementation/07-01-SUMMARY.md
