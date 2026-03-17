@@ -89,6 +89,15 @@ final class MockMediaPlaybackService: MediaPlaybackServiceProtocol {
     func resume() { resumeCallCount += 1 }
 }
 
+final class MockMicInputVolumeService: MicInputVolumeServiceProtocol {
+    var maximizeAndSaveCallCount = 0
+    var restoreCallCount = 0
+    var isEnabled: Bool = true
+
+    func maximizeAndSave() { maximizeAndSaveCallCount += 1 }
+    func restore() { restoreCallCount += 1 }
+}
+
 // MARK: - Tests
 
 @MainActor
@@ -100,6 +109,7 @@ final class AppCoordinatorTests: XCTestCase {
     var mockInjector: MockTextInjector!
     var mockHaiku: MockHaikuCleanup!
     var mockMedia: MockMediaPlaybackService!
+    var mockVolume: MockMicInputVolumeService!
 
     override func setUp() {
         super.setUp()
@@ -110,6 +120,7 @@ final class AppCoordinatorTests: XCTestCase {
         mockInjector = MockTextInjector()
         mockHaiku = MockHaikuCleanup()
         mockMedia = MockMediaPlaybackService()
+        mockVolume = MockMicInputVolumeService()
 
         coordinator.audioRecorder = mockRecorder
         coordinator.sttEngine = mockSTT
@@ -117,6 +128,7 @@ final class AppCoordinatorTests: XCTestCase {
         coordinator.textInjector = mockInjector
         coordinator.haikuCleanup = mockHaiku
         coordinator.mediaPlayback = mockMedia
+        coordinator.micVolumeService = mockVolume
     }
 
     // MARK: - Basic FSM
@@ -408,6 +420,90 @@ final class AppCoordinatorTests: XCTestCase {
 
         // No "gracias" in output, strip is no-op
         XCTAssertEqual(mockInjector.lastInjectedText, "El clima esta bien.")
+    }
+
+    // MARK: - Volume Control (VOL-01/02/03/06)
+
+    func testVolumeMaximizedOnRecordingStart() async {
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .recording)
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 0)
+    }
+
+    func testVolumeRestoredOnRecordingStop() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "test"
+        mockHaiku.mockCleanedText = "test"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1)
+    }
+
+    func testVolumeRestoredOnEscapeCancel() async {
+        await coordinator.handleHotkey() // start
+        XCTAssertEqual(coordinator.state, .recording)
+
+        coordinator.handleEscape()
+
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1)
+    }
+
+    func testVolumeRestoredOnStartFailure() async {
+        mockRecorder.shouldThrowOnStart = true
+        await coordinator.handleHotkey()
+        XCTAssertEqual(coordinator.state, .error("microphone"))
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1)
+    }
+
+    func testVolumeRestoredOnVADSilence() async {
+        mockRecorder.mockBuffer = [Float](repeating: 0.0, count: 16000)
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> VAD fails
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1, "Restore must be called even when VAD detects silence")
+    }
+
+    func testVolumeRestoredOnTranscriptionError() async {
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.shouldThrow = true
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop -> transcribe fails
+
+        XCTAssertEqual(coordinator.state, .idle)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1, "Restore must be called on transcription error")
+    }
+
+    func testVolumeServiceCalledEvenWhenToggleOff() async {
+        // AppCoordinator always calls micVolumeService?.maximizeAndSave()
+        // The isEnabled guard is inside the service itself, not the coordinator
+        mockVolume.isEnabled = false
+        mockRecorder.mockBuffer = speechBuffer()
+        mockSTT.mockTranscription = "test"
+        mockHaiku.mockCleanedText = "test"
+
+        await coordinator.handleHotkey() // start
+        await coordinator.handleHotkey() // stop
+
+        XCTAssertEqual(mockVolume.maximizeAndSaveCallCount, 1)
+        XCTAssertEqual(mockVolume.restoreCallCount, 1)
+    }
+
+    func testVolumeServiceNotCrashedWhenNil() async {
+        coordinator.micVolumeService = nil
+
+        await coordinator.handleHotkey() // start
+        XCTAssertEqual(coordinator.state, .recording)
+        // No crash — optional chaining handles nil
     }
 
     // MARK: - Helpers
