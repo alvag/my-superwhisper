@@ -35,7 +35,8 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ### Active
 
-(No active requirements — planning next milestone)
+- [ ] Prevent Haiku from adding "gracias" at end of phrases unless actually dictated
+- [ ] Auto-maximize microphone input volume when recording starts, restore original level on stop
 
 ### Out of Scope
 
@@ -84,5 +85,13 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 | NSWorkspace guard for Music.app | Prevents rcd from launching Music.app when no media app is running | ✓ Good — solves cold-launch issue |
 | Toggle semantics (no NowPlaying) | Accept that pause key toggles even if nothing is playing in a running app | ✓ Acceptable trade-off |
 
+## Current Milestone: v1.2 Dictation Quality
+
+**Goal:** Improve dictation accuracy and input quality — prevent phantom "gracias" from Haiku cleanup and auto-maximize mic input volume during recording.
+
+**Target features:**
+- Prevent Haiku from adding "gracias" unless actually dictated
+- Auto-maximize mic input volume on recording start, restore on stop
+
 ---
-*Last updated: 2026-03-17 after v1.1 milestone complete*
+*Last updated: 2026-03-17 after v1.2 milestone started*
