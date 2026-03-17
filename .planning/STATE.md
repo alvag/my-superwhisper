@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Dictation Quality
 status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-03-17T13:34:36Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-03-17T13:27:11.281Z"
 last_activity: 2026-03-17 — Plan 07-03 complete, Haiku hallucination prevention implemented
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
   completed_plans: 3
   percent: 100
@@ -51,6 +51,7 @@ Progress: [██████████] 100%
 - Trend: stable
 
 *Updated after each plan completion*
+| Phase 07-implementation P02 | 7 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Recent decisions affecting current work:
 - [v1.2 Research]: Call AudioObjectIsPropertySettable() before every write — never cache; built-in Mac mic and most USB mics return not-settable
 - [v1.2 Research]: Do NOT use defer in handleHotkey() for restore — async function returns to run loop mid-execution; use explicit restore at each exit branch
 - [v1.2 Research]: Haiku Rule 6 must target the addition behavior structurally ("output only words present in input"), not blacklist the specific token "gracias"
+- [Phase 07-02]: restore() placed BEFORE audioRecorder.stop() in .recording case — covers VAD silence, STT error, Haiku error, and success paths via single placement
+- [Phase 07-02]: coordinator calls micVolumeService unconditionally — isEnabled guard lives inside MicInputVolumeService, not AppCoordinator
 
 ### Pending Todos
 
@@ -99,6 +102,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-17T13:34:36Z
-Stopped at: Completed 07-03-PLAN.md
-Resume file: .planning/phases/07-implementation/07-03-SUMMARY.md
+Last session: 2026-03-17T13:27:11.278Z
+Stopped at: Completed 07-02-PLAN.md
+Resume file: None

@@ -17,10 +17,10 @@ Requirements for v1.2 Dictation Quality. Each maps to roadmap phases.
 
 - [x] **VOL-01**: App saves current mic input volume level before recording starts
 - [x] **VOL-02**: App sets mic input volume to maximum (1.0) when recording starts
-- [ ] **VOL-03**: App restores original mic input volume when recording stops (all exit paths: success, cancel, error)
+- [x] **VOL-03**: App restores original mic input volume when recording stops (all exit paths: success, cancel, error)
 - [x] **VOL-04**: App silently skips volume control when device does not expose settable input volume (graceful degradation)
 - [x] **VOL-05**: Volume restore works correctly when mic device changes between start and stop
-- [ ] **VOL-06**: Settings toggle "Maximizar volumen al grabar" (default: ON) to enable/disable auto-max volume
+- [x] **VOL-06**: Settings toggle "Maximizar volumen al grabar" (default: ON) to enable/disable auto-max volume
 
 ## Future Requirements
 
@@ -48,10 +48,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | HAIKU-03 | Phase 8 | Pending |
 | VOL-01 | Phase 7 | Complete (07-01) |
 | VOL-02 | Phase 7 | Complete (07-01) |
-| VOL-03 | Phase 7 | Pending |
+| VOL-03 | Phase 7 | Complete |
 | VOL-04 | Phase 7 | Complete (07-01) |
 | VOL-05 | Phase 7 | Complete (07-01) |
-| VOL-06 | Phase 7 | Pending |
+| VOL-06 | Phase 7 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 9 total
