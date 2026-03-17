@@ -34,7 +34,7 @@
 
 </details>
 
-### 🚧 v1.2 Dictation Quality (In Progress)
+### v1.2 Dictation Quality (In Progress)
 
 **Milestone Goal:** Improve dictation accuracy and input quality — prevent phantom "gracias" from Haiku cleanup and auto-maximize mic input volume during recording.
 
@@ -57,8 +57,8 @@
 
 Plans:
 - [x] 07-01: MicInputVolumeService — CoreAudio read/save/maximize/restore
-- [ ] 07-02: AppCoordinator wiring — inject service, call at all 6 exit paths
-- [ ] 07-03: HaikuCleanupService Rule 6 + suffix strip
+- [x] 07-02: AppCoordinator wiring — inject service, call at all 6 exit paths
+- [x] 07-03: HaikuCleanupService Rule 6 + suffix strip
 
 ### Phase 8: Verification
 **Goal**: Both features are empirically validated against real speech samples and real hardware configurations — hallucination is eliminated, legitimate dictation is preserved, volume control is robust on all exit paths, and v1.1 behavior is unaffected
@@ -69,11 +69,11 @@ Plans:
   2. Transcriptions that legitimately contain "gracias" or "de nada" preserve those words verbatim in the cleaned output
   3. Punctuation, capitalization, filler word removal, and paragraph breaks behave identically to the v1.1 baseline — no regression
   4. Mic volume restore fires correctly when recording is stopped normally, cancelled via Escape, stopped by VAD silence gate, and terminated by a transcription or API error
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: Haiku hallucination QA — real samples, regression, legitimate-use preservation
-- [ ] 08-02: Volume control QA — all exit paths, non-settable device, device change
+- [ ] 08-01-PLAN.md — Haiku hallucination QA: 11+ hallucination samples, 4+ legitimate preservation, 6+ regression baseline
+- [ ] 08-02-PLAN.md — Volume control QA: 6 exit paths, ordering verification, service delegation, Haiku error variants
 
 ## Progress
 
@@ -85,5 +85,5 @@ Plans:
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
 | 5. Pause Playback Implementation | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 6. Integration Verification | v1.1 | 2/2 | Complete | 2026-03-17 |
-| 7. Implementation | 3/3 | Complete   | 2026-03-17 | - |
+| 7. Implementation | v1.2 | 3/3 | Complete | 2026-03-17 |
 | 8. Verification | v1.2 | 0/2 | Not started | - |
