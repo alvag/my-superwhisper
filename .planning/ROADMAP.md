@@ -38,7 +38,7 @@
   3. Media the user had already paused before recording stays paused after recording ends (no double-toggle)
   4. Settings panel shows a "Pausar reproducción al grabar" toggle; when off, no media events are sent during recording
   5. The toggle state persists across app restarts
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 Plans:
 - [ ] 05-01-PLAN.md — MediaPlaybackService + AppCoordinator wiring + Settings toggle
 - [ ] 05-02-PLAN.md — Unit tests for media playback integration
@@ -62,5 +62,5 @@ Plans:
 | 2. Audio + Transcription | v1.0 | 3/3 | Complete | 2026-03-16 |
 | 3. Haiku Cleanup | v1.0 | 2/2 | Complete | 2026-03-16 |
 | 4. Settings, History, and Polish | v1.0 | 4/4 | Complete | 2026-03-16 |
-| 5. Pause Playback Implementation | v1.1 | 0/2 | Planning complete | - |
+| 5. Pause Playback Implementation | 1/2 | In Progress|  | - |
 | 6. Integration Verification | v1.1 | 0/? | Not started | - |

@@ -69,15 +69,15 @@ Requirements for Pause Playback milestone.
 
 ### Media Control
 
-- [ ] **MEDIA-01**: App pausa automáticamente la reproducción de medios al iniciar grabación
-- [ ] **MEDIA-02**: App reanuda automáticamente la reproducción al terminar grabación (solo si fue pausada por la app)
-- [ ] **MEDIA-03**: Delay de 150ms entre pausa de medios e inicio de captura de audio (fade-out de apps como Spotify)
-- [ ] **MEDIA-04**: Control de medios funciona con apps del sistema y terceros (Spotify, Apple Music, VLC, navegadores)
+- [x] **MEDIA-01**: App pausa automáticamente la reproducción de medios al iniciar grabación
+- [x] **MEDIA-02**: App reanuda automáticamente la reproducción al terminar grabación (solo si fue pausada por la app)
+- [x] **MEDIA-03**: Delay de 150ms entre pausa de medios e inicio de captura de audio (fade-out de apps como Spotify)
+- [x] **MEDIA-04**: Control de medios funciona con apps del sistema y terceros (Spotify, Apple Music, VLC, navegadores)
 
 ### Settings
 
-- [ ] **SETT-01**: Toggle en panel de Settings para activar/desactivar Pause Playback
-- [ ] **SETT-02**: Preferencia persiste en UserDefaults entre sesiones
+- [x] **SETT-01**: Toggle en panel de Settings para activar/desactivar Pause Playback
+- [x] **SETT-02**: Preferencia persiste en UserDefaults entre sesiones
 
 ## v2 Requirements
 
@@ -168,12 +168,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| MEDIA-01 | Phase 5 | Pending |
-| MEDIA-02 | Phase 5 | Pending |
-| MEDIA-03 | Phase 5 | Pending |
-| MEDIA-04 | Phase 5 | Pending |
-| SETT-01 | Phase 5 | Pending |
-| SETT-02 | Phase 5 | Pending |
+| MEDIA-01 | Phase 5 | Complete |
+| MEDIA-02 | Phase 5 | Complete |
+| MEDIA-03 | Phase 5 | Complete |
+| MEDIA-04 | Phase 5 | Complete |
+| SETT-01 | Phase 5 | Complete |
+| SETT-02 | Phase 5 | Complete |
 
 **Coverage:**
 - v1.0 requirements: 32 total — 32 complete

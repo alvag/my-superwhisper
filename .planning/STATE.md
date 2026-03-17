@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Pause Playback
 status: planning
-stopped_at: Phase 5 context gathered
-last_updated: "2026-03-17T00:01:19.568Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-17T10:11:12.181Z"
 last_activity: 2026-03-16 — Roadmap created (Phases 5-6)
 progress:
   total_phases: 2
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
   percent: 0
 ---
 
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: stable
 
 *Updated after each plan completion*
+| Phase 05-pause-playback-implementation P01 | 5 | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,9 @@ Recent decisions affecting current work:
 - [v1.1 Research]: Use NSEvent.otherEvent(with: .systemDefined, subtype: 8) + CGEventPost(.cghidEventTap) for system-wide play/pause — same CGEventPost mechanism already used in TextInjector.swift
 - [v1.1 Research]: Track pausedByApp: Bool flag — only resume if the app was responsible for pausing; prevents double-toggle when user had media paused before recording
 - [v1.1 Research]: 150ms delay required between pause command and AVAudioEngine.start() — Spotify fade takes 100-200ms; without delay, fading audio bleeds into recording buffer
+- [Phase 05-01]: pausedByApp flag in MediaPlaybackService prevents double-toggle when user had media paused before recording
+- [Phase 05-01]: resume() called at recording->processing transition before audioRecorder.stop() so all exit paths (VAD-silence, error, success) resume media
+- [Phase 05-01]: UserDefaults.register(defaults:) in AppDelegate ensures pausePlaybackEnabled defaults true without nil-guard in isEnabled
 
 ### Pending Todos
 
@@ -121,6 +125,6 @@ None active. Previous blockers resolved in v1.0.
 
 ## Session Continuity
 
-Last session: 2026-03-17T00:01:19.564Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-pause-playback-implementation/05-CONTEXT.md
+Last session: 2026-03-17T10:11:12.179Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
