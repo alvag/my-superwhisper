@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Pause Playback
 status: planning
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-03-17T10:11:12.181Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-03-17T10:19:12.379Z"
 last_activity: 2026-03-16 — Roadmap created (Phases 5-6)
 progress:
   total_phases: 2
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-03-16)
 
 ## Current Position
 
-Phase: Phase 5 (not started)
-Plan: —
-Status: Roadmap created, ready for planning
-Last activity: 2026-03-16 — Roadmap created (Phases 5-6)
+Phase: Phase 5 (complete)
+Plan: 02 (final plan)
+Status: Phase 5 complete — all media playback tests green
+Last activity: 2026-03-17 — Phase 5 complete (implementation + tests)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 
 *Updated after each plan completion*
 | Phase 05-pause-playback-implementation P01 | 5 | 3 tasks | 6 files |
+| Phase 05-pause-playback-implementation P02 | 8min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -114,6 +115,8 @@ Recent decisions affecting current work:
 - [Phase 05-01]: pausedByApp flag in MediaPlaybackService prevents double-toggle when user had media paused before recording
 - [Phase 05-01]: resume() called at recording->processing transition before audioRecorder.stop() so all exit paths (VAD-silence, error, success) resume media
 - [Phase 05-01]: UserDefaults.register(defaults:) in AppDelegate ensures pausePlaybackEnabled defaults true without nil-guard in isEnabled
+- [Phase 05-pause-playback-implementation]: MediaPlaybackService tests write to UserDefaults.standard (not injectable) — isEnabled is computed property reading directly from standard; tearDown cleanup prevents pollution
+- [Phase 05-pause-playback-implementation]: MockMediaPlaybackService tracks raw call counts regardless of isEnabled — coordinator always calls pause/resume; guard lives inside the real service
 
 ### Pending Todos
 
@@ -125,6 +128,6 @@ None active. Previous blockers resolved in v1.0.
 
 ## Session Continuity
 
-Last session: 2026-03-17T10:11:12.179Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-03-17T10:19:12.377Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
