@@ -5,6 +5,7 @@
 - ✅ **v1.0 MVP** — Phases 1-4 (shipped 2026-03-16)
 - ✅ **v1.1 Pause Playback** — Phases 5-6 (shipped 2026-03-17)
 - ✅ **v1.2 Dictation Quality** — Phases 7-8 (shipped 2026-03-17)
+- ✅ **v1.3 Settings UX** — Phases 9-10 (shipped 2026-03-24)
 
 ## Phases
 
@@ -46,6 +47,18 @@
 
 </details>
 
+<details>
+<summary>✅ v1.3 Settings UX (Phases 9-10) — SHIPPED 2026-03-24</summary>
+
+- [x] Phase 9: Window Lifecycle Foundation (2/2 plans) — completed 2026-03-24
+- [x] Phase 10: Settings SwiftUI UI (1/1 plans) — completed 2026-03-24
+
+**Total:** 2 phases, 3 plans, 11 requirements satisfied
+
+**Delivered:** Ventana de Settings persistente (NSWindow reemplaza NSPanel) con SwiftUI Form de 4 secciones agrupadas (Grabación, API, Vocabulario, Sistema). Todos los controles funcionales conectados a SettingsViewModel con @Observable. SF Symbols en headers, Picker de micrófono, vocabulario editable inline, activation policy lifecycle.
+
+</details>
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -58,3 +71,5 @@
 | 6. Integration Verification | v1.1 | 2/2 | Complete | 2026-03-17 |
 | 7. Implementation | v1.2 | 3/3 | Complete | 2026-03-17 |
 | 8. Verification | v1.2 | 2/2 | Complete | 2026-03-17 |
+| 9. Window Lifecycle Foundation | v1.3 | 2/2 | Complete | 2026-03-24 |
+| 10. Settings SwiftUI UI | v1.3 | 1/1 | Complete | 2026-03-24 |

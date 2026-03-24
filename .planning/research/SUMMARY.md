@@ -1,17 +1,17 @@
 # Project Research Summary
 
-**Project:** my-superwhisper v1.2 Dictation Quality
-**Domain:** Local voice-to-text macOS menubar app — mic input volume auto-maximize + Haiku hallucination fix
-**Researched:** 2026-03-17
+**Project:** my-superwhisper — v1.3 Settings UX
+**Domain:** macOS menubar app — AppKit NSPanel to SwiftUI settings window migration
+**Researched:** 2026-03-24
 **Confidence:** HIGH
 
 ## Executive Summary
 
-v1.2 is a surgical quality milestone delivering two independent improvements to the transcription pipeline: (1) auto-maximizing microphone input volume via the CoreAudio HAL at the start of each recording, and (2) eliminating hallucinated closing phrases ("gracias") from Haiku's cleanup output. Both features operate entirely within existing architectural boundaries — no new frameworks, no new permissions, no new external services. The app is already non-sandboxed, already imports CoreAudio, and already calls the Anthropic API. Both features are purely additive, layered onto the v1.1 foundation without touching any existing logic.
+v1.3 is a focused UI migration: the existing AppKit NSPanel-based `SettingsWindowController` (306 lines of NSTableView/NSLayoutConstraint wiring) is replaced with a SwiftUI `Form` hosted inside a plain `NSWindow` via `NSHostingController`. The core functional problem being fixed is that the current `NSPanel` closes when the user clicks outside it — standard macOS settings behavior is to stay open until the user explicitly presses the close button. The fix is precise and already proven in this codebase: replace `NSPanel` with `NSWindow` (same style mask, change the class name, set `isReleasedWhenClosed = false`). The architectural pattern of `NSWindow + NSHostingController` is the same one already used in `AppDelegate.showPermissionBlockedWindow`.
 
-The recommended approach for the volume feature is a new `MicInputVolumeService` wired to `AppCoordinator` via the same FSM side-effect injection pattern established in v1.1 for `MediaPlaybackService`. The service reads, saves, and restores `kAudioDevicePropertyVolumeScalar` on the input scope, reusing `MicrophoneDeviceService` (the same service `AudioRecorder` already uses for device resolution). The hallucination fix is a single targeted Rule 6 addition to the Haiku system prompt in `HaikuCleanupService.swift`, supplemented by a post-processing suffix strip as a defense-in-depth second layer that also catches Whisper large-v3 hallucinations before they reach the LLM.
+The recommended approach is a clean three-file migration inside the existing `MyWhisper/Settings/` folder. `SettingsWindowController.swift` shrinks from 306 to ~60 lines. Two new files are added: `SettingsViewModel.swift` (an `@Observable @MainActor` class that bridges UserDefaults and existing services) and `SettingsView.swift` (a pure SwiftUI `Form` with `.formStyle(.grouped)`). No new dependencies, no new entitlements, no new UserDefaults keys. All existing services (`VocabularyService`, `MicrophoneDeviceService`, `APIKeyWindowController`) are used unchanged. The activation policy lifecycle (`show()` sets `.regular`, `windowWillClose` restores `.accessory`) already exists in the current controller and is preserved as-is.
 
-The primary implementation risk is failing to call `micVolumeService?.restore()` on all 6 exit paths from `.recording` state in `AppCoordinator` — leaving the user's mic permanently at 100% after any error, cancel, or edge-case stop. The primary prompt risk is overcorrecting by blacklisting the specific word "gracias" rather than prohibiting the addition behavior, which would delete legitimately dictated courtesy phrases. Both risks are fully characterized and mitigated in the research.
+The primary risks are concentrated in Phase 1 (window lifecycle). The SwiftUI `openSettings` environment action and the `Settings` scene approach are explicitly ruled out for this architecture — they require hidden-window workarounds for menubar apps and `openSettings` is confirmed broken on macOS 26 (Tahoe). The four Phase 1 pitfalls (activation policy leaking dock icon, window not becoming key, settings closing on focus loss, `openSettings` silently failing) must be validated before any Phase 2 UI work begins. Phase 2 risks are lower: `@AppStorage` on an `@Observable` class is unsupported (use `didSet` + manual `UserDefaults.standard.set`), `NSHostingController` default sizing options pin the window size (set `sizingOptions = [.minSize]` if needed), and the `KeyboardShortcuts.Recorder` SwiftUI variant (not `RecorderCocoa`) must be used to avoid the first-responder warning.
 
 ---
 
@@ -19,114 +19,135 @@ The primary implementation risk is failing to call `micVolumeService?.restore()`
 
 ### Recommended Stack
 
-No new dependencies are introduced in v1.2. CoreAudio HAL APIs (`AudioObjectGetPropertyData`, `AudioObjectSetPropertyData`, `AudioObjectIsPropertySettable`) are already imported in `MicrophoneDeviceService.swift`, and the same 4-step `AudioObjectPropertyAddress` pattern used for device enumeration is reused verbatim for input volume control. Haiku API calls and the `URLSession` integration are unchanged — the hallucination fix is a prompt string edit only, with no impact on API contract, token budget, or model version.
+No new dependencies are required. The migration uses only built-in macOS 14+ APIs and the already-pinned `KeyboardShortcuts >= 2.4.0` library. The project already targets macOS 14, which is the minimum for stable `LabeledContent` two-column alignment in `Form`.
 
 **Core technologies:**
-- **CoreAudio HAL (`kAudioDevicePropertyVolumeScalar` + `kAudioDevicePropertyScopeInput`):** Read/save/set/restore mic input gain on the active device — same API family already in the project; macOS 10.6+, no new entitlements required
-- **`AudioObjectIsPropertySettable`:** Guard before any volume write — most USB mics and aggregate devices do not expose a settable input volume at the driver level; must be checked before every set operation, not cached at startup
-- **Haiku system prompt Rule 6 (addition to existing prompt in `HaikuCleanupService.swift`):** Prevent extrinsic hallucination of closing courtesy phrases — prompt engineering only; no API or SDK change; compatible with existing `claude-haiku-4-5-20251001`
+- `NSWindow` (AppKit, macOS 14+): replaces `NSPanel` as the settings window host — does not auto-close on outside click, unlike NSPanel's default `hidesOnDeactivate = true` behavior; same style mask `[.titled, .closable]`, just a different class
+- `NSHostingController<SettingsView>` (SwiftUI, macOS 10.15+): bridges SwiftUI view tree into NSWindow as `contentViewController` — manages render lifecycle and `@State` re-renders; already used in `AppDelegate.showPermissionBlockedWindow`
+- `Form` + `.formStyle(.grouped)` (SwiftUI, macOS 13+, stable 14+): main layout container — produces inset-grouped sections matching System Settings; apply `.padding(.top, -20)` if top padding looks excessive
+- `LabeledContent` (SwiftUI, macOS 13+): label-control pairs inside Form — automatic two-column alignment matching macOS HIG; replaces manual `HStack` with spacing constants that break at non-default font sizes
+- `KeyboardShortcuts.Recorder` SwiftUI view (already in Package.swift >= 2.4.0): native SwiftUI hotkey recorder — no `NSViewRepresentable` wrapper needed; handles first-responder chain correctly inside `NSHostingController`
+- `@Observable @MainActor SettingsViewModel` (new): bridge layer between SwiftUI reactive model and imperative services — `didSet` fires UserDefaults writes and service method calls synchronously on main actor
 
-**Critical "do not use":**
-- `AVAudioSession.inputGain` — iOS/Mac Catalyst API only; not available in standard macOS apps; crashes or silently fails at runtime
-- SimplyCoreAudio SPM package — archived read-only since March 2024; dead dependency for the same 10-line CoreAudio pattern the project already uses
-- Token-level word blacklist in Haiku prompt ("never output 'gracias'") — strips the word even when the user legitimately dictated it; wrong abstraction layer
+**Critical constraint:** `@AppStorage` on an `@Observable` class is unsupported (compiler error or silent misbehavior on macOS 14/15). All persistence must go through `didSet` + `UserDefaults.standard.set(...)`. This is not a workaround — it is the correct and only supported pattern for this architecture.
 
 ### Expected Features
 
-**Must have (table stakes for v1.2):**
-- Input volume maximized to 1.0 on recording start, restored to original on every stop path — the restore is the invariant, not an optimization
-- Haiku output contains only words present in the Whisper STT input — no hallucinated closings, no added courtesy phrases
-- Both features are transparent to the user; no new UI is required for baseline behavior
-- Graceful silent no-op when the active device does not support input volume control
+This milestone wraps all 7 existing settings into the new SwiftUI Form and fixes the window persistence bug. Feature scope is frozen — no new settings are added in v1.3.
 
-**Should have (v1.2 polish):**
-- Optional Settings toggle `autoMaxMicVolume` (default `true`) — allows users who manually calibrate mic gain (podcasters, musicians) to opt out
-- Post-processing suffix strip layer — second defense against "gracias" variants that slip past the prompt constraint, and catches Whisper large-v3 hallucinations that Haiku never sees in the first place
+**Must have (table stakes — all already implemented, must survive migration without regression):**
+- Configurable hotkey (KeyboardShortcuts.Recorder SwiftUI variant) — users expect their custom shortcut to be preserved
+- Microphone selection (Picker over available input devices from MicrophoneDeviceService) — users with external mics depend on this
+- API key management (button delegating to existing APIKeyWindowController via closure) — breaks the app if removed
+- Custom vocabulary corrections (List with inline TextField rows) — replaces NSTableView; Delete-key keyboard behavior caveat applies
+- Launch at login toggle (SMAppService — error must revert UI state)
+- Pause playback toggle (UserDefaults key `"pausePlaybackEnabled"`, read at recording start)
+- Maximize mic volume toggle (UserDefaults key `"maximizeMicVolumeEnabled"`, read at recording start)
 
-**Defer to v1.3+:**
-- Configurable user-managed strip list in Settings (expose post-processing patterns to UI)
-- Per-device persisted volume state across sessions (`[AudioDeviceID: Float32]` in UserDefaults)
-- Smooth volume ramp instead of hard set to 1.0 (only needed if audio pop/click is observed in practice)
+**Should have (v1.3 new behavior):**
+- Settings window stays open when user clicks outside it — the core v1.3 requirement
+- Settings window position persisted across sessions via `NSWindow.setFrameAutosaveName("settings")`
+- Grouped visual layout matching macOS System Settings conventions
+
+**Defer to v2+:**
+- Push-to-talk mode (hold hotkey vs toggle) — low complexity, but out of v1.3 scope
+- Configurable LLM cleanup aggressiveness — out of scope
+- Transaction history / recent transcriptions — out of scope
 
 ### Architecture Approach
 
-v1.2 follows the FSM side-effect injection pattern proven in v1.1. `AppCoordinator` acquires a protocol reference (`MicInputVolumeServiceProtocol`) to the new `MicInputVolumeService`, injected by `AppDelegate` at startup. `maximizeAndSave()` is called at the `idle → recording` transition; `restore()` is called at both `recording → processing` (normal stop) and in `handleEscape()` (cancel) — exactly mirroring the placement of `mediaPlayback?.pause()` / `mediaPlayback?.resume()` from v1.1. The Haiku fix touches only the system prompt string inside `HaikuCleanupService.swift` with no protocol, wiring, or API changes.
+The migration introduces a clean MVVM boundary inside the Settings folder. `SettingsWindowController` becomes a thin AppKit host (~60 lines) that owns the NSWindow lifecycle and activation policy. `SettingsViewModel` owns all settings state and bridges to existing services via `didSet`. `SettingsView` is a pure SwiftUI Form with `@Bindable` bindings to the view model. The existing `APIKeyWindowController` is reached via a closure injected into the view model — the SwiftUI view never imports AppKit.
 
 **Major components:**
-1. **`MicInputVolumeService` (new file: `MyWhisper/Audio/MicInputVolumeService.swift`)** — CoreAudio read/save/set/restore for input volume; conforms to new `MicInputVolumeServiceProtocol`; depends on `MicrophoneDeviceService` for device resolution
-2. **`AppCoordinatorDependencies.swift` (modified)** — adds `MicInputVolumeServiceProtocol` declaration (two methods: `maximizeAndSave()`, `restore()`)
-3. **`AppCoordinator.swift` (modified)** — adds `var micVolumeService: (any MicInputVolumeServiceProtocol)?`; 3 call sites added at state boundaries
-4. **`AppDelegate.swift` (modified)** — instantiates `MicInputVolumeService(microphoneService: microphoneService)` and assigns to `coordinator.micVolumeService`
-5. **`HaikuCleanupService.swift` (modified)** — adds Rule 6 to `systemPrompt` string; no other changes
+1. `SettingsWindowController` (modified, 306 → ~60 lines) — NSWindow creation, `isReleasedWhenClosed = false`, activation policy lifecycle (`.regular` on show, `.accessory` on `windowWillClose`), `NSWindowDelegate`; all NSTableView datasource/delegate code and NSLayoutConstraint blocks deleted
+2. `SettingsViewModel` (new file) — `@Observable @MainActor`, owns all 5 state properties with `didSet` persistence bridges to UserDefaults and services; holds `var openAPIKey: () -> Void` closure injected by the controller
+3. `SettingsView` (new file) — SwiftUI `Form` with `.formStyle(.grouped)`, `@Bindable var viewModel`, four sections (Grabacion, API, Vocabulario, Sistema)
 
-Both features are fully independent in their file sets and can be implemented in parallel.
+**Key patterns:**
+- `NSWindow(contentViewController: NSHostingController(rootView:))` — AppKit owns window lifecycle, SwiftUI owns layout; window auto-sizes to Form's `fittingSize`
+- `@Observable` ViewModel as bridge — centralizes all persistence, makes the view dumb and testable in Xcode previews
+- Closure injection for AppKit sub-panels — keeps SwiftUI view free of AppKit imports; `APIKeyWindowController` unchanged
+- `panel != nil` guard in `show()` → `makeKeyAndOrderFront` early return — prevents SwiftUI state discard on re-open; `panel = nil` only in `windowWillClose`
 
 ### Critical Pitfalls
 
-1. **CoreAudio volume property not settable on all devices** — Always call `AudioObjectIsPropertySettable()` before any write. Built-in MacBook mic and aggregate devices commonly return not-settable. The correct response is a silent no-op; showing an error to the user is wrong. Failure to check before writing may return `kAudioHardwareUnknownPropertyError` or silently succeed while doing nothing.
+1. **`openSettings` / SwiftUI Settings scene silently fail in menubar apps** — Do not use the SwiftUI `Settings` scene or `openSettings` environment action. Use `NSWindow + NSHostingController` directly. `openSettings` is broken on macOS 26 (Tahoe) and unreliable for `.accessory` policy apps on earlier versions.
 
-2. **Volume not restored on all exit paths** — `AppCoordinator` has at minimum 6 exits from `.recording` state: normal hotkey stop, escape cancel, VAD silence gate, transcription error, Haiku API error, and auth error. All must call `micVolumeService?.restore()`. Do NOT use `defer` inside `handleHotkey()` — the async function returns to the run loop mid-execution and `defer` fires at scope exit, which is the wrong moment. Use explicit restore at each branch, mirroring the existing `mediaPlayback?.resume()` placement.
+2. **Activation policy leaks dock icon or steals focus** — Switch to `.regular` only in `show()`, restore to `.accessory` in `windowWillClose` delegate (not on a timer). Always call `NSApp.hide(nil)` after restoring `.accessory` — policy switch alone does not return focus to the previously active app.
 
-3. **Volume control targeting a stale device ID** — `MicrophoneDeviceService.selectedDeviceID` can be stale when the user's USB mic is disconnected; `AudioRecorder.start()` already handles this divergence by resolving the effective device. `MicInputVolumeService` must derive the device ID from the running `AVAudioEngine` via `kAudioOutputUnitProperty_CurrentDevice` after `engine.start()`, not from `selectedDeviceID` directly.
+3. **NSHostingController window not becoming key (keyboard input dead)** — Ensure `NSApp.setActivationPolicy(.regular)` and `NSApp.activate(ignoringOtherApps: true)` complete before `makeKeyAndOrderFront(nil)`. Call `makeKeyAndOrderFront` via `DispatchQueue.main.async` yield if keyboard input is still unresponsive. Avoid `.windowStyle(.plain)` on any scene — it breaks `canBecomeKeyWindow`.
 
-4. **Prompt constraint causes over-truncation of legitimately dictated "gracias"** — Never blacklist a specific word in a prompt. The constraint must target the behavior (adding words absent from the STT input), not the token. Test cases must include user-dictated "gracias" / "de nada" and verify these are preserved verbatim in output.
+4. **Settings window closes on focus loss** — `NSPanel.hidesOnDeactivate = true` is the current bug. Using `NSWindow` with `[.titled, .closable]` fixes this by default — `NSWindow` does not auto-close on outside click. Set `isReleasedWhenClosed = false` to prevent deallocation when the controller holds a strong reference.
 
-5. **Prompt fix creates whack-a-mole hallucination** — A rule naming only "gracias" will stop that word but allow "de nada", "hasta luego", "que tengas un buen día". The rule must be structural: "every word in the output must have been present in the input; if the transcription ends mid-sentence, end the output mid-sentence." Naming the exact pattern as a concrete anchor ("gracias", "de nada") is acceptable as supporting language alongside the general structural constraint, not as a replacement for it.
+5. **`@AppStorage` Toggle UI desync on macOS 14** — Confirmed macOS 14 bug: toggles inside `Form` visually snap back to previous state even though UserDefaults is correctly updated. Use `@Observable` intermediary with manual `UserDefaults` read/write in `didSet`. This is already the required pattern because `@AppStorage` on an `@Observable` class is unsupported regardless.
 
 ---
 
 ## Implications for Roadmap
 
-v1.2 is a single-phase implementation milestone with a verification phase following it. No sub-phasing by feature is needed — both features are small, independent, and ship together in the same release.
+Based on research, suggested phase structure:
 
-### Phase 1: Implementation
+### Phase 1: Window Lifecycle Foundation
 
-**Rationale:** Both features are fully scoped with no ambiguous design decisions remaining. All architectural choices (device ID source, settability check timing, prompt constraint formulation, call-site placement) are resolved in the research. Implementation is a direct translation from spec to code.
+**Rationale:** All Phase 2 work is blocked until the window reliably opens, stays open, receives keyboard input, and closes cleanly without leaking the dock icon. The four window lifecycle pitfalls must be validated before any UI content is built — building UI into a broken window host creates ambiguous debugging loops. This is the same sequencing recommended in PITFALLS.md's pitfall-to-phase mapping.
 
-**Delivers:**
-- `MicInputVolumeService` with `maximizeAndSave()` / `restore()` cycle
-- `MicInputVolumeServiceProtocol` in `AppCoordinatorDependencies.swift`
-- `AppCoordinator` wired with 3 call sites at state boundaries
-- `AppDelegate` wiring: new service instantiated and injected
-- `HaikuCleanupService.swift` Rule 6 added to system prompt
-- (Optional) `autoMaxMicVolume` UserDefaults toggle wired in Settings
+**Delivers:** A working `NSWindow` that opens from the menubar, stays visible when the user clicks outside it, accepts keyboard input in TextFields, and restores activation policy cleanly on close. Smoke test items 1-4 and 9-10 and 13 from the "Looks Done But Isn't" checklist in PITFALLS.md pass.
 
-**Addresses:**
-- Auto-maximize mic input volume (v1.2 table stakes)
-- Haiku "gracias" hallucination fix (v1.2 table stakes)
+**Addresses:** Settings window persistent behavior (core v1.3 requirement)
 
 **Avoids:**
-- Pitfall 1: `AudioObjectIsPropertySettable()` check before every write (not cached)
-- Pitfall 2: explicit `restore()` on all 6 recording exit paths; no `defer` usage
-- Pitfall 3: device ID resolved from running engine after `start()`, not from `selectedDeviceID`
-- Pitfall 4: prompt targets addition behavior with structural constraint, not specific token "gracias"
-- Pitfall 5: rule is general ("output only words present in input") with named examples as anchors
+- Pitfall 1 (`openSettings` silent failure) — by not using `openSettings` at all; `NSWindow + NSHostingController` is the chosen approach
+- Pitfall 2 (activation policy leak) — timing `.regular`/`.accessory` transition in `show()` and `windowWillClose` delegate; `NSApp.hide(nil)` after `.accessory` restore
+- Pitfall 3 (keyboard dead) — confirming `canBecomeKeyWindow` and sequencing activation before `makeKeyAndOrderFront`
+- Pitfall 7 (closes on focus loss) — using `NSWindow` instead of `NSPanel`; `isReleasedWhenClosed = false`
 
-### Phase 2: Verification
+**Build order:**
+1. Replace NSPanel constructor in `SettingsWindowController` with `NSWindow` + `isReleasedWhenClosed = false`
+2. Replace `contentView` manual layout with `contentViewController = NSHostingController(rootView: SettingsView(viewModel:))` (placeholder view acceptable at this stage)
+3. Validate smoke test: open from menubar, click outside, verify window stays open, type in TextField, close with X button, verify dock icon gone and previous app retains focus
 
-**Rationale:** Both changes affect output quality in ways that require empirical validation against real speech samples and hardware configurations. Prompt changes can silently regress existing punctuation and filler-removal behavior. Volume changes must be verified on multiple mic types.
+### Phase 2: Settings UI Content
 
-**Delivers:**
-- Verified prompt against 10+ real transcription samples: zero hallucinated additions in output
-- Verified prompt: legitimately dictated "gracias" / "de nada" preserved
-- Verified prompt: no regression on punctuation, filler removal, paragraph breaks vs v1.1 baseline
-- Verified volume: `AudioObjectIsPropertySettable()` returns `false` on built-in Mac mic; feature silently no-ops
-- Verified volume: external mic maximized at recording start, restored to exact original value on stop
-- Verified volume: restore fires on Escape, VAD silence gate, and all error exit paths
-- "Looks done but isn't" checklist from PITFALLS.md (12 items) fully passed
+**Rationale:** Once the window host is stable, replace the AppKit NSTableView/NSButton/NSLayoutConstraint content with the SwiftUI Form. Build `SettingsViewModel` first (pure Swift, no UI, unit-testable independently), then `SettingsView`. Each Form section can be validated in isolation using Xcode previews.
+
+**Delivers:** Full SwiftUI settings UI with all 7 settings functional and data-persistent. `SettingsWindowController` reduced from 306 to ~60 lines. All NSTableView datasource/delegate code and NSLayoutConstraint blocks deleted.
+
+**Uses:** `Form` + `.formStyle(.grouped)`, `LabeledContent`, `KeyboardShortcuts.Recorder` (SwiftUI), `List` with `TextField` rows for vocabulary, `SMAppService` for launch-at-login, `@Bindable` bindings from `@Observable` ViewModel
+
+**Implements:** `SettingsViewModel.swift` and `SettingsView.swift` — the two new files in `MyWhisper/Settings/`
+
+**Avoids:**
+- Pitfall 4 (KeyboardShortcuts first-responder warning) — using `KeyboardShortcuts.Recorder` SwiftUI variant, not `RecorderCocoa`
+- Pitfall 5 (NSHostingController sizing conflicts) — `NSWindow(contentViewController:)` constructor auto-sizes to `fittingSize`; set `sizingOptions = [.minSize]` if Spacer expansion or constraint conflicts appear
+- Pitfall 6 (`@AppStorage` Toggle desync on macOS 14) — routing all persistence through `SettingsViewModel.didSet`, never using `@AppStorage` directly in the view or on the `@Observable` class
+- Anti-pattern 1 (`@AppStorage` in view directly) — centralize all persistence in ViewModel
+- Anti-pattern 4 (recreating NSHostingController on every `show()`) — `panel != nil` guard with `makeKeyAndOrderFront` early return
+
+**Build order:**
+1. `SettingsViewModel.swift` (new file) — write all 5 state properties with `didSet` bridges, compile and unit-test independently
+2. `SettingsView.swift` (new file) — build Form section by section, validate layout with Xcode preview; apply `.padding(.top, -20)` if top padding is excessive
+3. Wire vocabulary `List` with inline `TextField` rows and add/remove buttons; if Delete-key keyboard friction is found during QA, fall back to bridging the existing `NSTableView` via `NSViewRepresentable`
+4. Run full "Looks Done But Isn't" checklist from PITFALLS.md (all 13 items), including testing on macOS 14 if available
 
 ### Phase Ordering Rationale
 
-- Phase 1 before Phase 2: implementation is a hard prerequisite for verification
-- No sub-phases within Phase 1: the two feature file sets are independent; parallel implementation carries no integration risk since the only shared touch-point is `AppCoordinator`, and both changes there are non-conflicting additions
-- Features ship together: volume boost (signal quality in) and hallucination fix (accurate text out) address complementary sides of the transcription quality problem; shipping together maximizes the perceived improvement in a single release
+- Window lifecycle must precede UI content — a broken host window makes UI debugging ambiguous; the same issue might be a window problem or a SwiftUI problem without a known-good baseline
+- `SettingsViewModel` precedes `SettingsView` — the view model compiles and is unit-testable without any UI; this validates persistence logic before binding it to controls
+- No external dependencies block either phase — all APIs are in the existing stack, no SPM packages to add, no entitlements to change, no services to modify
+- Two-phase structure matches the pitfall-to-phase mapping in PITFALLS.md: lifecycle pitfalls belong to Phase 1, UI content pitfalls belong to Phase 2
 
 ### Research Flags
 
-Both phases use standard, fully documented patterns — no additional `/gsd:research-phase` calls are needed:
+Phases likely needing deeper validation during implementation (not blocking research, just watch points):
 
-- **Phase 1:** All implementation decisions are resolved with exact code patterns in STACK.md and ARCHITECTURE.md. The CoreAudio volume API, settability check, device resolution fallback, and prompt rule formulation are all specified to the line level. Build directly from spec.
-- **Phase 2:** Test matrix is directly derivable from the "Looks Done But Isn't" checklist in PITFALLS.md (12 explicit checks). Execute the checklist; no upfront research required.
+- **Phase 2 (Vocabulary List — Delete key):** SwiftUI `List` on macOS does not support Delete-key row removal via keyboard shortcut out of the box. Validate on a macOS 14 device during Phase 2. If users rely on keyboard deletion for a text-editing feature (likely), fall back to `NSTableView` via `NSViewRepresentable` — the existing NSTableView implementation is already correct and bridgeable in 20 lines.
+- **Phase 2 (NSHostingController sizingOptions):** `NSWindow(contentViewController:)` auto-sizes to `fittingSize`. Whether `Spacer()` expands and whether the window is user-resizable depends on whether the hosting controller's intrinsic size constraints conflict with the window. Check console for "Unable to simultaneously satisfy constraints" on first show; if present, set `hostingController.sizingOptions = [.minSize]`.
+
+Phases with standard patterns (no additional research needed):
+
+- **Phase 1 (Window Lifecycle):** `NSWindow + NSHostingController` pattern is well-documented, already used in this codebase, and validated by primary sources (steipete.me, Apple Developer Docs). Implement directly.
+- **Phase 1 (Activation Policy):** Existing `SettingsWindowController` already has the correct `show()`/`windowWillClose` lifecycle. The change is surgical — replace NSPanel with NSWindow. No new activation policy logic required.
+- **Phase 2 (Toggle Persistence):** `@Observable` + `didSet` is the confirmed correct pattern. No research needed — it is already specified to the line level in ARCHITECTURE.md.
 
 ---
 
@@ -134,43 +155,45 @@ Both phases use standard, fully documented patterns — no additional `/gsd:rese
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | CoreAudio volume API pattern confirmed via Apple official docs and existing codebase usage; Haiku prompt engineering confirmed via official Anthropic docs; all "do not use" choices confirmed by direct API documentation (AVAudioSession scope restriction) |
-| Features | HIGH | Both features are narrowly scoped; all edge cases enumerated (device not settable, stale device ID, mid-sentence transcription, user-dictated courtesy phrases); no open design questions remain |
-| Architecture | HIGH | Existing codebase read directly from disk; FSM side-effect injection pattern proven in v1.1 `MediaPlaybackService`; build order fully specified; no new patterns introduced |
-| Pitfalls | HIGH | All 5 critical pitfalls sourced from Apple Developer docs, Anthropic official docs, and direct codebase analysis; no speculative risk — every pitfall has a verified root cause and a tested mitigation |
+| Stack | HIGH | All APIs are built-in macOS 14+ or already-pinned SPM packages; Apple official docs confirm all APIs; no new dependencies |
+| Features | HIGH | Feature scope is frozen — this is a migration of existing features, not new feature development; all existing services unchanged |
+| Architecture | HIGH | Existing codebase was read directly; `NSHostingController` pattern already used in `AppDelegate`; activation policy lifecycle already exists in `SettingsWindowController`; migration is surgical |
+| Pitfalls | HIGH | Primary pitfalls verified via steipete.me (2025 primary source), mjtsai.com synthesis, Apple Developer Forums, KeyboardShortcuts GitHub issues; `openSettings` breakage on macOS 26 Tahoe is documented |
 
 **Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Volume target level:** Research recommends 1.0 (100%), but PITFALLS.md notes 0.85–0.90 may be safer for mics prone to clipping. Ship at 1.0; reduce to 0.85 only if a user reports audio artifacts. Not a blocking concern.
-- **Multi-channel mic handling:** For stereo or professional multi-channel interfaces, per-channel volume iteration via channel elements > 0 may be needed. `kAudioObjectPropertyElementMain` (element 0) targets the master channel and is correct for all consumer mics. Acceptable to defer this edge case to a future patch if reported.
-- **`AVAudioEngine` device ID query timing:** `kAudioOutputUnitProperty_CurrentDevice` is only valid after `engine.start()`. The exact call-site placement of `maximizeAndSave()` relative to `audioRecorder?.start()` must be confirmed during implementation — the boost must be applied after the engine has resolved its effective input device.
+- **Vocabulary List Delete-key UX:** SwiftUI `List` on macOS does not natively support Delete-key row removal. This may or may not be acceptable. Validate in Phase 2 with real interaction testing — if users rely on keyboard deletion, fall back to the existing `NSTableView` via `NSViewRepresentable`. The existing AppKit implementation is already correct and bridgeable.
+
+- **NSHostingController `sizingOptions` tuning:** The `NSWindow(contentViewController:)` constructor may or may not need explicit `sizingOptions` adjustment. Cannot be fully determined without running the code — treat as a Phase 2 implementation-time decision based on console output and resize behavior.
+
+- **macOS 14 Toggle bounce confirmation:** The `@AppStorage` Toggle desync bug affects macOS 14 specifically. The `@Observable` + `didSet` pattern avoids it by design, but confirmation requires a macOS 14 test device. Acceptable to defer until a regression report surfaces if the team tests primarily on macOS 15+.
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- Existing codebase (`/Users/max/Personal/repos/my-superwhisper/MyWhisper/`) — read directly; confirms CoreAudio import, FSM structure, component boundaries, `MicrophoneDeviceService` API
-- [Apple Developer Documentation: `AudioObjectSetPropertyData`](https://developer.apple.com/documentation/coreaudio/1422920-audioobjectsetpropertydata) — official CoreAudio volume write API
-- [Apple Developer Documentation: `AudioObjectIsPropertySettable`](https://developer.apple.com/documentation/coreaudio) — confirmed Swift signature; used before every property write
-- [Anthropic: Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) — explicit prohibition pattern; structural vs token-level constraints
-- [Anthropic: Prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices) — "explain WHY" principle; naming the specific failure case improves constraint compliance
-- [SuperWhisper changelog](https://superwhisper.com/changelog) — competitor feature comparison; Pause media feature timeline
+- Apple Developer Documentation — `NSHostingController`, `NSHostingView`, `NSWindow.isReleasedWhenClosed`, `Form`, `LabeledContent`, `NSHostingController.sizingOptions`
+- `github.com/sindresorhus/KeyboardShortcuts` — confirms `KeyboardShortcuts.Recorder` (SwiftUI) ships alongside `RecorderCocoa` (AppKit); SwiftUI variant is the correct choice inside `NSHostingController`
+- Existing source code at `/Users/max/Personal/repos/my-superwhisper/MyWhisper/` — read directly; confirms current NSPanel lifecycle, activation policy pattern, and `showPermissionBlockedWindow` precedent for `NSHostingController` usage
 
 ### Secondary (MEDIUM confidence)
-- [CoreAudio Swift output device methods Gist (kimsungwhee)](https://gist.github.com/kimsungwhee/91a4cbd7855089c302fc93f03a0fb15c) — `kAudioDevicePropertyVolumeScalar` with input scope pattern; output device variant confirmed; input scope inferred from identical structure
-- [SimplyCoreAudio (rnine)](https://github.com/rnine/SimplyCoreAudio) — confirms `virtualMainVolume(scope:)` for input scope; archived March 2024 (reference only, not a dependency)
-- [Anthropic: Minimizing Hallucinations](https://docs.anthropic.com/en/docs/minimizing-hallucinations) — structural constraint formulation confirmed
-- [Apple Developer Forums thread/693516](https://developer.apple.com/forums/thread/693516) — `AudioObjectSetPropertyData` silent failure on Bluetooth devices; confirms settability check is required
+- `steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items` — documents `openSettings` broken on macOS 26 Tahoe; `NSWindow + NSHostingController` as recommended alternative for menubar apps
+- `mjtsai.com/blog/2025/06/18/showing-settings-from-macos-menu-bar-items` — synthesis of steipete.me findings with additional community commentary
+- `artlasovsky.com/fine-tuning-macos-app-activation-behavior` — exact activation policy switching patterns; cross-validated with Apple Developer Forums
+- `cindori.com/developer/floating-panel` — NSPanel behavioral differences; `hidesOnDeactivate` as root cause of settings panel closure
+- `nilcoalescing.com/blog/LaunchAtLoginSetting/` — `SMAppService` + SwiftUI Toggle pattern with error revert
+- Apple Developer Forums — `@Observable` + `@AppStorage` incompatibility confirmed; `.windowStyle(.plain)` breaks `canBecomeKeyWindow`
+- `github.com/sindresorhus/KeyboardShortcuts` issue #127 — first-responder warning fix in SwiftUI context; confirms SwiftUI `Recorder` as the solution
+- `github.com/sindresorhus/Settings` issue #117 — `@AppStorage` + Toggle UI render bug on macOS 14
+- `github.com/orchetect/SettingsAccess` — documents `openSettings` workaround patterns; confirms the complexity that makes direct `NSWindow` preferable
 
-### Tertiary (supporting / inferred)
-- [RØDE: Why Can't I Change the Input Volume in Mac Sound Settings](https://help.rode.com/hc/en-us/articles/9312496788239-Why-Can-t-I-Change-the-Input-Volume-in-Mac-Sound-Settings) — USB mic input volume not settable via macOS System Settings; corroborates CoreAudio not-settable behavior
-- [Deepgram: Whisper-v3 Hallucinations on Real World Data](https://deepgram.com/learn/whisper-v3-results) — large-v3 hallucinates 4x more than v2; confirms two-source nature of the problem (STT + LLM post-processing)
-- [OpenAI Whisper Discussion #1455](https://github.com/openai/whisper/discussions/1455) / [#1606](https://github.com/openai/whisper/discussions/1606) — hallucination at end of recording; confirms "gracias" as a known STT-layer pattern
-- [Extrinsic Hallucinations in LLMs — Lilian Weng (2024)](https://lilianweng.github.io/posts/2024-07-07-hallucination/) — theoretical grounding for RLHF-driven courtesy hallucination
+### Tertiary (LOW-MEDIUM confidence)
+- WebSearch + community sources — `.formStyle(.grouped)` top-padding quirk (`.padding(.top, -20)` workaround); `List` Delete-key limitation on macOS; `LabeledContent` two-column alignment details
+- `philz.blog/nspanel-nonactivating-style-mask-flag/` — NSPanel behavioral edge cases; supports NSWindow preference for settings
 
 ---
-*Research completed: 2026-03-17*
+*Research completed: 2026-03-24*
 *Ready for roadmap: yes*

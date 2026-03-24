@@ -1,13 +1,12 @@
 # Stack Research
 
-**Domain:** v1.2 Dictation Quality — mic input volume auto-maximize + Haiku hallucination fix
-**Researched:** 2026-03-17
-**Confidence:** HIGH (CoreAudio volume API), HIGH (Haiku prompt patterns)
+**Domain:** v1.3 Settings UX — SwiftUI settings window migration + persistent window behavior
+**Researched:** 2026-03-24
+**Confidence:** HIGH (NSHostingController bridge), HIGH (NSWindow persistent pattern), MEDIUM (Form/GroupBox styling)
 
-> **Scope note:** This file covers only the NEW capabilities needed for v1.2.
+> **Scope note:** This file covers ONLY the new capabilities needed for v1.3.
 > The existing validated stack (Swift/SwiftUI, WhisperKit, Haiku API, KeyboardShortcuts,
-> CoreAudio device selection, CGEventPost, NSWorkspace media guard) is unchanged and
-> is not re-researched here.
+> CoreAudio, CGEventPost, MediaRemote, NSWorkspace) is unchanged and not re-researched here.
 
 ---
 
@@ -17,182 +16,180 @@
 
 | Technology | Version | Purpose | Why Recommended |
 |------------|---------|---------|-----------------|
-| CoreAudio HAL (AudioObjectGetPropertyData / AudioObjectSetPropertyData) | macOS 13+ | Read current mic input volume, write max volume on record start, restore on stop | Already imported in `MicrophoneDeviceService.swift`. The `AudioObjectPropertyAddress` + C function pattern is identical to what the project uses for device enumeration — zero new dependency, same paradigm. |
-| AudioObjectIsPropertySettable | macOS 13+ | Check before writing whether a given device supports volume control on its input scope | Some devices (most USB/Bluetooth mics, aggregate devices) report `kAudioDevicePropertyVolumeScalar` as read-only or absent on the input scope. Must check before attempting write to avoid silent failure or crash. |
-| Haiku system prompt update (no new library) | API version 2023-06-01 | Prevent "gracias" and similar hallucinated closings | Prompt engineering only — no new API call, no new SDK, no new dependency. The fix is a single sentence added to the existing `systemPrompt` in `HaikuCleanupService.swift`. |
+| `NSHostingController<Content>` (SwiftUI) | macOS 14+ (built-in) | Embed a SwiftUI view tree as the contentViewController of an NSWindow | The correct AppKit bridge for controllers (not just views). Manages the SwiftUI render tree lifecycle, environment injection, and `@State` re-renders properly. The project already uses `NSHostingView` in `AppDelegate.showPermissionBlockedWindow` — same pattern scaled to a full settings screen. |
+| `NSWindow` (AppKit) | macOS 14+ (built-in) | Host the settings content with full behavioral control | Preferred over NSPanel for settings. NSPanel's default `hidesOnDeactivate = true` causes it to disappear when the app loses focus — the exact bug we're fixing. A plain `NSWindow` with `isReleasedWhenClosed = false` and `override func close()` → `orderOut(nil)` gives persistent behavior without subclassing NSPanel. |
+| `Form` + `.formStyle(.grouped)` (SwiftUI) | macOS 14+ | Main layout container for settings sections | `.formStyle(.grouped)` renders as a macOS-native inset grouped list — the closest approximation to System Settings appearance without custom drawing. Available on macOS 13+ but matured in macOS 14 with `LabeledContent` alignment. |
+| `LabeledContent` (SwiftUI) | macOS 14+ | Label-control pairs inside Form sections | Automatically aligns labels and controls in a two-column grid matching macOS Human Interface Guidelines. Replaces manual HStack with trailing alignment. The correct primitive for hotkey recorder row, microphone picker row, etc. |
+| `GroupBox` (SwiftUI) | macOS 13+ | Optional visual grouping within Form | Renders with a rounded-rect background on macOS, matching System Preferences section cards. Use for logical groups (e.g., "Recording", "Appearance"). Alternative to relying solely on `Section` headers inside Form. |
 
 ### Supporting Libraries
 
-None required. All needed capabilities exist in frameworks already imported by the project.
+| Library | Version | Purpose | When to Use |
+|---------|---------|---------|-------------|
+| `KeyboardShortcuts.Recorder` (SwiftUI view) | 2.4.0+ (already in Package.swift) | SwiftUI-native hotkey recorder | Use `KeyboardShortcuts.Recorder("Label:", name: .toggleRecording)` directly inside `Form`/`LabeledContent` — no `NSViewRepresentable` wrapper needed. The library ships both `Recorder` (SwiftUI) and `RecorderCocoa` (AppKit). The current code uses `RecorderCocoa` in the AppKit panel; migration just swaps to the SwiftUI `Recorder`. |
+
+### Development Tools
+
+| Tool | Purpose | Notes |
+|------|---------|-------|
+| Xcode 16 / Swift 5.10 | Build toolchain | No change. Project already targets macOS 14, which is the minimum for `LabeledContent` alignment behavior in Form. |
 
 ---
 
 ## Installation
 
-No new SPM packages. No new frameworks. No Info.plist or entitlement changes.
+No new SPM packages. No new frameworks. No Info.plist changes. No entitlement changes.
 
-The only new import needed is already present in `MicrophoneDeviceService.swift`:
+The only relevant Package.swift version constraint (already satisfied):
 
 ```swift
-import CoreAudio   // already imported
+.package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0")
+// KeyboardShortcuts.Recorder (SwiftUI) ships in all versions >= 1.0
 ```
 
 ---
 
-## CoreAudio Input Volume API — Exact Pattern
+## NSWindow Persistent Pattern — Exact Implementation
 
-### Property Address
+This is the core of v1.3. The goal is a settings window that stays open when the user clicks another app, only closing on explicit ✕ or Cmd+W.
+
+### Why NSPanel closes on focus loss (current bug)
+
+`NSPanel` has `hidesOnDeactivate = true` by default. When the menubar app switches from `.regular` to `.accessory` activation policy after the settings window appears, or when the user focuses another app, the panel hides. Fixing this on `NSPanel` requires overriding `hidesOnDeactivate` AND fighting the `.nonactivatingPanel` style mask semantics. It is cleaner to use `NSWindow` directly.
+
+### Correct pattern: NSWindow + NSHostingController
 
 ```swift
-var address = AudioObjectPropertyAddress(
-    mSelector: kAudioDevicePropertyVolumeScalar,
-    mScope:    kAudioDevicePropertyScopeInput,
-    mElement:  kAudioObjectPropertyElementMain   // element 0 = master/main channel
+// In SettingsWindowController.show():
+
+let hostingController = NSHostingController(rootView: SettingsView(...))
+
+let window = NSWindow(
+    contentRect: NSRect(x: 0, y: 0, width: 520, height: 620),
+    styleMask: [.titled, .closable, .miniaturizable, .resizable],
+    backing: .buffered,
+    defer: false
 )
+window.title = "MyWhisper — Preferencias"
+window.contentViewController = hostingController
+window.isReleasedWhenClosed = false   // CRITICAL: keep window in memory
+window.center()
+
+self.window = window
 ```
 
-`kAudioObjectPropertyElementMain` (= 0) addresses the master/main channel. This is what
-System Preferences and Audio MIDI Setup use for the input level slider.
+### Preventing auto-close on focus loss
 
-### Step 1 — Check settability before reading or writing
-
-Not all devices support input volume control at the driver level. Built-in MacBook mics may
-or may not expose a settable volume property (hardware-dependent; Apple Silicon MBPs
-generally do, some models do not). USB mics typically expose no settable input volume at all.
-Always call `AudioObjectIsPropertySettable` first:
+Override `close()` in an NSWindow subclass to call `orderOut(nil)` (hide) instead of actually closing, and set `windowWillClose` delegate to restore activation policy:
 
 ```swift
-var isSettable: DarwinBoolean = false
-let settableStatus = AudioObjectIsPropertySettable(deviceID, &address, &isSettable)
-guard settableStatus == noErr, isSettable.boolValue else {
-    // Property not settable on this device — skip silently, do not attempt write
-    return
-}
-```
-
-### Step 2 — Read current value (to restore later)
-
-```swift
-var currentVolume: Float32 = 0.0
-var dataSize = UInt32(MemoryLayout<Float32>.size)
-let getStatus = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &currentVolume)
-guard getStatus == noErr else { return }
-```
-
-### Step 3 — Write maximum value
-
-```swift
-var maxVolume: Float32 = 1.0
-let setStatus = AudioObjectSetPropertyData(deviceID, &address, 0, nil,
-                                           UInt32(MemoryLayout<Float32>.size), &maxVolume)
-// setStatus == noErr on success
-```
-
-### Step 4 — Restore on recording stop
-
-```swift
-var savedVolume: Float32 = currentVolume  // from Step 2
-AudioObjectSetPropertyData(deviceID, &address, 0, nil,
-                           UInt32(MemoryLayout<Float32>.size), &savedVolume)
-```
-
-### Which device ID to use
-
-Use the same `AudioDeviceID` that `MicrophoneDeviceService.selectedDeviceID` resolves to,
-falling back to the system default input device via `kAudioHardwarePropertyDefaultInputDevice`
-if no device is explicitly selected — exactly how `AudioRecorder.start()` already selects
-the recording device.
-
-```swift
-// Resolve actual device ID used for recording (mirrors AudioRecorder.start() logic)
-func resolveInputDeviceID() -> AudioDeviceID? {
-    if let saved = microphoneService?.selectedDeviceID,
-       microphoneService?.availableInputDevices().map(\.id).contains(saved) == true {
-        return saved
+final class PersistentWindow: NSWindow {
+    override func close() {
+        // orderOut hides the window without deallocating it.
+        // The controller holds the strong reference via self.window.
+        orderOut(nil)
     }
-    // Fall back to system default
-    var defaultID: AudioDeviceID = 0
-    var defaultAddress = AudioObjectPropertyAddress(
-        mSelector: kAudioHardwarePropertyDefaultInputDevice,
-        mScope:    kAudioObjectPropertyScopeGlobal,
-        mElement:  kAudioObjectPropertyElementMain
-    )
-    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-    guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
-                                     &defaultAddress, 0, nil, &size, &defaultID) == noErr,
-          defaultID != kAudioObjectUnknown else { return nil }
-    return defaultID
 }
 ```
+
+Alternatively (simpler, no subclass): intercept `windowShouldClose` in the delegate and return `false`, calling `orderOut(nil)` manually. Both approaches work on macOS 14+.
+
+### Activation policy lifecycle
+
+The existing `SettingsWindowController` already handles this correctly:
+- `show()`: `NSApp.setActivationPolicy(.regular)` then `window.makeKeyAndOrderFront(nil)` then `NSApp.activate(ignoringOtherApps: true)`
+- `windowWillClose`: `NSApp.setActivationPolicy(.accessory)`
+
+With persistent behavior, "close" means "hide" (`orderOut`) — the `windowWillClose` path for policy restoration must be triggered only when the user explicitly closes (✕ button or Cmd+W), not on focus loss.
+
+**Key distinction:**
+- Focus loss (user switches to another app) → window stays visible (no action needed)
+- Explicit close (✕ or Cmd+W) → `orderOut` + restore `.accessory` policy
 
 ---
 
-## Haiku Prompt Fix — Exact Pattern
-
-### Root cause
-
-Haiku (and Claude models generally) are trained on text that commonly ends with polite
-closings ("Gracias", "Thank you", "De nada", etc.). When transcribed dictation is short
-or ends ambiguously, the model occasionally completes what it perceives as an interrupted
-sentence or adds a social convention. This is hallucination by completion, not hallucination
-by invention.
-
-### Anthropic-recommended technique for this class of problem
-
-Official guidance ([Anthropic: Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)) calls for:
-
-- **Explicit constraint on additions** — tell the model not to add content not present in input.
-- **External knowledge restriction** — explicitly block the model from using knowledge outside the input.
-- **"Tell Claude what to do, not what not to do"** but for strict prohibition the negative form is acceptable as a standalone rule with a REASON (the reason increases compliance).
-
-Anthropic's own prompting docs note that adding context/reason behind an instruction
-significantly improves following:
-
-> "Your response will be read aloud by a TTS engine, so never use ellipses since TTS won't
-> know how to pronounce them." (principle: explain WHY so Claude generalises correctly)
-
-### Fix: one sentence addition to the existing systemPrompt
-
-Current rule 5 in `HaikuCleanupService.swift`:
-
-```
-5. PROHIBIDO: NO parafrasees, NO agregues palabras que no estaban, NO reestructures oraciones, NO cambies el registro ni el tono.
-```
-
-Replace with:
-
-```
-5. PROHIBIDO: NO parafrasees, NO agregues palabras que no estaban en el audio (esto incluye despedidas, saludos o frases de cortesía como "gracias", "de nada", "hasta luego" a menos que el usuario las haya dicho explícitamente), NO reestructures oraciones, NO cambies el registro ni el tono. Tu entrada es transcripción de voz cruda; si la oración termina abruptamente, termínala igual de abrupt amente.
-```
-
-**Why this formulation works:**
-1. Explicitly names the offending pattern ("gracias", "de nada", "hasta luego") so the model has a concrete anchor.
-2. Adds a conditional exception ("a menos que el usuario las haya dicho explícitamente") that prevents over-blocking legitimate use of these words.
-3. Provides the reasoning ("transcripción de voz cruda") so the model understands the task frame correctly — it is transforming, not composing.
-4. "si la oración termina abruptamente, termínala igual" directly counters completion hallucination by normalising abrupt endings as valid output.
-
-### Alternative approach: few-shot examples
-
-The official Anthropic prompting guide recommends 3–5 examples wrapped in `<example>` tags
-for the strongest steerability. For this specific case, a single explicit rule (above) is
-preferred over few-shot because:
-- The existing prompt uses a numbered-rules format; examples would change the structure.
-- The token overhead of examples is undesirable given the 5-second pipeline budget.
-- The rule formulation is precise enough to constrain the model without examples.
-
-If the rule alone proves insufficient across edge cases, add to the `messages` array a
-few-shot example via a prefilled exchange pattern (Haiku 4.5 still supports this):
+## SwiftUI Form Layout — Exact Pattern
 
 ```swift
-"messages": [
-    ["role": "user",    "content": "y eso fue todo lo que pasó este"],
-    ["role": "assistant","content": "Y eso fue todo lo que pasó."],
-    ["role": "user",    "content": rawText]
-]
+import SwiftUI
+
+struct SettingsView: View {
+    var body: some View {
+        Form {
+            Section("Grabación") {
+                LabeledContent("Atajo:") {
+                    KeyboardShortcuts.Recorder("", name: .toggleRecording)
+                }
+                LabeledContent("Micrófono:") {
+                    Picker("", selection: $selectedMicID) {
+                        Text("Predeterminado del sistema").tag(AudioDeviceID?.none)
+                        ForEach(availableMics) { mic in
+                            Text(mic.name).tag(Optional(mic.id))
+                        }
+                    }
+                    .labelsHidden()
+                }
+            }
+
+            Section("Comportamiento") {
+                Toggle("Pausar reproducción al grabar",
+                       isOn: $pausePlaybackEnabled)
+                Toggle("Maximizar volumen al grabar",
+                       isOn: $maximizeMicVolumeEnabled)
+                Toggle("Iniciar al arranque",
+                       isOn: $launchAtLoginEnabled)
+            }
+
+            Section("Vocabulario") {
+                // ForEach with TextField for editable vocabulary list
+            }
+
+            Section {
+                Button("Cambiar clave de API...") { showAPIKeyWindow() }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(minWidth: 480, maxWidth: 600)
+    }
+}
 ```
 
-This shows the model that ending after removing a filler is the correct behaviour, not
-adding "gracias" or similar.
+**Notes on `.formStyle(.grouped)`:**
+- Produces inset-grouped sections matching System Settings on macOS 13+.
+- On macOS 14+ the two-column label alignment in `LabeledContent` is automatic.
+- A known cosmetic issue: `.formStyle(.grouped)` adds ~20pt top padding that looks excessive in a standalone window. Apply `.padding(.top, -20)` to the `Form` if this appears.
+
+---
+
+## Vocabulary List — Editable Rows Pattern
+
+The current AppKit `NSTableView` with inline editing can be replaced with a SwiftUI `List` + `TextField` bindings. For this small dataset (< 50 entries), SwiftUI `List` performance is adequate on macOS 14:
+
+```swift
+Section("Correcciones de vocabulario") {
+    List {
+        ForEach($vocabEntries) { $entry in
+            HStack {
+                TextField("Incorrecto", text: $entry.wrong)
+                TextField("Correcto", text: $entry.correct)
+            }
+        }
+        .onDelete { indexSet in
+            vocabEntries.remove(atOffsets: indexSet)
+        }
+    }
+    .frame(minHeight: 120, maxHeight: 200)
+
+    HStack {
+        Button(action: addEntry) { Image(systemName: "plus") }
+        Button(action: removeSelected) { Image(systemName: "minus") }
+            .disabled(selectedEntry == nil)
+    }
+    .buttonStyle(.borderless)
+}
+```
+
+**Caveat:** SwiftUI `List` on macOS does not natively support the Delete key removing rows (.onDeleteCommand works but only with a selected row and the Edit > Delete menu path). If UX testing reveals friction with the Delete key, fallback to wrapping the existing `NSTableView` via `NSViewRepresentable` — the current AppKit implementation is correct and can be bridged without full replacement.
 
 ---
 
@@ -200,10 +197,12 @@ adding "gracias" or similar.
 
 | Recommended | Alternative | When to Use Alternative |
 |-------------|-------------|-------------------------|
-| CoreAudio HAL direct (AudioObjectSetPropertyData) | SimplyCoreAudio Swift package | Only if the project had zero existing CoreAudio code and needed a high-level wrapper. SimplyCoreAudio was archived (read-only) in March 2024, making it a dead dependency. The project already speaks the HAL API directly — adding a dead package for two function calls is not justified. |
-| CoreAudio HAL direct | AVAudioSession.setInputGain() | AVAudioSession is the iOS/macOS Catalyst input gain API. It is NOT available in a standard macOS app (it is available on macOS 14.0+ in Mac Catalyst only). Do not use in a non-Catalyst macOS app — the API exists but the `inputGain` property throws at runtime outside Catalyst context. |
-| System-level volume via CoreAudio HAL | Applescript / osascript `set volume input volume` | osascript can set system input volume but only for the default input device, has ~200ms latency, and introduces a subprocess dependency. The CoreAudio HAL call is synchronous, in-process, and already targets the correct device. |
-| Prompt rule for "gracias" | Post-processing text filter (regex/string match) | A regex that strips "gracias" at end would also strip it when legitimately dictated ("...dile gracias de mi parte"). The prompt rule includes the conditional exception. Post-processing cannot distinguish dictated from hallucinated text. |
+| `NSWindow` + `NSHostingController` | SwiftUI `Settings` scene | Use `Settings` scene only if the app is a fully SwiftUI lifecycle app with `WindowGroup`. This project uses `NSApplicationDelegateAdaptor` and manual window management — the `Settings` scene requires calling `openSettings` from a SwiftUI environment action, which requires a hidden 1x1 NSWindow workaround for menubar apps (5+ hours of complexity per steipete.me). Direct `NSWindow + NSHostingController` is the right choice here. |
+| `NSWindow` with `isReleasedWhenClosed = false` | `NSPanel` with `hidesOnDeactivate = false` | `NSPanel` with `hidesOnDeactivate = false` technically works but fights against the panel's design intent. NSPanel was designed for floating tool palettes, not primary settings windows. Use NSPanel only for truly non-modal floating overlays (inspector panels, color pickers). |
+| `KeyboardShortcuts.Recorder` (SwiftUI) | `KeyboardShortcuts.RecorderCocoa` wrapped in `NSViewRepresentable` | Only use `RecorderCocoa` if staying in an AppKit view hierarchy. In a SwiftUI Form, `Recorder` is the first-class API and requires zero bridging code. |
+| `Form` + `.formStyle(.grouped)` | `NavigationSplitView` with sidebar | `NavigationSplitView` is for multi-pane settings (like System Settings with 30+ sections). This app has one settings screen with < 10 controls. A single-column `Form` is the correct complexity level — avoid `NavigationSplitView` here. |
+| `List` with `TextField` rows for vocabulary | `NSTableView` via `NSViewRepresentable` | If Delete-key row removal or complex column resizing is needed, keep `NSTableView` bridged. For a small list with basic add/remove, SwiftUI `List` is sufficient and avoids AppKit bridging overhead. |
+| `LabeledContent` for control rows | Manual `HStack` with `Spacer()` | `LabeledContent` handles macOS-idiomatic two-column alignment automatically and adapts to system font size. Manual `HStack` requires explicit width constants that break on different system font sizes. |
 
 ---
 
@@ -211,63 +210,59 @@ adding "gracias" or similar.
 
 | Avoid | Why | Use Instead |
 |-------|-----|-------------|
-| AVAudioSession.inputGain (macOS) | Available only in Mac Catalyst builds. Crashes or silently fails in standard AppKit/SwiftUI macOS apps. | CoreAudio HAL `kAudioDevicePropertyVolumeScalar` on `kAudioDevicePropertyScopeInput` |
-| SimplyCoreAudio (Swift package) | Archived and read-only since March 2024. No future maintenance. For this use case (get/set input volume) it wraps the same 10-line CoreAudio HAL pattern the project already uses. | Inline CoreAudio HAL calls |
-| Writing input volume without calling AudioObjectIsPropertySettable first | Most USB mics (Blue Yeti, Shure MV7, etc.) and Bluetooth devices expose no settable input volume at the CoreAudio HAL layer. Attempting `AudioObjectSetPropertyData` on an unsettable property returns `kAudioHardwareUnsupportedOperationError` and leaves state inconsistent. | Check settability first; skip gracefully if not settable |
-| Stripping "gracias" via post-processing regex | Removes the word even when the user legitimately dictated it. | Prompt rule with explicit conditional exception |
-| Increasing Haiku `max_tokens` budget for the prompt fix | The fix is one rule addition (~25 tokens). No token budget change needed. | Keep existing `estimateMaxTokens()` logic unchanged |
+| SwiftUI `Settings` scene + `openSettings` | On this project's architecture (AppDelegate + NSApplicationDelegateAdaptor), reliably opening the Settings scene from a menubar app requires a hidden 1x1 NSWindow workaround, timing delays (100ms + 200ms), and activation policy juggling. On macOS 26 (Tahoe), `openSettings` is confirmed broken. The complexity is not justified when `NSWindow + NSHostingController` is simpler and already proven by `showPermissionBlockedWindow`. | `NSWindow` + `NSHostingController` |
+| `NSPanel` for the settings window | Default `hidesOnDeactivate = true` causes the settings window to disappear when focus moves to another app — this is the exact regression v1.3 fixes. | `NSWindow` with explicit persistent behavior |
+| `.nonactivatingPanel` style mask | Prevents the window from becoming key, which blocks keyboard input in `TextField` and the `KeyboardShortcuts.Recorder`. | Standard `.titled, .closable` style mask on `NSWindow` |
+| `NavigationSplitView` for a single-page settings UI | Adds tab bar / sidebar chrome unnecessary for < 10 settings. System Settings uses it because it has 50+ sections. Our settings fits in one scroll view. | `Form` + `.formStyle(.grouped)` |
+| Calling `NSApp.setActivationPolicy(.regular)` on every app activation/focus event | Causes the Dock icon to flash in and out. Policy should only change to `.regular` when showing the settings window and back to `.accessory` when the window is explicitly closed (not on focus loss). | Change policy only in `show()` and explicit `close()` handler. |
+| `window.isReleasedWhenClosed = true` (the default for NSWindow) | Default is `true` for NSWindow (opposite of NSPanel). If the controller stores a strong reference and the window self-releases on close, accessing the deallocated window on the next `show()` call crashes. | Always set `isReleasedWhenClosed = false` when keeping a window reference. |
 
 ---
 
 ## Stack Patterns by Variant
 
-**If the selected mic supports input volume control (most built-in mics, some USB interfaces):**
-- `AudioObjectIsPropertySettable` returns `true`
-- Read → maximize → restore flow executes normally
-- Save/restore happens in `MicInputVolumeService` (new file) or extended `MicrophoneDeviceService`
+**If staying 100% within existing AppKit controller (`SettingsWindowController`):**
+- Replace `NSPanel` with `NSWindow` (same constructor call, change class name)
+- Replace `contentView` manual Auto Layout with `contentViewController = NSHostingController(rootView: SettingsView(...))`
+- Set `isReleasedWhenClosed = false`
+- Override `close()` to `orderOut(nil)` via subclass or `windowShouldClose` delegate
+- Migration is surgical: one file changed, behavior is fully tested in isolation
 
-**If the selected mic does NOT support input volume control (most USB mics, Bluetooth, aggregate devices):**
-- `AudioObjectIsPropertySettable` returns `false` or the property is absent
-- Skip the feature silently — do not log an error to the user
-- Whisper still transcribes from whatever level the device provides
-
-**If no device is explicitly selected (user uses system default):**
-- Resolve `kAudioHardwarePropertyDefaultInputDevice` at recording start
-- Apply volume maximization to that device ID
-- Restore to that same device ID at stop
+**If extracting settings to a pure SwiftUI `SettingsView` struct:**
+- `SettingsView` receives its dependencies via `@ObservableObject` / `@Bindable` wrappers, not as `init` parameters
+- Services (`VocabularyService`, `MicrophoneDeviceService`, `HaikuCleanupService`) remain in AppKit layer, passed into `NSHostingController(rootView:)` via environment or init
+- Preferred for testability — `SettingsView` previews in Xcode without spinning up `AppDelegate`
 
 ---
 
 ## Version Compatibility
 
-| API | macOS Support | Notes |
-|-----|--------------|-------|
-| `AudioObjectIsPropertySettable` | macOS 10.6+ | Stable HAL API, unchanged through macOS 15.x (Sequoia) |
-| `AudioObjectGetPropertyData` with `kAudioDevicePropertyVolumeScalar` + `kAudioDevicePropertyScopeInput` | macOS 10.6+ | Same API already used for device enumeration in the project |
-| `AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` | macOS 10.6+ | Standard HAL write; works in non-sandboxed apps without special entitlements |
-| `kAudioObjectPropertyElementMain` (= 0) | macOS 12+ (renamed from `kAudioObjectPropertyElementMaster`) | The old constant `kAudioObjectPropertyElementMaster` still compiles but generates a deprecation warning. Use `kAudioObjectPropertyElementMain` to keep the codebase warning-free. |
-| Haiku API `claude-haiku-4-5-20251001` | Current as of research date | The model identifier in the codebase is correct. No model change needed for the prompt fix. |
+| API | macOS Requirement | Notes |
+|-----|-------------------|-------|
+| `NSHostingController` | macOS 10.15+ | Stable, used in AppDelegate already via `NSHostingView` sibling |
+| `Form` + `.formStyle(.grouped)` | macOS 13+ (stable in 14+) | `.grouped` style available on 13; two-column `LabeledContent` alignment reliable on 14+ — matches project's existing macOS 14 deployment target |
+| `LabeledContent` | macOS 13+ | Alignment behavior improved in 14; fine for this project's macOS 14 target |
+| `KeyboardShortcuts.Recorder` (SwiftUI) | macOS 10.15+ | Ships in the already-pinned `KeyboardShortcuts >= 2.4.0` |
+| `NSWindow.isReleasedWhenClosed` | macOS 10.0+ | Stable AppKit property, unchanged |
+| `NSApp.setActivationPolicy(_:)` | macOS 10.6+ | Stable; current code already uses this pattern correctly |
 
-**macOS deployment target:** No change. Existing target is macOS 14+ (WhisperKit). All
-CoreAudio HAL APIs used here are available on macOS 13+, well within target.
+**Deployment target:** No change. macOS 14+ (Apple Silicon). All APIs above are available on macOS 14.
 
-**Non-sandboxed requirement:** `AudioObjectSetPropertyData` for device input volume does
-NOT require entitlements or special permissions — it is a HAL call scoped to the hardware
-device, not a process-level permission like microphone access (which the app already has).
+**Non-sandboxed requirement:** No change. Settings window management requires no new entitlements.
 
 ---
 
 ## Sources
 
-- CoreAudio `AudioObjectPropertyAddress` + `kAudioDevicePropertyVolumeScalar` pattern — verified via gist.github.com/kimsungwhee (Swift 4 output device example showing same pattern); adapted to input scope; MEDIUM confidence (pattern confirmed, input scope variant inferred from identical structure)
-- `AudioObjectIsPropertySettable` signature — confirmed via Apple Developer Forums search result showing exact Swift signature; HIGH confidence
-- `kAudioObjectPropertyElementMaster` deprecation / `kAudioObjectPropertyElementMain` rename — confirmed via CoreAudio release notes for macOS 12 SDK; HIGH confidence (Swift compiler warnings confirm)
-- Built-in mic volume settability variability — confirmed via [Apple Community: How to adjust built-in mic gain](https://discussions.apple.com/thread/253852973) and [RØDE: Why Can't I Change the Input Volume in Mac Sound Settings](https://help.rode.com/hc/en-us/articles/9312496788239-Why-Can-t-I-Change-the-Input-Volume-in-Mac-Sound-Settings) showing USB mics have no settable input volume via macOS; HIGH confidence (multiple sources)
-- Haiku hallucination by completion pattern — confirmed via [Anthropic: Reduce hallucinations](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations) and [Anthropic: Prompting best practices](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices); HIGH confidence (official Anthropic documentation)
-- Prompt fix formulation — "explain WHY" principle from Anthropic prompting best practices; "negative examples + exception" pattern from hallucination guide; HIGH confidence
-- `AVAudioSession.inputGain` not available in non-Catalyst macOS — inferred from AVAudioSession documentation scope (UIKit/Mac Catalyst only); MEDIUM confidence (negative claim from SDK scope, not explicit API docs confirming failure mode)
+- `steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items` — confirmed that SwiftUI `Settings` scene + `openSettings` requires hidden-window workarounds for menubar apps; `openSettings` broken on macOS Tahoe (26); NSWindow + NSHostingController is the recommended alternative — MEDIUM confidence (personal blog, confirmed by mjtsai.com commentary)
+- `artlasovsky.com/fine-tuning-macos-app-activation-behavior` — exact activation policy switching patterns (`applicationWillFinishLaunching` / `applicationDidFinishLaunching`), `isReleasedWhenClosed` usage, NSPanel vs NSWindow behavioral differences — MEDIUM confidence (personal blog, patterns cross-validated with Apple Developer Forums)
+- `cindori.com/developer/floating-panel` — NSPanel subclass pattern; confirmed `canBecomeKey = true` required for text input in panels; confirmed `hidesOnDeactivate` is the root cause of settings panel closure — MEDIUM confidence (well-known macOS developer blog)
+- Apple Developer Documentation — `NSHostingController`, `NSHostingView`, `Form`, `LabeledContent`, `GroupBox`, `NSWindow.isReleasedWhenClosed` — HIGH confidence (official Apple docs)
+- `github.com/sindresorhus/KeyboardShortcuts` — confirmed `KeyboardShortcuts.Recorder` SwiftUI view ships in the library; `RecorderCocoa` is the AppKit-only variant — HIGH confidence (official repository README)
+- `github.com/sindresorhus/Settings` — confirmed pattern of `NSHostingController` + `NSWindow` for settings; library approach validated but not needed (adds dependency for functionality already achievable with 20 lines) — MEDIUM confidence (well-maintained OSS)
+- WebSearch + Apple Developer Forums — `.formStyle(.grouped)` top-padding quirk; `List` Delete-key limitation on macOS; `LabeledContent` two-column alignment — LOW-MEDIUM confidence (community sources, not official docs)
 
 ---
 
-*Stack research for: v1.2 Dictation Quality — mic input volume auto-maximize + Haiku hallucination fix*
-*Researched: 2026-03-17*
+*Stack research for: v1.3 Settings UX — SwiftUI migration + persistent window behavior*
+*Researched: 2026-03-24*

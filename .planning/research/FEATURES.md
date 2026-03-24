@@ -1,8 +1,8 @@
 # Feature Research
 
 **Domain:** Local voice-to-text macOS menubar application
-**Researched:** 2026-03-15 (v1.0) / Updated 2026-03-16 (v1.1 Pause Playback milestone) / Updated 2026-03-17 (v1.2 Dictation Quality milestone)
-**Confidence:** HIGH (primary sources: SuperWhisper official docs, Sotto, WhisperFlow, Wispr Flow, macOS Dictation official docs, multiple competitor analyses, OpenAI Whisper GitHub discussions, Anthropic prompt engineering docs, CoreAudio documentation)
+**Researched:** 2026-03-15 (v1.0) / Updated 2026-03-16 (v1.1 Pause Playback milestone) / Updated 2026-03-17 (v1.2 Dictation Quality milestone) / Updated 2026-03-24 (v1.3 Settings UX milestone)
+**Confidence:** HIGH (primary sources: SuperWhisper official docs, Sotto, WhisperFlow, Wispr Flow, macOS Dictation official docs, multiple competitor analyses, OpenAI Whisper GitHub discussions, Anthropic prompt engineering docs, CoreAudio documentation, Apple Developer docs, SwiftUI Settings scene docs, community implementations)
 
 ---
 
@@ -135,6 +135,18 @@ Features that seem good but create problems.
     └──reads──> [AudioObjectHasProperty — must check support before set]
     └──depends-on──> [MicrophoneDeviceService.selectedDeviceID (existing)]
     └──no new permissions required]
+
+[SwiftUI Settings Window (v1.3)]
+    └──replaces──> [AppKit NSPanel SettingsWindowController]
+    └──requires──> [NSApp activation policy toggle (.accessory <-> .regular)]
+    └──requires──> [Settings scene declared in App struct]
+    └──wraps──> [All 7 existing settings: hotkey, mic, API key, vocabulary, launch-at-login, pause-playback, maximize-volume]
+    └──depends-on──> [KeyboardShortcuts.RecorderView (existing SwiftUI component)]
+    └──depends-on──> [VocabularyService (existing)]
+    └──depends-on──> [MicrophoneDeviceService (existing)]
+    └──depends-on──> [HaikuCleanupProtocol (existing, for API key validation)]
+    └──window-persistence──> [hidesOnDeactivate = false on underlying NSWindow]
+    └──conflict-with──> [SettingsLink in MenuBarExtra — unreliable, requires workaround]
 ```
 
 ### Dependency Notes
@@ -148,6 +160,8 @@ Features that seem good but create problems.
 - **"Gracias" fix is a two-layer defense:** Prompt engineering alone is not reliable — LLMs can ignore prohibitions or rephrase. Post-processing string detection is the safe last line. Both layers together provide defense-in-depth.
 - **Mic volume auto-max requires graceful fallback:** Not all microphone devices expose `kAudioDevicePropertyVolumeScalar` on input scope. Built-in mic on many Macs does not support software volume control at the driver level. Must check `AudioObjectHasProperty` before attempting set/restore. Feature silently no-ops if device does not support it.
 - **Mic volume restore must run on every stop path:** Recording can end via: (a) hotkey stop, (b) Escape cancel, (c) error/timeout. All three paths must restore the saved volume level to avoid leaving user's mic permanently at max.
+- **SwiftUI Settings requires activation policy dance:** MenuBarExtra apps run as `.accessory` (no dock icon). Opening a Settings window requires temporarily switching to `.regular`, calling `NSApp.activate(ignoringOtherApps: true)`, then restoring `.accessory` on window close. This is the only reliable pattern for macOS 14+.
+- **SettingsLink is broken in MenuBarExtra context:** Apple's `SettingsLink` and `@Environment(\.openSettings)` assume a regular app with an active SwiftUI render tree. Menu bar-only apps have no render tree before the first interaction. The workaround is either (a) using `SettingsAccess` package (orchetect/SettingsAccess) or (b) manually managing NSApp activation and calling `openSettings` from an AppKit-backed action.
 
 ---
 
@@ -173,8 +187,9 @@ Minimum viable product — what's needed to validate the concept.
 Features to add once core is working.
 
 - [x] **Pause Playback (v1.1):** Auto-pause media when recording starts, resume when recording ends, with Settings toggle — **SHIPPED v1.1**
-- [ ] **Prevent "gracias" hallucination (v1.2):** Dual-layer fix — Haiku prompt constraint + post-processing strip
-- [ ] **Auto-maximize mic input volume (v1.2):** CoreAudio read/set/restore on recording start/stop, with graceful fallback
+- [x] **Prevent "gracias" hallucination (v1.2):** Dual-layer fix — Haiku prompt constraint + post-processing strip — **SHIPPED v1.2**
+- [x] **Auto-maximize mic input volume (v1.2):** CoreAudio read/set/restore on recording start/stop, with graceful fallback — **SHIPPED v1.2**
+- [ ] **Settings UX redesign (v1.3):** SwiftUI migration, grouped sections, persistent window — **IN PROGRESS**
 - [ ] Push-to-talk mode (hold hotkey vs toggle) — many users prefer this, low complexity to add
 - [ ] Configurable LLM cleanup aggressiveness (light/full modes) — nice to have, not blocking
 
@@ -185,6 +200,235 @@ Features to defer until product-market fit is established.
 - [ ] Reformulation modes (formal email, structured notes) — needs powerful local LLM; validate accuracy first
 - [ ] Second language support — add Spanish+English after v1 proves the architecture
 - [ ] Keyboard-driven history navigation — power user feature only
+
+---
+
+## v1.3 Milestone: Settings UX — Feature Detail
+
+### Context: What Exists Today
+
+The current Settings implementation (`SettingsWindowController.swift`, ~306 LOC) is a fully AppKit NSPanel built with raw Auto Layout constraints. Key characteristics:
+
+- **Window type:** NSPanel (480×590px, `.titled | .closable` style mask)
+- **Behavior:** Closes when app loses focus (because `hidesOnDeactivate` is not explicitly set to false). Window is re-created on every `show()` call if `panel == nil`.
+- **Layout:** Single flat vertical list, no visual grouping. 7 items stacked top-to-bottom with constant spacing:
+  1. Hotkey recorder (KeyboardShortcuts.RecorderCocoa)
+  2. Microphone popup (NSPopUpButton)
+  3. API key button (opens sub-panel)
+  4. Vocabulary corrections table (NSTableView with +/- buttons)
+  5. Launch at login checkbox
+  6. Pause playback checkbox
+  7. Maximize mic volume checkbox
+- **Pain points:** No section labels, no visual grouping, flat layout feels unfinished, window closes unexpectedly when user clicks elsewhere.
+
+### Feature 1: Persistent Settings Window
+
+#### What the Feature Does
+
+The settings window stays open until the user explicitly closes it via the close button or presses Escape. Clicking outside the window, switching to another app, or pressing the menubar icon again does not close settings.
+
+#### Why This Matters
+
+The current window closes whenever the app loses focus. This is frustrating when a user needs to reference settings while using another app, or needs to tab between the settings window and another window to verify a hotkey. Every macOS settings window from Apple (System Settings, Xcode Preferences, Safari Settings) and third-party apps (1Password, Alfred, Raycast) stays open until explicitly dismissed.
+
+#### Table Stakes for Window Persistence
+
+| Behavior | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Window stays open when user clicks another app | Standard macOS behavior for all settings/prefs windows | LOW | Set `hidesOnDeactivate = false` on the NSWindow via NSWindowDelegate or `withHostingView` bridge |
+| Window stays open when user clicks menubar item again | Re-invoking settings should bring window to front, not toggle | LOW | Check for existing window: `makeKeyAndOrderFront` instead of re-creating |
+| Close button (red X) closes the window | Standard macOS affordance | LOW | Default NSWindow behavior — no special handling needed |
+| Cmd+W closes the window | Standard macOS keyboard shortcut for closing a window | LOW | Default NSWindow/SwiftUI Settings behavior |
+| Cmd+, reopens settings if already closed | Standard macOS shortcut for app preferences | LOW | Automatically provided by the SwiftUI `Settings` scene + app menu "Settings..." item |
+| Window remembers position between opens | macOS convention: windows reopen where they were left | MEDIUM | SwiftUI Settings scene handles this automatically via `restorationClass` / frame autosaving |
+
+#### Anti-Features for Window Persistence
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Always-on-top floating panel | Settings "should be easy to access" | NSPanel with floating level obscures other windows. Standard prefs windows are not floating | Normal window level. User places it where they want |
+| Auto-close after N seconds | "Reduce clutter" | Settings should stay until explicitly dismissed. Timed close is unexpected and annoying | Always-explicit close |
+| Re-open at fixed screen center | Consistent location | macOS convention is to restore last position. Users move windows where they want them | Restore last known position |
+
+### Feature 2: SwiftUI Migration
+
+#### What the Feature Does
+
+Replace the AppKit NSPanel implementation with a native SwiftUI view inside the SwiftUI `Settings` scene. The `Settings` scene provides the Cmd+, menu integration, keyboard shortcut, and standard window management automatically.
+
+#### SwiftUI Settings Scene — Key API Behaviors
+
+**HIGH confidence (verified against multiple sources):**
+
+- `Settings { MySettingsView() }` in `App.body` automatically registers the "Settings..." menu item under the app menu and binds Cmd+, to open it
+- On macOS 14+, `openSettings` via `@Environment(\.openSettings)` is the programmatic API, but it is broken in `MenuBarExtra` context (no SwiftUI render tree exists for menu bar-only apps)
+- The working workaround for menu bar apps: call `NSApp.setActivationPolicy(.regular)`, then `NSApp.activate(ignoringOtherApps: true)`, then invoke the settings open mechanism; restore `.accessory` in `windowWillClose` delegate
+- The `SettingsAccess` package (orchetect/SettingsAccess) provides a clean solution that works across macOS 11–15+ without private APIs and is App Store compatible (though this app is not sandboxed)
+- The existing `MyWhisperApp.swift` already declares `Settings { EmptyView() }` — the scene infrastructure exists, just needs a real view
+
+**MEDIUM confidence:**
+
+- SwiftUI `Settings` scene automatically persists window position between opens (via frame autosave) — confirmed by multiple sources but behavior may vary on minor macOS versions
+- `windowResizability(.contentSize)` on a `Settings` scene creates a non-user-resizable window that matches content size — useful to prevent awkward resizing of settings
+
+#### Form vs List — macOS Settings Recommendation
+
+**Use `Form` with `.formStyle(.grouped)`.** Rationale:
+
+- `.formStyle(.columns)` (the macOS default for `Form`) renders labels in a trailing-aligned left column and controls in a leading-aligned right column — looks like a spreadsheet, not a settings panel. It works for dense data-entry forms but feels cold for a 7-item settings window.
+- `.formStyle(.grouped)` renders sections as visually distinct rounded groups with inset content — matches System Preferences / System Settings visual language exactly. This is the right choice for a settings window with heterogeneous controls (toggles, pickers, buttons, tables).
+- `List` with `listStyle(.insetGrouped)` achieves a similar grouped visual on macOS but is semantically for data display (navigable rows), not settings controls. `Form` with grouped style is the semantic and visual correct choice for settings.
+- `Section` within a `Form` creates the labeled group with a header — use for visual grouping without tab complexity.
+
+#### Tab-Based vs Single-Pane
+
+**Single-pane is correct for 7 settings items.** Use tabs only when:
+- There are more than ~12-15 settings items that can't fit comfortably in a scrollable single pane, OR
+- Settings fall into clearly distinct domains where users navigate to specific tabs independently (e.g., "General", "Advanced", "Integrations")
+
+The existing 7 items can be grouped into 2–3 logical sections within a single scrollable pane:
+- **Grabacion** (hotkey, microphone, mic volume)
+- **API / Transcripcion** (API key)
+- **Correcciones** (vocabulary table)
+- **General** (launch at login, pause playback)
+
+This avoids the overhead of tab navigation for a small settings set.
+
+#### Visual Hierarchy Recommendations
+
+**GroupBox for section containers** — provides the rounded box with optional title label, matching System Settings section groups. Use inside a `Form` or as standalone grouped container.
+
+**Section inside Form** — lighter than GroupBox, renders a section header above the grouped items. Better when the section header is text-only.
+
+**SF Symbols for section icons** — optional but improves visual scanning (e.g., `keyboard` for hotkey section, `mic.fill` for audio section, `gear` for general section).
+
+**Descriptive footnotes** — small gray text below a control explaining its behavior. Use `.font(.caption).foregroundColor(.secondary)` inside the Form row. Particularly useful for the vocabulary table (explain what it does) and API key (explain Keychain storage).
+
+#### Table Stakes for SwiftUI Migration
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| All 7 existing settings work identically after migration | Functional parity — nothing regresses | MEDIUM | Map each AppKit control to SwiftUI equivalent. KeyboardShortcuts provides `RecorderView` for SwiftUI |
+| Grouped visual sections with headers | Modern macOS settings windows group related items. Flat list feels unfinished | LOW | Use `Form { Section("Grabacion") { ... } Section("General") { ... } }` with `.formStyle(.grouped)` |
+| Settings changes take effect immediately | Users expect live feedback — no "Apply" button | LOW | Bind controls directly to `@AppStorage` or observable service properties. Standard SwiftUI pattern |
+| Vocabulary table still editable | NSTableView with inline editing → SwiftUI `List` with `TextField` rows | MEDIUM | SwiftUI `List` with `@State var entries` + `TextField` in each row. Add/remove via +/- buttons below the list |
+| Cmd+, opens settings from any app | Standard macOS keyboard shortcut for app preferences | LOW | Automatically provided by `Settings` scene registration |
+| Window has standard title bar with "Preferencias" title | macOS convention | LOW | SwiftUI Settings window uses app name by default; customize via `navigationTitle` or window title |
+| Dark mode support | macOS apps are expected to respect system appearance | LOW | Free with SwiftUI — all native controls adapt automatically |
+
+#### Differentiators for SwiftUI Migration
+
+| Feature | Value | Complexity | Notes |
+|---------|-------|------------|-------|
+| Section icons (SF Symbols) in group headers | Visual polish, faster scanning | LOW | Add `Label("Grabacion", systemImage: "mic.fill")` as Section header |
+| Descriptive footnotes below complex settings | Explains vocabulary corrections behavior, API key Keychain storage | LOW | `.font(.caption).foregroundColor(.secondary)` text below control |
+| Inline API key status indicator | Shows "Configurada" or "No configurada" without opening sub-panel | LOW-MEDIUM | Read Keychain on view appear; show status text. Still open full editor on button tap |
+| Fixed window size that fits content | Avoids awkward stretching | LOW | `.frame(width: 460)` on the Settings content view, let height be content-driven |
+
+#### Anti-Features for SwiftUI Migration
+
+| Feature | Why Requested | Why Problematic | Alternative |
+|---------|---------------|-----------------|-------------|
+| Tab-based navigation for 7 items | "Cleaner separation" | Adds navigation overhead for settings that fit in one scrollable pane. Tabs are correct at 15+ items or clearly distinct domains | Single pane with labeled sections |
+| Live-search/filter for settings | "Easy to find settings" | Overkill for 7 items. Adds complexity without user value at this scale | Good section grouping is sufficient |
+| Undo/redo for settings changes | "Settings should be undoable" | No macOS settings window implements this. Users expect immediate-apply with no undo | No undo. Settings apply immediately |
+| Custom NSWindowController subclass kept alongside SwiftUI | "Easier migration" | Two systems managing the same window creates bugs. The whole point is to migrate fully | Full replacement, not coexistence |
+| Sidebar navigation (like System Settings) | "Matches System Settings" | System Settings sidebar is for 40+ categories. Sidebar for 7 items is wasteful, adds navigation depth | Flat sections in single scrollable pane |
+| Animations / transitions between sections | "Feels modern" | Settings windows are functional, not expressive. Unexpected animations are distracting | Static layout. Let SwiftUI's standard control animations handle feedback |
+
+### Feature 3: Grouped Sections with Visual Hierarchy
+
+This feature describes the visual design of the migrated settings, distinct from the technical migration.
+
+#### Proposed Section Structure
+
+**Section: Grabacion**
+- Atajo de grabacion (KeyboardShortcuts.RecorderView)
+- Microfono (Picker with system default + device list)
+- Maximizar volumen al grabar (Toggle)
+
+**Section: Transcripcion**
+- Clave de API Anthropic (button "Cambiar clave..." + status indicator)
+- Correcciones de vocabulario (List table with +/- buttons, expands the section)
+
+**Section: Sistema**
+- Iniciar al arranque (Toggle via SMAppService)
+- Pausar reproduccion al grabar (Toggle via UserDefaults)
+
+#### Rationale for This Grouping
+
+- **Grabacion** groups everything that affects audio input quality and recording trigger — the hotkey, which mic to use, and whether to maximize its gain. These three are logically "what happens when I press the hotkey".
+- **Transcripcion** groups the Anthropic API (required for cleanup) and the vocabulary corrections (which affect the cleanup output). These are "what happens to the text after I speak".
+- **Sistema** groups OS-level behaviors that affect how the app integrates with macOS — launch at login and media pause. These are "how the app behaves as a system citizen".
+
+#### Table Stakes for Section Grouping
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Logically related settings grouped visually | Users scan settings by purpose, not by implementation order | LOW | Form Section with header labels |
+| Section headers are readable but not dominant | Headers guide, not dominate. Overly large headers waste space | LOW | Default `Section` header styling in `.formStyle(.grouped)` is correct — small caps, secondary color |
+| Settings within a section are vertically aligned | Items within a group should have consistent left edges | LOW | Automatic with `Form` columns or grouped style |
+| Adequate whitespace between sections | Separation signals "different category" | LOW | Built into SwiftUI `Form` section spacing |
+
+---
+
+## Feature Prioritization Matrix
+
+| Feature | User Value | Implementation Cost | Priority |
+|---------|------------|---------------------|----------|
+| Global hotkey toggle | HIGH | LOW | P1 (shipped) |
+| Audio capture | HIGH | LOW | P1 (shipped) |
+| Local STT (Spanish) | HIGH | HIGH | P1 (shipped) |
+| LLM cleanup (Spanish filler words) | HIGH | MEDIUM | P1 (shipped) |
+| Auto-paste at cursor | HIGH | MEDIUM | P1 (shipped) |
+| Menubar status icon | HIGH | LOW | P1 (shipped) |
+| Waveform during recording | HIGH | LOW | P1 (shipped) |
+| Permission prompts (first launch) | HIGH | LOW | P1 (shipped) |
+| Configurable hotkey | MEDIUM | LOW | P1 (shipped) |
+| Microphone selection | MEDIUM | LOW | P1 (shipped) |
+| Pause Playback (auto-pause media) | HIGH | LOW | P1 (v1.1 shipped) |
+| Pause Playback Settings toggle | HIGH | LOW | P1 (v1.1 shipped) |
+| Prevent "gracias" hallucination | HIGH | LOW | P1 (v1.2 shipped) |
+| Auto-maximize mic input volume | HIGH | LOW-MEDIUM | P1 (v1.2 shipped) |
+| **Persistent settings window** | **HIGH** | **LOW** | **P1 (v1.3)** |
+| **SwiftUI Settings migration** | **HIGH** | **MEDIUM** | **P1 (v1.3)** |
+| **Grouped sections visual hierarchy** | **MEDIUM** | **LOW** | **P1 (v1.3)** |
+| Push-to-talk mode | MEDIUM | LOW | P2 |
+| Configurable LLM cleanup aggressiveness | LOW | LOW | P2 |
+| Reformulation modes | LOW | HIGH | P3 |
+| Multi-language support | LOW | HIGH | P3 |
+
+**Priority key:**
+- P1: Must have for launch
+- P2: Should have, add when possible
+- P3: Nice to have, future consideration
+
+---
+
+## Competitor Feature Analysis
+
+| Feature | SuperWhisper | Wispr Flow | Sotto | macOS Dictation | Our Approach |
+|---------|--------------|------------|-------|-----------------|--------------|
+| Global hotkey | Yes (⌥+Space, configurable) | Yes | Yes | Yes (Fn key) | Yes (⌥+Space, configurable) — shipped |
+| Push-to-talk | Yes (hold) | Yes (hold) | Yes (hold) | No | Planned v1.x |
+| Toggle mode | Yes | No (hold only) | Yes | No | Yes — shipped |
+| Local processing | Yes | No (cloud) | Yes | Partial (on-device option) | Yes (hard requirement) — shipped |
+| Auto-paste | Yes | Yes | Yes | No | Yes — shipped |
+| Waveform feedback | Yes (full window) | Yes (floating) | Yes (bar) | Yes (2025 Liquid Glass overlay) | Yes (floating overlay) — shipped |
+| Filler word removal | Yes (LLM) | Yes (cloud LLM) | Yes (LLM) | No | Yes (local LLM, Spanish-aware) — shipped |
+| Punctuation cleanup | Yes | Yes | Yes | Partial (auto-punctuation) | Yes — shipped |
+| Spanish support | Yes (100+ langs) | Yes (cloud) | Yes | Yes (system language) | Yes (primary language, optimized) — shipped |
+| Custom vocabulary | Yes | Unknown | Yes | No | Yes — shipped |
+| History log | Yes (search) | Unknown | No | No | Yes (last 20) — shipped |
+| Pause media while recording | Yes (v1.44.0+, default in v2.7.0) | Unknown | Unknown | No | v1.1 — shipped |
+| Prevent hallucinated output words | Unknown (not documented) | Unknown | Unknown | No | v1.2 — shipped |
+| Auto-maximize mic volume | Unknown | Unknown | Unknown | No | v1.2 — shipped |
+| **Settings window (native SwiftUI)** | **Yes (full SwiftUI, tab-based)** | **Unknown** | **Unknown** | **N/A** | **v1.3 — in progress** |
+| **Settings window persistence** | **Yes (stays open)** | **Unknown** | **Unknown** | **N/A** | **v1.3 — in progress** |
+| Menubar app | Yes | Yes | Yes | N/A (system feature) | Yes — shipped |
+| Context capture (clipboard/screen) | Yes (Super Mode) | Yes | No | No | No (out of scope) |
+| Cloud required | No | Yes | No | Optional | Never |
+| Idle RAM | ~150MB (est.) | ~800MB | Unknown | Minimal | ~27MB — shipped |
 
 ---
 
@@ -310,61 +554,6 @@ The System Settings > Sound > Input slider sets `kAudioDevicePropertyVolumeScala
 
 ---
 
-## Feature Prioritization Matrix
-
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Global hotkey toggle | HIGH | LOW | P1 (shipped) |
-| Audio capture | HIGH | LOW | P1 (shipped) |
-| Local STT (Spanish) | HIGH | HIGH | P1 (shipped) |
-| LLM cleanup (Spanish filler words) | HIGH | MEDIUM | P1 (shipped) |
-| Auto-paste at cursor | HIGH | MEDIUM | P1 (shipped) |
-| Menubar status icon | HIGH | LOW | P1 (shipped) |
-| Waveform during recording | HIGH | LOW | P1 (shipped) |
-| Permission prompts (first launch) | HIGH | LOW | P1 (shipped) |
-| Configurable hotkey | MEDIUM | LOW | P1 (shipped) |
-| Microphone selection | MEDIUM | LOW | P1 (shipped) |
-| Pause Playback (auto-pause media) | HIGH | LOW | P1 (v1.1 shipped) |
-| Pause Playback Settings toggle | HIGH | LOW | P1 (v1.1 shipped) |
-| **Prevent "gracias" hallucination** | **HIGH** | **LOW** | **P1 (v1.2)** |
-| **Auto-maximize mic input volume** | **HIGH** | **LOW-MEDIUM** | **P1 (v1.2)** |
-| Push-to-talk mode | MEDIUM | LOW | P2 |
-| Configurable LLM cleanup aggressiveness | LOW | LOW | P2 |
-| Reformulation modes | LOW | HIGH | P3 |
-| Multi-language support | LOW | HIGH | P3 |
-
-**Priority key:**
-- P1: Must have for launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
-
----
-
-## Competitor Feature Analysis
-
-| Feature | SuperWhisper | Wispr Flow | Sotto | macOS Dictation | Our Approach |
-|---------|--------------|------------|-------|-----------------|--------------|
-| Global hotkey | Yes (⌥+Space, configurable) | Yes | Yes | Yes (Fn key) | Yes (⌥+Space, configurable) — shipped |
-| Push-to-talk | Yes (hold) | Yes (hold) | Yes (hold) | No | Planned v1.x |
-| Toggle mode | Yes | No (hold only) | Yes | No | Yes — shipped |
-| Local processing | Yes | No (cloud) | Yes | Partial (on-device option) | Yes (hard requirement) — shipped |
-| Auto-paste | Yes | Yes | Yes | No | Yes — shipped |
-| Waveform feedback | Yes (full window) | Yes (floating) | Yes (bar) | Yes (2025 Liquid Glass overlay) | Yes (floating overlay) — shipped |
-| Filler word removal | Yes (LLM) | Yes (cloud LLM) | Yes (LLM) | No | Yes (local LLM, Spanish-aware) — shipped |
-| Punctuation cleanup | Yes | Yes | Yes | Partial (auto-punctuation) | Yes — shipped |
-| Spanish support | Yes (100+ langs) | Yes (cloud) | Yes | Yes (system language) | Yes (primary language, optimized) — shipped |
-| Custom vocabulary | Yes | Unknown | Yes | No | Yes — shipped |
-| History log | Yes (search) | Unknown | No | No | Yes (last 20) — shipped |
-| Pause media while recording | Yes (v1.44.0+, default in v2.7.0) | Unknown | Unknown | No | v1.1 — shipped |
-| **Prevent hallucinated output words** | **Unknown (not documented)** | **Unknown** | **Unknown** | **No** | **v1.2 — in progress** |
-| **Auto-maximize mic volume** | **Unknown** | **Unknown** | **Unknown** | **No** | **v1.2 — in progress** |
-| Menubar app | Yes | Yes | Yes | N/A (system feature) | Yes — shipped |
-| Context capture (clipboard/screen) | Yes (Super Mode) | Yes | No | No | No (out of scope) |
-| Cloud required | No | Yes | No | Optional | Never |
-| Idle RAM | ~150MB (est.) | ~800MB | Unknown | Minimal | ~27MB — shipped |
-
----
-
 ## Sources
 
 - [SuperWhisper official website](https://superwhisper.com/) — feature overview, modes
@@ -394,9 +583,21 @@ The System Settings > Sound > Input slider sets `kAudioDevicePropertyVolumeScala
 - [CoreAudio Swift output device methods Gist](https://gist.github.com/kimsungwhee/91a4cbd7855089c302fc93f03a0fb15c) — `kAudioDevicePropertyVolumeScalar` with input scope pattern
 - [Apple Developer: AudioObjectSetPropertyData](https://developer.apple.com/documentation/coreaudio/audioobjectsetpropertydata(_:_:_:_:_:_:)?language=objc) — Official CoreAudio API docs
 - [Apple Support: Change sound input settings on Mac](https://support.apple.com/guide/mac-help/change-the-sound-input-settings-mchlp2567/mac) — Confirms System Settings slider controls input volume (same CoreAudio property)
+- [Peter Steinberger: Showing Settings from macOS Menu Bar Items (2025)](https://steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items) — SettingsLink broken in MenuBarExtra; activation policy workaround pattern documented
+- [SettingsAccess package (orchetect)](https://github.com/orchetect/SettingsAccess) — Clean solution for opening Settings from menu bar apps; works macOS 11–15+, no private APIs
+- [SerialCoder.dev: Presenting Preferences Window with SwiftUI](https://serialcoder.dev/text-tutorials/macos-tutorials/presenting-the-preferences-window-on-macos-using-swiftui/) — Tab-based Settings structure, fixed window dimensions, modular files
+- [Apple Developer: SwiftUI Settings scene](https://developer.apple.com/documentation/swiftui/settings) — Official API reference for Settings scene
+- [Apple Developer: Form](https://developer.apple.com/documentation/swiftui/form) — Form component documentation
+- [Apple Developer: GroupedFormStyle](https://developer.apple.com/documentation/swiftui/groupedformstyle) — .formStyle(.grouped) for macOS settings-style layout
+- [Apple Developer: GroupBox](https://developer.apple.com/documentation/swiftui/groupbox) — Visual container for grouped settings
+- [Eclectic Light: SwiftUI on macOS Settings, defaults and About (2024)](https://eclecticlight.co/2024/04/30/swiftui-on-macos-settings-defaults-and-about/) — Xcode preview fidelity broken for Settings TabView; @AppStorage for persistence
+- [Hacking with Swift: How to open Settings from menu bar app](https://www.hackingwithswift.com/forums/macos/how-to-open-settings-from-menu-bar-app-and-show-app-icon-in-dock/26267) — NSApp.setActivationPolicy(.regular) + activate pattern; restore .accessory on window close
+- [Hendoi Technologies: macOS Menu Bar App with SwiftUI 2026](https://www.hendoi.in/blog/macos-menu-bar-utility-app-swiftui-startups-2026) — Current best practices for menubar app + settings window
+- [sindresorhus/Settings GitHub](https://github.com/sindresorhus/Settings) — Toolbar-item and segmented-control tab styles for macOS settings windows; auto window sizing; `Settings.Container` and `Settings.Section` layout helpers
 
 ---
 *Feature research for: local voice-to-text macOS menubar app*
 *Originally researched: 2026-03-15*
 *Updated: 2026-03-16 — added v1.1 Pause Playback milestone feature detail*
 *Updated: 2026-03-17 — added v1.2 Dictation Quality milestone feature detail (prevent "gracias" + auto-max mic volume)*
+*Updated: 2026-03-24 — added v1.3 Settings UX milestone feature detail (SwiftUI migration, persistent window, grouped sections)*

@@ -40,9 +40,21 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 - ✓ Explicit pause/play via MediaRemote (reemplaza toggle HID) — v1.2
 - ✓ Regression QA: 24 tests Haiku + 15 tests volume control — v1.2
 
+- ✓ Ventana de Settings no se cierra al hacer click fuera (permanece abierta hasta cierre explícito) — v1.3 Phase 9
+- ✓ Keyboard input funciona en ventana de Settings (hotkey recorder, toggles) — v1.3 Phase 9
+
+- ✓ Migración completa de Settings de AppKit a SwiftUI (Form con 4 secciones agrupadas) — v1.3 Phase 10
+- ✓ Diseño visual estilo System Preferences de macOS con SF Symbols — v1.3 Phase 10
+
 ### Active
 
-(No active requirements — plan next milestone)
+(No active requirements — v1.3 milestone complete)
+
+## Current State
+
+**Latest shipped:** v1.3 Settings UX (2026-03-24)
+**All milestones:** v1.0 MVP → v1.1 Pause Playback → v1.2 Dictation Quality → v1.3 Settings UX
+**No active milestone** — ready for next iteration
 
 ### Out of Scope
 
@@ -57,7 +69,7 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 
 ## Context
 
-- **Shipped:** v1.2 on 2026-03-17 (~4,700 LOC Swift, 8 phases total, 22 plans)
+- **Shipped:** v1.3 on 2026-03-24 (~5,000 LOC Swift, 10 phases total, 25 plans across 4 milestones)
 - Target hardware: Apple Silicon Macs (M1/M2/M3/M4) with Neural Engine and unified memory
 - Stack: Swift/SwiftUI, WhisperKit (local STT), Anthropic Haiku API (text cleanup), KeyboardShortcuts (hotkey), CoreAudio (mic selection)
 - User primarily dictates in Spanish
@@ -91,6 +103,29 @@ Frictionless voice-to-text that produces clean, well-formatted Spanish text — 
 | NSWorkspace guard for Music.app | Prevents rcd from launching Music.app when no media app is running | ✓ Good — solves cold-launch issue |
 | Haiku Rule 6 + suffix strip | Dual-layer defense: prompt rule + post-processing strip for hallucinated courtesy phrases | ✓ Good — eliminates "gracias" hallucination |
 | CoreAudio HAL for volume control | Direct AudioObjectGet/SetPropertyData with settability guard; instance-scoped saved volume (not UserDefaults) | ✓ Good — works on settable devices, silent no-op on others |
+| NSWindow + NSHostingController | Replace NSPanel with NSWindow to prevent auto-close on deactivation; host SwiftUI via NSHostingController | ✓ Good — resolves WIN-01, enables SwiftUI migration |
+| @Observable ViewModel (no @AppStorage) | @AppStorage incompatible with @Observable; didSet + UserDefaults.standard.set for persistence | ✓ Good — clean bridge between SwiftUI and existing services |
+| SwiftUI Form con .formStyle(.grouped) | Layout identico a System Settings de macOS; Section headers con SF Symbols | ✓ Good — aspecto nativo sin custom styling |
+| Picker .tag() con cast optional explicito | .tag(nil as AudioDeviceID?) obligatorio para que SwiftUI matchee el binding opcional | ✓ Good — pitfall documentado, evita bug silencioso |
+| Task defer para exclusive access | ForEach binding + mutación del mismo array causa exclusive access violation; defer con Task { @MainActor in } | ✓ Good — solución limpia sin DispatchQueue |
 
 ---
-*Last updated: 2026-03-17 after v1.2 milestone complete*
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
+
+---
+*Last updated: 2026-03-24 after v1.3 milestone*

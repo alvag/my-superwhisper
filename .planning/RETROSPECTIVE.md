@@ -91,6 +91,44 @@
 
 ---
 
+## Milestone: v1.3 — Settings UX
+
+**Shipped:** 2026-03-24
+**Phases:** 2 | **Plans:** 3 | **Timeline:** 1 day
+
+### What Was Built
+- NSPanel reemplazado por NSWindow + NSHostingController para ventana persistente con activation policy lifecycle
+- SettingsView expandida a SwiftUI Form con 4 secciones agrupadas (Grabación, API, Vocabulario, Sistema)
+- VocabularyEntry con Identifiable para ForEach binding, controles conectados a SettingsViewModel via @Observable
+
+### What Worked
+- UI-SPEC como design contract antes de planificación — definió decisiones de diseño (SF Symbols, secciones, controles) sin ambigüedad
+- Plan con código inline (paso 1 y paso 2 explícitos) — el executor implementó casi textualmente, mínima desviación
+- Checkpoint de verificación visual capturó 2 bugs que el build no detecta (window sizing, exclusive access)
+
+### What Was Inefficient
+- Executor removió minHeight del plan pero NSHostingController necesitaba height hint — iteración post-merge para corregir
+- sizeThatFits(in: CGFloat.greatestFiniteMagnitude) causó crash — enfoque equivocado antes de la solución simple (minHeight: 400)
+- ForEach exclusive access violation es un pitfall conocido de SwiftUI que el plan debería haber anticipado
+
+### Patterns Established
+- Task { @MainActor in } para diferir mutaciones de array dentro de ForEach binding — evita exclusive access sin DispatchQueue
+- .tag(nil as T?) y .tag(value as T?) para Picker con selection opcional — cast explícito obligatorio
+- NSHostingController + .frame(minWidth:, minHeight:) para dimensionamiento correcto de ventanas SwiftUI en NSWindow
+
+### Key Lessons
+1. Checkpoints de verificación visual son esenciales para UI — el build no detecta problemas de layout ni de interacción runtime
+2. Los planes con código inline reducen desviaciones del executor pero no eliminan pitfalls de runtime (exclusive access, window sizing)
+3. NSHostingController necesita hints de tamaño cuando el contenido SwiftUI no tiene dimensiones intrínsecas claras
+
+### Cost Observations
+- Model mix: orchestrator on opus, executor on sonnet, verifier on sonnet
+- Phase 9: ~15 min (2 plans, 4 tasks)
+- Phase 10: ~10 min execution + 15 min post-merge fixes (window sizing + exclusive access)
+- Notable: fixes post-merge fueron más caros en contexto que la ejecución original
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -99,6 +137,8 @@
 |-----------|----------|--------|------------|
 | v1.0 | 2 days | 4 | Initial project — established all patterns |
 | v1.1 | 1 day | 2 | First feature addition to shipped product |
+| v1.2 | 1 day | 2 | Quality improvements (hallucination, volume) |
+| v1.3 | 1 day | 2 | UI migration — SwiftUI + window lifecycle |
 
 ### Cumulative Quality
 
@@ -106,9 +146,12 @@
 |-----------|-------|-------------|-------------------|
 | v1.0 | 13 | 32/32 | 45/45 must-haves |
 | v1.1 | 4 | 6/6 | 11/11 must-haves + 14/14 QA |
+| v1.2 | 5 | 9/9 | 39 tests (24 Haiku + 15 Volume) |
+| v1.3 | 3 | 11/11 | 5/5 must-haves + human approval |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Hard dependency chains between phases prevent integration surprises
 2. Plan verification loops catch structural issues before expensive execution
 3. Detailed discuss-phase decisions produce the highest quality downstream plans (confirmed v1.1)
+4. Visual checkpoints are essential for UI phases — build success ≠ correct behavior (confirmed v1.3)

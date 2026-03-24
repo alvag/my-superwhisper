@@ -1,157 +1,183 @@
 # Pitfalls Research
 
-**Domain:** Local voice-to-text macOS menubar app — v1.2 Dictation Quality features
-**Researched:** 2026-03-17
-**Confidence:** HIGH (CoreAudio limitations verified via Apple Developer Forums, framework headers, and CoreAudio documentation), HIGH (Haiku/LLM prompt hallucination patterns verified via official Anthropic docs and prompt engineering literature)
+**Domain:** macOS menubar app — v1.3 Settings UX: AppKit NSPanel → SwiftUI migration
+**Researched:** 2026-03-24
+**Confidence:** HIGH (activation policy pitfalls verified via steipete.me primary source + mjtsai.com synthesis + SettingsAccess library documentation), HIGH (NSHostingController sizing verified via Apple Developer Documentation + mjtsai.com), MEDIUM (KeyboardShortcuts interop verified via GitHub issue #127 + library source), MEDIUM (data binding pitfalls verified via sindresorhus/Settings issue #117 + Apple Developer Forums)
 
 ---
 
 ## Critical Pitfalls
 
-### Pitfall 1: CoreAudio Volume Property May Not Be Settable on All Devices
+### Pitfall 1: SettingsLink and openSettings Do Not Work From a .accessory App Without Activation Policy Juggling
 
 **What goes wrong:**
-`AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` and `kAudioObjectPropertyScopeInput` returns `noErr` on some devices but silently does nothing. On others, it returns an error code. The built-in MacBook microphone is a known case where input volume is not software-settable via this API — Apple controls gain at hardware/driver level. Aggregate devices (a common macOS construct) explicitly do not expose volume controls at all.
-
-The failure mode is silent on some hardware: the call returns `noErr`, the get confirms the value changed, but the system ignores it and records at the same level.
+Calling SwiftUI's `openSettings` environment action (or placing `SettingsLink` in a `MenuBarExtra`) in an app using `.accessory` activation policy opens the settings window but it appears behind other windows, is non-interactive, and does not take keyboard focus. On second click ("settings already open"), the window does not come to front. The call succeeds silently with no error. As of macOS 14, Apple also removed the legacy `NSApp.sendAction(#selector(NSApplication.showSettingsWindow:), to: nil, from: nil)` path entirely.
 
 **Why it happens:**
-CoreAudio property settability is per-device and per-property. The API exposes `AudioObjectIsPropertySettable()` specifically for this reason, but many developers skip this check and call the setter directly. The property is settable on external USB microphones, some headsets, and interface-connected mics — but NOT reliably on built-in Apple Silicon mic hardware.
+Menu bar apps run with `NSApplication.ActivationPolicy.accessory`. macOS refuses to bring windows to the foreground for background utilities without an active dock icon. The SwiftUI `openSettings` action requires an initialized SwiftUI render tree — in apps using `@NSApplicationDelegateAdaptor` with no `WindowGroup`, this render tree may not exist at all when the action fires from the menu delegate (AppKit), leaving no valid execution context.
 
 **How to avoid:**
-1. Always call `AudioObjectIsPropertySettable()` before any volume property set. If it returns false, skip the set operation entirely — do not attempt it.
-2. Capture the original volume via `AudioObjectGetPropertyData` before setting. If the get fails, abort the feature for that device.
-3. Treat the entire volume control feature as best-effort: if the property is not settable, record at the current system level and proceed silently (no error shown to user).
-4. On `stop()`, only call the restore if the initial `set()` succeeded.
+Use a two-step activation dance before opening settings:
+1. Switch activation policy to `.regular` to temporarily acquire a dock icon: `NSApp.setActivationPolicy(.regular)`.
+2. Call `NSApp.activate(ignoringOtherApps: true)`.
+3. Open settings via `NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:")!)` — or better, use the `openSettings` environment action injected into a 1×1 off-screen hidden SwiftUI window that is always resident. **Scene declaration order matters**: the hidden window scene MUST be declared before the `Settings` scene in the `App` body, otherwise the environment variable does not propagate.
+4. Observe `NSWindow` notifications for `NSWindow.didBecomeKeyNotification` on the settings window; when settings closes, restore `.accessory` policy and call `NSApp.hide(nil)` to prevent the dock icon from lingering.
+
+Note: The `openSettings` environment action works on macOS 15 (Sequoia) but is broken again on macOS 26 (Tahoe). Plan for this instability and keep the AppKit fallback path.
 
 **Warning signs:**
-- `AudioObjectIsPropertySettable()` returns false for the selected device.
-- The get/set cycle shows the value "changed" but audio levels are identical before and after.
-- OSStatus error `-66749` (`kAudioHardwareUnknownPropertyError`) or `-66716` (`kAudioHardwareBadPropertySizeError`) returned from the setter.
-- Works on external USB mic but silently fails on built-in mic.
+- Settings window opens but immediately falls behind the frontmost app.
+- Second "Open Settings" click does nothing visible.
+- Console shows no error — the failure is completely silent.
+- `SettingsLink` placed inside a `menu`-based `MenuBarExtra` triggers no action at all.
 
 **Phase to address:**
-Implementation phase (Phase 1 of v1.2). Implement settability check before write. Treat non-settable as a no-op, not an error.
+Phase 1 of v1.3 (settings window lifecycle). Must be solved before any SwiftUI settings UI work — the window presentation mechanism is the foundation.
 
 ---
 
-### Pitfall 2: Volume Not Restored on Abnormal Exit Paths
+### Pitfall 2: Activation Policy Transition Leaks Dock Icon or Steals Focus
 
 **What goes wrong:**
-The recording pipeline has multiple exit paths: normal stop, escape cancel, VAD silence gate (no speech detected), transcription error, Haiku API error, and app crash. If `restoreVolume()` is only called on the normal stop path, every other exit path permanently leaves the microphone at 100% volume until the user manually adjusts it or reboots.
-
-The user experiences this as: after dictating and getting an API error or pressing Escape, their mic is now pegged at 100% for all other apps (Zoom, FaceTime, Voice Memos), which is disruptive and invisible.
+After switching to `.regular` to show settings and then back to `.accessory` when settings closes, the dock icon persists, the app remains active and appears in the app switcher, or the app steals focus from whatever the user was typing in when they opened settings. These side effects make the app feel broken and intrusive.
 
 **Why it happens:**
-The save/restore pattern requires a symmetric cleanup. In the existing `AppCoordinator`, there are currently 6 distinct paths that exit recording state: `handleHotkey()` normal stop, `handleEscape()`, VAD gate, STT error, Haiku cleanup error, and auth error. Developers typically handle the happy path first and add cleanup to the obvious exit, missing the error branches.
+The activation policy switch happens synchronously but the dock icon and "active app" state are managed asynchronously by the window server. If the settings window takes more than a few milliseconds to present after the policy switch, the race condition window is large enough for the dock to register the app. Similarly, calling `NSApp.activate(ignoringOtherApps: true)` is a blunt instrument — it forcibly takes focus regardless of what the user was doing.
 
 **How to avoid:**
-The correct pattern mirrors the existing `mediaPlayback?.resume()` placement in `AppCoordinator`:
-
-- `mediaPlayback?.resume()` is already called at the TOP of the `.recording` → processing transition (line 73 in AppCoordinator), before any early returns — this ensures all paths resume media.
-- Apply the same "restore before the fork" discipline to volume: restore immediately when leaving `.recording` state, regardless of why.
-- Concretely: restore volume in `handleEscape()`, and at the start of the `.recording` case in `handleHotkey()` before any conditional returns.
-- Do NOT restore in a `defer` block inside `handleHotkey()` — `defer` lifetime is scoped to the function, and the function returns to await async operations, so it fires at the wrong time.
+1. Set `.prohibited` in `applicationWillFinishLaunching` to prevent any focus steal at startup.
+2. After settings closes (via `windowWillClose` delegate or `NSWindow.willCloseNotification`): call `NSApp.setActivationPolicy(.accessory)` then `NSApp.hide(nil)` in sequence. The explicit `hide(nil)` is required — policy switch alone does not return focus to the previously active app.
+3. Wrap the `.regular` period tightly: switch to `.regular`, open settings, switch back only after `windowWillClose` fires — not on a timer.
+4. Do not call `NSApp.activate` if settings is already the key window (check `NSApp.keyWindow?.identifier` before activating).
 
 **Warning signs:**
-- After pressing Escape, mic is louder in other apps.
-- After a network error on Haiku cleanup, mic stays at 100%.
-- `deinit` of the volume service is never called (app keeps running as a menubar app).
+- Dock icon persists after closing settings.
+- App appears in Command-Tab switcher when it should not.
+- The text editor the user was typing in loses focus permanently after opening settings.
+- `NSApp.activationPolicy()` still returns `.regular` after settings closes.
 
 **Phase to address:**
-Implementation phase (Phase 1 of v1.2). Design restore placement before writing any volume code — map all 6 exit paths and ensure each calls restore.
+Phase 1 of v1.3 (settings window lifecycle). Address as part of the same work as Pitfall 1.
 
 ---
 
-### Pitfall 3: Haiku Prompt Changes May Introduce New Hallucination Modes
+### Pitfall 3: NSHostingController Window Does Not Become Key (Keyboard Input Dead)
 
 **What goes wrong:**
-The current system prompt bans adding words (rule 5: "NO agregues palabras que no estaban"). Despite this, Haiku adds "gracias" as a courteous closing phrase — a behavior rooted in RLHF training that makes the model "helpful" by adding polite endings to speech. Fixing this by adding "no termines con 'gracias'" to the rule list creates a whack-a-mole problem: fixing one hallucinated phrase does not prevent others ("de nada", "hasta luego", "que tengas un buen día").
-
-The prompt fix approach works only if the constraint is general and absolute, not enumerating specific forbidden words.
+A settings window backed by `NSHostingController` presents visually but keyboard input does not work. `TextField` controls show the cursor but typing has no effect. The `KeyboardShortcuts.Recorder` view never enters recording mode when clicked. `Tab` to navigate between fields does nothing.
 
 **Why it happens:**
-Claude Haiku is trained to be helpful and polite. When processing Spanish text, its RLHF training interprets a transcription ending mid-sentence (without closing punctuation or a natural ending) as incomplete, and "helpfully" completes it with a socially appropriate closing. This is an extrinsic hallucination: the model generates content not present in the input based on its training-derived expectation of how Spanish conversations end.
-
-The existing rule 5 says "NO agregues palabras" but this is too abstract — the model's training signal for politeness overrides the abstract rule because the model's internal representation of "a complete, helpful response to spoken Spanish" includes courteous endings.
+Two causes: (a) The window is not the key window — `canBecomeKeyWindow` returns `false` for certain window styles, particularly when `.windowStyle(.plain)` or certain `NSPanel` configurations are used. Console shows: `"-[NSWindow makeKeyWindow] called on SwiftUI.AppKitWindow which returned NO from -[NSWindow canBecomeKeyWindow]"`. (b) The app's activation policy is still `.accessory` when the window is shown, so macOS does not route keyboard events to it.
 
 **How to avoid:**
-Replace the abstract prohibition with a concrete, verifiable constraint that appeals to the model's understanding of the task, not just a rule:
-
-1. Make the constraint structural and testable: "Si el texto de entrada termina con una frase incompleta, devuélvela incompleta. Si termina en medio de una oración, termina en medio de esa misma oración."
-2. Add an explicit anti-example (few-shot negative): show input "...me parece muy bien" → correct output "...me parece muy bien" (not "...me parece muy bien. ¡Gracias!").
-3. Add a meta-instruction about the source of the text: "El texto proviene de reconocimiento de voz automático y puede terminar abruptamente. Esto es normal. No lo corrijas ni lo completes."
-
-The Anthropic prompt engineering docs confirm that providing context/motivation for a constraint ("because the text comes from STT and may end mid-sentence") is more effective than stating the rule without justification.
+1. If using a custom `NSWindow` subclass to host the SwiftUI view, override `canBecomeKey` to return `true`.
+2. If using the SwiftUI `Settings` scene (recommended), avoid `.windowStyle(.plain)` on the settings scene — it breaks `canBecomeKeyWindow`.
+3. Ensure `NSApp.setActivationPolicy(.regular)` and `NSApp.activate(ignoringOtherApps: true)` have completed before calling `makeKeyAndOrderFront(nil)` on the window. Call `makeKeyAndOrderFront` after a `DispatchQueue.main.async` yield to allow the activation policy change to take effect.
 
 **Warning signs:**
-- Output contains any word not found verbatim in the input.
-- Output ends with punctuation or words that were not in the raw Whisper output.
-- The hallucination changes after a prompt update (different word added).
-- The issue reproduces consistently with specific input patterns (transcriptions that end without punctuation).
+- Clicking into a `TextField` in settings shows cursor but typing does nothing.
+- `KeyboardShortcuts.Recorder` never activates on click.
+- Console prints `canBecomeKeyWindow` returning NO.
+- The window title bar is grayed out (inactive color) even when it appears to be the frontmost window.
 
 **Phase to address:**
-Prompt engineering phase (Phase 1 of v1.2). Test the updated prompt against at least 10 real transcription samples before shipping. Add a regression check: output word count should never exceed input word count by more than 3 (punctuation tokens).
+Phase 1 of v1.3 (settings window lifecycle) — must be caught during initial window presentation work, before building settings UI content.
 
 ---
 
-### Pitfall 4: Volume Control Coupled to the Wrong Device ID
+### Pitfall 4: KeyboardShortcuts.Recorder First Responder Warning in SwiftUI Context
 
 **What goes wrong:**
-`MicrophoneDeviceService.selectedDeviceID` stores the user's preferred device. But at recording time, `AVAudioEngine` may be using the system default if the stored ID is stale or invalid (the existing `AudioRecorder` already handles this by clearing stale IDs). If the volume setter uses `selectedDeviceID` but the engine is actually recording from the system default, the volume is set on the wrong device.
-
-The user gets 100% volume set on their (disconnected) Blue Yeti while the built-in mic records at whatever level it was already at.
+When `KeyboardShortcuts.Recorder` (the SwiftUI wrapper around `RecorderCocoa`) is placed inside an `NSHostingController`-backed settings window, Xcode console emits: `"Setting <RecorderCocoa> as the first responder for window, but it is in a different window ((null))! This would eventually crash when the view is freed."` In older versions this was a crash; in newer versions of the library it is a warning that can still cause the recorder to be non-functional (clicking it does nothing).
 
 **Why it happens:**
-The device used for recording (`AVAudioEngine`'s current input device) and the device the user configured in Settings can diverge. The existing code already handles this divergence for engine setup (clearing stale device IDs) but a new volume service that reads `selectedDeviceID` independently will not see this cleared value until after `AudioRecorder.start()` has already resolved the effective device.
+The `RecorderCocoa` NSView attempts to become first responder in a window context that doesn't fully exist at the time of initialization — this occurs when SwiftUI's view lifecycle creates the AppKit backing view before the `NSHostingController`'s window has been fully configured and made key. This is a known AppKit/SwiftUI boundary issue at view initialization time.
 
 **How to avoid:**
-Query the effective device ID from the running `AVAudioEngine` after `start()`, not from `selectedDeviceID`. The effective device is retrievable via:
-```swift
-var deviceID: AudioDeviceID = 0
-var propertySize = UInt32(MemoryLayout<AudioDeviceID>.size)
-AudioUnitGetProperty(
-    engine.inputNode.audioUnit!,
-    kAudioOutputUnitProperty_CurrentDevice,
-    kAudioUnitScope_Global,
-    0,
-    &deviceID,
-    &propertySize
-)
-```
-Use this `deviceID` — not `selectedDeviceID` — as the target for volume get/set.
+1. Use the latest version of `KeyboardShortcuts` — this was fixed in commit `92af660` ("Fix first responder warning in SwiftUI contexts"). Pin the package to at least that version.
+2. Use `KeyboardShortcuts.Recorder` (SwiftUI native) instead of `KeyboardShortcuts.RecorderCocoa` (AppKit) in the SwiftUI settings view. The SwiftUI variant handles the responder chain correctly within `NSHostingController`.
+3. Do not attempt to call `makeFirstResponder` on a `RecorderCocoa` instance from outside SwiftUI — let SwiftUI manage focus via `.focused()` modifier.
 
 **Warning signs:**
-- Volume set succeeds, but the recording level does not change.
-- The issue appears when user has a USB mic that was disconnected: engine falls back to built-in, volume service targets the non-existent USB device.
-- Debug log shows different device IDs between "volume target" and "engine input device."
+- The "different window" warning in Xcode console on settings open.
+- Clicking the recorder control has no visual response.
+- The recorder activates only after clicking somewhere else first (focus needs to land in the window, then on the recorder).
 
 **Phase to address:**
-Implementation phase (Phase 1 of v1.2). The volume service must derive device ID from the running engine, not from UserDefaults.
+Phase 2 of v1.3 (settings UI content) — specifically the hotkey configuration row.
 
 ---
 
-### Pitfall 5: Prompt Constraint Causes Over-Truncation of Valid Endings
+### Pitfall 5: NSHostingController Sizing Constraints Conflict With Window Auto-Resize
 
 **What goes wrong:**
-Overcorrecting the "gracias" problem by instructing Haiku to strip closing courtesies results in removing valid dictated content. If the user actually says "muchas gracias" to the person they are talking to as part of their dictation, Haiku strips the word and corrupts the text.
-
-The user dictates: "Por favor envíame el documento. Muchas gracias." — Haiku outputs: "Por favor envíame el documento." — The user's actual words are deleted.
+The settings window either (a) has the wrong initial size and cannot be resized by the user, (b) has AutoLayout constraint conflicts logged to console during window display, or (c) SwiftUI views with `Spacer()` or `.frame(maxWidth: .infinity)` do not expand to fill the available window width.
 
 **Why it happens:**
-A word-level blacklist ("never output 'gracias'") treats the word as forbidden regardless of whether the user said it. The issue is not the word "gracias" — it is Haiku adding words that were NOT in the transcription. The correct constraint targets the behavior (addition), not the token.
+`NSHostingController` by default applies three constraint sets to its view: minimum size, intrinsic content size, and maximum size (`sizingOptions` defaults to `[.minSize, .intrinsicContentSize, .maxSize]`). The `.intrinsicContentSize` constraint probes the SwiftUI view hierarchy once and pins the window to that measured size. This prevents `Spacer` from expanding and can cause the window to refuse user resizing. Additionally, when the `NSHostingController`'s view is not the direct content view of the window but is embedded in an Auto Layout container, the three constraint sets compete with the container's own constraints.
 
 **How to avoid:**
-Never instruct the model to remove specific words from the output. The constraint must target addition, not content. The correct framing is: "every word in the output must have been present in the input" — not "do not use the word X."
-
-The fix for Pitfall 3 (making addition the forbidden behavior) automatically handles this correctly. A word-level blacklist is the wrong approach.
+1. Use the SwiftUI `Settings` scene directly with a `TabView` or `Form` — SwiftUI manages the hosting internally and avoids manual `NSHostingController` setup entirely.
+2. If using `NSHostingController` directly: set `sizingOptions = [.minSize]` to prevent intrinsic size pinning. The window can then grow freely via Auto Layout.
+3. Set the `NSHostingController`'s view as the direct `contentView` of the `NSWindow` — do not embed it inside another view with its own size constraints.
+4. Use `.fixedSize()` sparingly in the SwiftUI view — it forces the intrinsic content size to propagate upward and will fight the window's resizability.
 
 **Warning signs:**
-- User reports that real "gracias" in their transcriptions is being deleted.
-- Output is shorter than input in cases where Whisper correctly transcribed courtesy phrases the user said.
+- Console: "Unable to simultaneously satisfy constraints" on settings window show.
+- Window opens at a tiny size and cannot be dragged to resize.
+- `Spacer()` between two controls has zero width/height.
+- Settings window ignores `.frame(minWidth:)` declared in SwiftUI.
 
 **Phase to address:**
-Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated prompt must include cases where the user actually says "gracias" and "de nada" — verify these are preserved.
+Phase 2 of v1.3 (settings UI content) — verify layout sizing immediately after building the first Form/GroupBox section.
+
+---
+
+### Pitfall 6: @AppStorage Toggle Does Not Update UI (macOS 14 Bug)
+
+**What goes wrong:**
+A `Toggle` bound to `@AppStorage` in a settings `Form` or `GroupBox` visually snaps back to its previous position when tapped, even though the underlying `UserDefaults` value has been updated correctly. The UI and data are out of sync after the first interaction. This is particularly visible in the "Maximizar volumen al grabar" and "Pause Playback" toggles.
+
+**Why it happens:**
+This is a confirmed bug in macOS 14 / Xcode 15 SDK, affecting `@AppStorage` inside `AnyView` erasure contexts (which SwiftUI's `Form` and certain container views use internally). The fix shipped in macOS 15.1. The root cause is SwiftUI's view invalidation not propagating through the `AnyView` boundary when an `@AppStorage` property changes.
+
+**How to avoid:**
+1. Test on macOS 15.1+ first to establish correct behavior as baseline.
+2. For macOS 14 support: wrap `@AppStorage`-backed toggles in an `@Observable` class with manual getter/setter that reads/writes `UserDefaults` directly. This bypasses the broken SwiftUI observation path through `AnyView`.
+3. Alternatively, use `@State` locally and write to `UserDefaults` manually in `.onChange(of:)`. This is verbose but reliable across all macOS versions.
+4. Do not use `@AppStorage` directly as the binding source for `Toggle` if you must support macOS 14 — go through an `@Observable` intermediary.
+
+**Warning signs:**
+- Toggle "bounces back" visually on first tap.
+- Reopening settings shows the toggle in the correct (updated) state — confirming the data was saved but the live view is stale.
+- Bug reproduces consistently on macOS 14.x but not on macOS 15.1+.
+
+**Phase to address:**
+Phase 2 of v1.3 (settings UI content) — discovered immediately when building any toggle. Must be verified on macOS 14 if that is a target.
+
+---
+
+### Pitfall 7: Settings Window Does Not Become Persistent (Closes on Focus Loss)
+
+**What goes wrong:**
+The new SwiftUI settings window closes when the user clicks outside it — the same behavior as the current `NSPanel`. The explicit v1.3 requirement is that settings stays open until explicit close. Using `NSPanel.becomesKeyOnlyIfNeeded` or default `NSWindow` behavior does not achieve this.
+
+**Why it happens:**
+SwiftUI's `Settings` scene creates an `NSWindow` (not `NSPanel`) with `styleMask` including `.closable`, `.titled`, `.resizable`. The window should persist by default IF the app is active. The problem is the app returns to `.accessory` policy after settings opens, making macOS treat the window as belonging to a background process and hiding it when the user activates another app.
+
+**How to avoid:**
+Two strategies depending on the desired UX:
+- **Option A (recommended for this app):** Keep the window's `NSWindowController` strongly retained (not as a local `var`). Store it on `AppDelegate`. When the user activates another app, the window stays open because it is owned by a retained controller, not dismissed by SwiftUI's scene management.
+- **Option B:** Use `NSPanel` with `styleMask: [.nonactivatingPanel, .titled, .closable, .resizable]`. Non-activating panels remain visible when the app is background. However, they do not receive keyboard events without the activation dance from Pitfall 1.
+- In both cases: implement `windowShouldClose(_:)` in `NSWindowDelegate` to intercept the close button and update app state (e.g., restore `.accessory` policy, hide dock icon if it was shown).
+
+**Warning signs:**
+- Settings window disappears when user clicks on a text editor.
+- The window close delegate method is not being called — the window is being freed directly.
+- Settings is opening as a floating panel but not as a persistent window.
+
+**Phase to address:**
+Phase 1 of v1.3 (settings window lifecycle) — this is a core v1.3 requirement and must be designed into the window management architecture from the start.
 
 ---
 
@@ -159,11 +185,12 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Skip `AudioObjectIsPropertySettable()` check | Shorter code | Silent failure on built-in mics; hard to debug | Never — always check settability before setting |
-| Restore volume only on happy path | Simpler code | Mic stays at 100% after every error, cancel, or Escape | Never — restore must cover all exit paths |
-| Word-level blacklist in prompt ("never output 'gracias'") | Immediately stops the "gracias" hallucination | Deletes real user-dictated courtesy phrases | Never — fix the addition behavior, not the specific token |
-| Set volume on `selectedDeviceID` without verifying it matches running engine | Consistent with how mic selection works elsewhere | Wrong device targeted when stored device is stale | Never — derive device from running engine |
-| Treat volume feature failure as a hard error | Simpler control flow | Feature is non-functional on built-in mic; unnecessarily blocks recording | Never — volume boost is best-effort; degrade silently |
+| Use `SettingsLink` directly in `MenuBarExtra` without activation dance | Simplest code | Silently does nothing in menu-based `MenuBarExtra`; window behind other apps in window-based variant | Never — always add activation policy handling |
+| Wrap `RecorderCocoa` instead of using `KeyboardShortcuts.Recorder` | Reuse existing AppKit view | First-responder warning; may not receive keyboard in SwiftUI window context | Never in new SwiftUI settings — use SwiftUI `Recorder` |
+| Use `@AppStorage` directly on `Toggle` without `@Observable` intermediary | Shortest code | Toggle UI desync on macOS 14; hard to debug | Only if macOS 15.1+ is minimum deployment target |
+| Keep `NSHostingController` default `sizingOptions` (all three) | No extra code | Window locked to intrinsic size; `Spacer()` does not work; constraint conflicts | Never for settings windows that need flexible layout |
+| Set `activationPolicy(.accessory)` immediately after opening settings (no delegate) | Simpler flow | Dock icon persists; app stays in app switcher; keyboard events broken | Never — always use `windowWillClose` notification to time the policy restore |
+| Skip `NSApp.hide(nil)` after restoring `.accessory` | Slightly less code | App stays "active" after settings closes; steals focus from foreground app | Never — `hide(nil)` is required to complete the transition |
 
 ---
 
@@ -171,12 +198,12 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| CoreAudio volume scope | Use `kAudioObjectPropertyScopeGlobal` for input volume | Input volume requires `kAudioObjectPropertyScopeInput`; using Global scope silently reads/writes the wrong property channel |
-| CoreAudio channel for master volume | Use channel `0` (main) directly | Channel `0` is `kAudioObjectPropertyElementMain` (master); some devices expose per-channel volume only — read both and use whichever is settable |
-| `AudioObjectIsPropertySettable` | Call it once at app start and cache the result | Device can be changed by user at any time; re-check settability each time recording starts against the current effective device |
-| Haiku system prompt | Add "no agregues 'gracias'" as a specific rule | Enumerate the forbidden behavior (adding words absent from input), not the forbidden token — use context about STT source to motivate the constraint |
-| Volume restore on AppCoordinator | Place restore in `defer` block inside `handleHotkey()` | Swift `defer` fires at scope exit; `handleHotkey()` is `async` and returns to the run loop mid-execution — use explicit restore at each exit path instead |
-| AVAudioEngine device ID query | Read device ID before `engine.start()` | The effective input device is only set after `start()`; query it immediately after the `try engine.start()` call succeeds |
+| `openSettings` environment action | Call it from AppKit `NSMenuItem` action handler directly | Action requires a live SwiftUI render context; inject a hidden 1×1 `NSHostingController` window with the environment action captured, dispatch through NotificationCenter from AppKit |
+| `KeyboardShortcuts.Recorder` in SwiftUI settings | Use `RecorderCocoa` wrapped in `NSViewRepresentable` | Use `KeyboardShortcuts.Recorder` (SwiftUI) directly — it handles the responder chain correctly within `NSHostingController` |
+| Activation policy after settings close | Restore `.regular` → `.accessory` on a timer | Restore on `windowWillClose` delegate callback — timer causes race conditions (window may not be closed yet) |
+| SwiftUI `Picker` for mic selection | Bind to `selectedDeviceID` (an `AudioDeviceID` which is `UInt32`) | `Picker` requires `Hashable` selection value — `UInt32` is hashable but mic device objects need a stable ID; bind to the full device ID and resolve at recording time |
+| `NSHostingController` as window content | Add `NSHostingController.view` to an `NSView` container | Set `NSHostingController.view` as the direct `contentViewController`'s view, or use `NSWindow(contentViewController:)` constructor — do not embed in intermediate containers |
+| Scene declaration order | `Settings {}` before hidden helper window in `App.body` | Hidden window scene MUST come before `Settings {}` for the `openSettings` environment action to have a valid context |
 
 ---
 
@@ -184,9 +211,9 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Calling `AudioObjectGetPropertyData` on every audio buffer callback | CPU spike every 20ms during recording | Volume read/write happens only at recording start and stop — never during the tap callback | Always — this is unnecessary; the tap callback runs at audio thread priority |
-| Testing volume change by playing back audio | Inaccurate — playback volume is separate from input gain on most devices | Use a VU meter or recording level indicator; don't infer input volume from playback | Every test run — misleads the developer |
-| Re-sending the full system prompt on every Haiku call when iterating on prompt | No performance issue per se, but slow iteration cycle | Use a dedicated test harness (script with 10 sample inputs) to validate prompt changes before updating app code | Every prompt iteration cycle |
+| Re-creating `NSHostingController` every time settings opens | Memory growth; short lag on every open; SwiftUI state resets | Retain `NSHostingController` on `AppDelegate` and reuse — call `makeKeyAndOrderFront` on the existing window | Every settings open cycle |
+| Storing `[AVCaptureDevice]` in SwiftUI `@State` for mic picker | Array is re-fetched on every view redraw; `AVCaptureDevice` query is not cheap | Fetch device list once on settings open and store in a stable `@Observable` model — not in `@State` | On any state change that triggers re-render of the mic picker row |
+| Building vocabulary list as `ForEach` over `UserDefaults` array directly | `UserDefaults.array(forKey:)` called on every render pass | Model the vocabulary list in an `@Observable` class; update the array in the class, not in `UserDefaults` on every keystroke | Any settings interaction that triggers re-render |
 
 ---
 
@@ -194,28 +221,29 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Show an error when mic volume is not settable | User is alarmed by an error they cannot fix and did not cause | Silent no-op — the recording still works at current mic level; the feature just doesn't boost it |
-| Set volume to exactly 1.0 (100%) | May overdrive some microphone inputs causing clipping | Target 0.85–0.90 as the "maximize" level; this avoids clipping headroom issues on sensitive mics |
-| Restore volume to 1.0 instead of the original captured value | Permanently changes the user's mic level if they had it set lower | Always restore to the exact value captured before the set — never restore to a hardcoded value |
-| No feedback that volume was boosted | User doesn't know the feature is active | Silent operation is correct — this is invisible infrastructure, not a visible mode the user switches |
-| "Gracias" fix changes other transcription behavior | Prompt tightening that stops hallucinations may also affect punctuation or filler removal | Test the full prompt against 10+ real samples after any system prompt change — regression on all existing behaviors, not just the target fix |
+| Settings window position not persisted | Window always opens at the same (often center-screen) position; user cannot place it where convenient | Use `NSWindow.setFrameAutosaveName("settings")` — AppKit then saves and restores position automatically |
+| Settings window opens behind the menubar on small screens | User cannot see the settings window; appears as if nothing happened | Set `window.center()` as fallback position on first show only; prefer user's saved position on subsequent shows |
+| Activation policy switch makes dock icon flash briefly | Jarring visual artifact on every settings open | Switch to `.regular` and immediately back is noticeable; consider accepting the dock icon while settings is open as the intentional state |
+| macOS 14 Toggle bounce causes user to double-tap | Users think the toggle didn't register and tap again, toggling back | Use `@Observable` intermediary (see Pitfall 6) to prevent the bounce |
+| RecorderCocoa does not show "type shortcut" affordance on first click | User clicks the recorder, nothing happens visually, clicks again | The first-responder issue from Pitfall 4 is the cause — fixing that makes the recorder immediately responsive |
 
 ---
 
 ## "Looks Done But Isn't" Checklist
 
-- [ ] **Volume settability:** `AudioObjectIsPropertySettable()` called before every set — verify on built-in mic (expected: not settable) and external USB mic (expected: settable)
-- [ ] **Volume restore on Escape:** User presses Escape during recording — mic level is restored to pre-recording value
-- [ ] **Volume restore on VAD silence:** Recording stops because no speech was detected — mic level is restored
-- [ ] **Volume restore on Haiku error:** Network error or auth failure during cleanup — mic level is restored
-- [ ] **Volume restore on transcription error:** WhisperKit throws during transcription — mic level is restored
-- [ ] **Stale device ID:** USB mic was selected, then unplugged — recording works (falls back to built-in), volume is set on the correct effective device (not the disconnected USB)
-- [ ] **Hallucination fix — gracias present:** User dictates "muchas gracias" — output preserves "gracias" verbatim
-- [ ] **Hallucination fix — gracias absent:** Haiku output does not end with "gracias" when Whisper output did not contain it
-- [ ] **Hallucination fix — other courtesy phrases:** Output does not add "de nada", "hasta luego", or similar phrases not in Whisper output
-- [ ] **Hallucination fix — mid-sentence ending:** Transcription that ends mid-sentence is returned mid-sentence, not "helpfully" completed
-- [ ] **Existing behavior preserved:** Punctuation, filler removal, and paragraph breaks still work after prompt change (run full regression against v1.1 test cases)
-- [ ] **Volume level after restore:** Volume in System Preferences > Sound > Input matches the value it had before the first recording of the session
+- [ ] **Settings window persistence:** Click outside settings window — window stays open (does not close on deactivation)
+- [ ] **Settings window focus:** Click a `TextField` inside settings — typing produces characters (keyboard is routed to the window)
+- [ ] **Settings second open:** Close settings, reopen via menu — window appears in front, not behind other apps
+- [ ] **Settings already open:** Open settings, click somewhere else, click "Open Settings" again — window comes to front without creating a duplicate
+- [ ] **Hotkey recorder:** Click `KeyboardShortcuts.Recorder` in settings — immediately enters "waiting for shortcut" state with no warning in console
+- [ ] **Toggle persistence (macOS 14):** Tap "Maximizar volumen" toggle — visually stays in new state (does not bounce back)
+- [ ] **Toggle persistence (macOS 14):** Tap "Pause Playback" toggle — same as above
+- [ ] **Mic picker:** Select a different mic from Picker — `UserDefaults` saves the new selection; re-open settings shows selected value
+- [ ] **Dock icon restore:** Close settings — dock icon disappears, app is no longer in app switcher
+- [ ] **Focus steal on open:** Open settings — the app the user was typing in does not lose focus permanently
+- [ ] **Window position:** Move settings window, close, reopen — window appears at the last user-set position
+- [ ] **Constraint conflicts:** Open settings — no "Unable to simultaneously satisfy constraints" in console
+- [ ] **Activation policy after close:** Close settings — `NSApp.activationPolicy()` returns `.accessory`
 
 ---
 
@@ -223,11 +251,12 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Volume not restored on error paths | LOW | Add restore call to each missing exit path in AppCoordinator; patch release |
-| Wrong device targeted for volume | LOW | Change volume service to read device ID from running engine; 1-line fix |
-| Prompt fix causes over-truncation | LOW | Revert to previous prompt as immediate rollback; redesign constraint to target addition behavior not specific tokens |
-| Prompt fix stops working on new Haiku model version | MEDIUM | Add a prompt version/model version check; monitor Anthropic changelog for model updates; test prompt on each model update |
-| Volume set causes mic clipping | LOW | Reduce target to 0.85 instead of 1.0; patch release |
+| Settings window not receiving keyboard input | MEDIUM | Add `canBecomeKey` override to window subclass; add `NSApp.activate` before `makeKeyAndOrderFront` |
+| Dock icon persists after settings close | LOW | Add `NSApp.hide(nil)` in `windowWillClose` delegate handler |
+| Toggle UI desync (macOS 14) | LOW | Wrap `@AppStorage` in `@Observable` class with manual `UserDefaults` read/write |
+| `openSettings` does nothing (no SwiftUI context) | HIGH | Add hidden 1×1 resident `NSHostingController` window; rearchitect menu action to dispatch via `NotificationCenter` |
+| Window closes on background click | MEDIUM | Switch from `NSWindow` to `NSPanel` with `.nonactivatingPanel` mask, or retain window controller strongly on `AppDelegate` |
+| Scene declaration order breaks `openSettings` | LOW | Move hidden helper window scene above `Settings {}` in `App.body` |
 
 ---
 
@@ -235,45 +264,50 @@ Prompt engineering phase (Phase 1 of v1.2). The test suite for the updated promp
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| Volume not settable on built-in mic | v1.2 Phase 1: Implementation | Test `AudioObjectIsPropertySettable()` on built-in mic before writing any set logic |
-| Volume not restored on error paths | v1.2 Phase 1: Implementation | Map all 6 exit paths from recording; each must call restore if volume was set |
-| Haiku adds "gracias" and similar phrases | v1.2 Phase 1: Prompt engineering | Run 10 sample transcriptions; zero outputs should contain words absent from the Whisper input |
-| Prompt fix over-truncates valid "gracias" | v1.2 Phase 1: Prompt engineering | Include test case where user said "gracias" — output must preserve it |
-| Volume set on wrong device (stale ID) | v1.2 Phase 1: Implementation | Test with USB mic selected, then unplugged — verify volume targets correct fallback device |
-| Prompt change breaks existing punctuation/filler behavior | v1.2 Phase 2: Verification | Run full regression of v1.1 Haiku behavior after any system prompt change |
-| Other RLHF courtesy phrases added (not "gracias") | v1.2 Phase 2: Verification | Expand test suite to include transcriptions ending mid-sentence and without closing punctuation |
+| `openSettings` silent failure / activation dance | v1.3 Phase 1: Window Lifecycle | Settings window opens in front, receives keyboard, on first and second menu click |
+| Activation policy leaks dock icon / steals focus | v1.3 Phase 1: Window Lifecycle | After closing settings: dock icon gone, previous app retains focus |
+| Window not becoming key (keyboard dead) | v1.3 Phase 1: Window Lifecycle | Type in `TextField` immediately after settings opens |
+| Settings closes on focus loss | v1.3 Phase 1: Window Lifecycle | Click outside settings — window stays open |
+| `KeyboardShortcuts.Recorder` first-responder warning | v1.3 Phase 2: Settings UI Content | Click recorder on first open — no console warning, immediate response |
+| `NSHostingController` sizing constraints | v1.3 Phase 2: Settings UI Content | No constraint conflicts in console; `Spacer()` expands; window is resizable |
+| `@AppStorage` Toggle UI desync (macOS 14) | v1.3 Phase 2: Settings UI Content | Toggle tested on macOS 14.x device — no visual bounce |
+| Window position not persisted | v1.3 Phase 2: Settings UI Content | Move window, reopen — appears at last position |
 
 ---
 
 ## Sources
 
-- [Core Audio Essentials — Apple Developer Documentation (archive)](https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/CoreAudioOverview/CoreAudioEssentials/CoreAudioEssentials.html)
-- [Audio APIs, Part 1: Core Audio / macOS — bastibe.de (2017, silent failure section still accurate)](https://bastibe.de/2017-06-17-audio-apis-coreaudio.html)
-- [AudioObjectSetPropertyData with Bluetooth device — Apple Developer Forums thread/693516](https://developer.apple.com/forums/thread/693516)
-- [Core Audio App with mic input — Apple Developer Forums thread/133283](https://developer.apple.com/forums/thread/133283)
-- [SimplyCoreAudio — Swift CoreAudio wrapper (rnine/SimplyCoreAudio)](https://github.com/rnine/SimplyCoreAudio)
-- [setInputGain — Apple Developer Documentation (AVAudioSession, iOS only — no macOS equivalent)](https://developer.apple.com/documentation/avfaudio/avaudiosession/1616546-setinputgain)
-- [Reduce hallucinations — Anthropic Claude API Docs](https://platform.claude.com/docs/en/test-and-evaluate/strengthen-guardrails/reduce-hallucinations)
-- [Prompting best practices — Anthropic Claude API Docs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices)
-- [Avoiding Hallucinations — Anthropic Courses (prompt engineering tutorial)](https://github.com/anthropics/courses/blob/master/prompt_engineering_interactive_tutorial/Anthropic%201P/08_Avoiding_Hallucinations.ipynb)
-- [Extrinsic Hallucinations in LLMs — Lil'Log (Lilian Weng, 2024)](https://lilianweng.github.io/posts/2024-07-07-hallucination/)
-- [Technical Note TN2091: Device input using the HAL Output Audio Unit — Apple Developer](https://developer.apple.com/library/archive/technotes/tn2091/_index.html)
+- [Showing Settings from macOS Menu Bar Items: A 5-Hour Journey — Peter Steinberger (2025)](https://steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items)
+- [Michael Tsai — Showing Settings From macOS Menu Bar Items (2025 synthesis)](https://mjtsai.com/blog/2025/06/18/showing-settings-from-macos-menu-bar-items/)
+- [Fine-Tuning macOS App Activation Behavior — Art Lasovsky](https://artlasovsky.com/fine-tuning-macos-app-activation-behavior)
+- [orchetect/SettingsAccess — Better SwiftUI Settings Scene Access on macOS](https://github.com/orchetect/SettingsAccess)
+- [KeyboardShortcuts Issue #127 — Warning message in Xcode output pane (first-responder fix)](https://github.com/sindresorhus/KeyboardShortcuts/issues/127)
+- [sindresorhus/Settings Issue #117 — AppStorage + Toggle UI render bug](https://github.com/sindresorhus/Settings/issues/117)
+- [How NSHostingView Determines Its Sizing — Michael Tsai (2023)](https://mjtsai.com/blog/2023/08/03/how-nshostingview-determines-its-sizing/)
+- [NSHostingController sizingOptions — Apple Developer Documentation](https://developer.apple.com/documentation/swiftui/nshostingcontroller/sizingoptions)
+- [Use SwiftUI with AppKit — WWDC22 Session 10075](https://developer.apple.com/videos/play/wwdc2022/10075/)
+- [SwiftUI for Mac 2024 — TrozWare (windowStyle .plain canBecomeKey bug)](https://troz.net/post/2024/swiftui-mac-2024/)
+- [How to Manage Settings in macOS Menu Bar Apps with SwiftUI — DEV Community](https://dev.to/generatecodedev/how-to-manage-settings-in-macos-menu-bar-apps-with-swiftui-45f4)
 
 ---
 
-## Appendix: Pre-existing Pitfalls (Still Applicable)
+## Appendix: Pre-existing Pitfalls (v1.0–v1.2, Still Applicable)
 
-The following pitfalls from prior milestones remain valid. They are documented in the 2026-03-16 version of this file (v1.1 Pause Playback) and not duplicated here:
+The following pitfalls from prior milestones remain valid and are not duplicated here. See archived PITFALLS.md versions for full detail.
 
-- MediaRemote private API broken on macOS 15.4+ (v1.1 addressed)
-- Resuming user-paused media (v1.1 addressed with toggle semantics)
-- AVAudioEngine sample rate mismatch (v1.0 addressed)
-- Whisper hallucination on silence / VAD gate (v1.0 addressed)
-- CGEventPost blocked in sandboxed apps (v1.0 addressed — non-sandboxed distribution)
-- Accessibility permission lost on Xcode rebuild (v1.0 addressed)
-- LLM rewrites text meaning (v1.0 addressed — existing rule 5 in system prompt)
-- Stale microphone device ID from UserDefaults (v1.0 addressed in AudioRecorder.start())
+- CoreAudio volume property not settable on all devices — v1.2 addressed
+- Volume not restored on all exit paths — v1.2 addressed
+- Haiku adds hallucinated courtesy phrases — v1.2 addressed
+- Volume set on wrong device (stale ID) — v1.2 addressed
+- MediaRemote private API activation (pause/resume) — v1.1 addressed
+- Resuming user-paused media — v1.1 addressed
+- AVAudioEngine sample rate mismatch — v1.0 addressed
+- Whisper hallucination on silence / VAD gate — v1.0 addressed
+- CGEventPost blocked in sandboxed apps (non-sandboxed distribution required) — v1.0 addressed
+- Accessibility permission lost on Xcode rebuild — v1.0 addressed
+- LLM rewrites text meaning — v1.0 addressed
+- Stale microphone device ID from UserDefaults — v1.0 addressed
 
 ---
-*Pitfalls research for: v1.2 Dictation Quality — CoreAudio mic volume control + Haiku hallucination fix*
-*Researched: 2026-03-17*
+*Pitfalls research for: v1.3 Settings UX — AppKit NSPanel → SwiftUI migration, persistent settings window*
+*Researched: 2026-03-24*

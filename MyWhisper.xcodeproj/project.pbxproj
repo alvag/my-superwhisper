@@ -52,6 +52,8 @@
 		AA000042001 /* HaikuCleanupServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000042000 /* HaikuCleanupServiceTests.swift */; };
 		AA000043001 /* APIKeyWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000043002 /* APIKeyWindowController.swift */; };
 		AA000051001 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000051002 /* SettingsWindowController.swift */; };
+		AA000069001 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000069000 /* SettingsViewModel.swift */; };
+		AA000200001 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000200000 /* SettingsView.swift */; };
 		AA000052001 /* HistoryWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000052002 /* HistoryWindowController.swift */; };
 		AA000053001 /* AboutWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000053002 /* AboutWindowController.swift */; };
 		AA000054001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000054002 /* Assets.xcassets */; };
@@ -114,6 +116,8 @@
 		AA000042000 /* HaikuCleanupServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HaikuCleanupServiceTests.swift; sourceTree = "<group>"; };
 		AA000043002 /* APIKeyWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIKeyWindowController.swift; sourceTree = "<group>"; };
 		AA000051002 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		AA000069000 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		AA000200000 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AA000052002 /* HistoryWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryWindowController.swift; sourceTree = "<group>"; };
 		AA000044000 /* VocabularyEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyEntry.swift; sourceTree = "<group>"; };
 		AA000045000 /* VocabularyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VocabularyService.swift; sourceTree = "<group>"; };
@@ -293,6 +297,8 @@
 			isa = PBXGroup;
 			children = (
 				AA000051002 /* SettingsWindowController.swift */,
+				AA000069000 /* SettingsViewModel.swift */,
+				AA000200000 /* SettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -456,6 +462,8 @@
 				AA000047001 /* MicrophoneDeviceService.swift in Sources */,
 				AA000065001 /* MicInputVolumeService.swift in Sources */,
 				AA000051001 /* SettingsWindowController.swift in Sources */,
+				AA000069001 /* SettingsViewModel.swift in Sources */,
+				AA000200001 /* SettingsView.swift in Sources */,
 				AA000052001 /* HistoryWindowController.swift in Sources */,
 				AA000053001 /* AboutWindowController.swift in Sources */,
 			);

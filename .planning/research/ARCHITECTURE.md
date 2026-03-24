@@ -1,420 +1,499 @@
 # Architecture Research
 
-**Domain:** v1.2 feature integration — Haiku prompt fix + mic input volume control
-**Researched:** 2026-03-17
-**Confidence:** HIGH (existing codebase read directly; CoreAudio volume API pattern confirmed via official Apple docs and existing MicrophoneDeviceService pattern in codebase)
+**Domain:** SwiftUI Settings Migration — AppKit NSPanel to SwiftUI in existing macOS menubar app
+**Researched:** 2026-03-24
+**Confidence:** HIGH (existing codebase read directly; SwiftUI/AppKit interop patterns verified via official Apple docs and confirmed community sources)
 
 ---
 
-## System Overview — v1.2 with New Features
+## System Overview — v1.3 Settings Migration
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                       AppDelegate (wiring)                        │
-├──────────────────────────────────────────────────────────────────┤
-│  ┌───────────────┐  ┌────────────────┐  ┌────────────────────┐   │
-│  │ HotkeyMonitor │  │  EscapeMonitor │  │  MenubarController │   │
-│  └──────┬────────┘  └───────┬────────┘  └─────────┬──────────┘   │
-│         │                  │                      │               │
-├─────────▼──────────────────▼──────────────────────▼──────────────┤
-│                      AppCoordinator (FSM)                         │
-│              idle ↔ recording ↔ processing ↔ error                │
-│                                                                   │
-│   ON ENTER recording: mediaPlayback?.pause()                      │
-│                       micVolumeService?.maximizeAndSave()  [NEW]  │
-│   ON EXIT  recording: mediaPlayback?.resume()                     │
-│                       micVolumeService?.restore()          [NEW]  │
-│   ON ESCAPE cancel:   mediaPlayback?.resume()                     │
-│                       micVolumeService?.restore()          [NEW]  │
-├──────────────────────────────────────────────────────────────────┤
-│  ┌────────────────┐ ┌────────────┐ ┌─────────────────────────┐   │
-│  │  AudioRecorder │ │ STTEngine  │ │  HaikuCleanupService     │   │
-│  │                │ │            │ │  [MODIFIED — prompt fix] │   │
-│  └────────────────┘ └────────────┘ └─────────────────────────┘   │
-│  ┌────────────────┐ ┌────────────┐ ┌────────────────────────┐    │
-│  │  TextInjector  │ │VocabService│ │    HistoryService       │    │
-│  └────────────────┘ └────────────┘ └────────────────────────┘    │
-│  ┌────────────────────────────────┐                              │
-│  │  MediaPlaybackService (v1.1)   │                              │
-│  └────────────────────────────────┘                              │
-│  ┌────────────────────────────────┐                              │
-│  │  MicInputVolumeService  [NEW]  │                              │
-│  │  CoreAudio: get/set volume on  │                              │
-│  │  kAudioDevicePropertyScopeInput│                              │
-│  └────────────────────────────────┘                              │
-└──────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                         AppDelegate (wiring)                          │
+│  UserDefaults.register(defaults:) on launch                           │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌────────────────┐  ┌─────────────────┐  ┌──────────────────────┐   │
+│  │ HotkeyMonitor  │  │  EscapeMonitor  │  │  MenubarController   │   │
+│  └────────┬───────┘  └────────┬────────┘  └──────────┬───────────┘   │
+│           │                  │                       │                │
+├───────────▼──────────────────▼───────────────────────▼────────────────┤
+│                       AppCoordinator (FSM)                             │
+│              idle ↔ recording ↔ processing ↔ error                    │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────────────────────┐  │
+│  │                    StatusMenuController                          │  │
+│  │  openSettings() → SettingsWindowController.show()   [MODIFIED]  │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────┐     │
+│  │  SettingsWindowController  [REPLACED]                         │     │
+│  │                                                               │     │
+│  │  NSWindow (titled, closable, NOT nonactivating)               │     │
+│  │    └── contentViewController = NSHostingController(           │     │
+│  │              rootView: SettingsView(                          │     │
+│  │                  viewModel: SettingsViewModel))                │     │
+│  │                                                               │     │
+│  │  Lifecycle: panel = nil until first show();                   │     │
+│  │  makeKeyAndOrderFront on re-open;                             │     │
+│  │  windowWillClose → NSApp.setActivationPolicy(.accessory)      │     │
+│  └──────────────────────────────────────────────────────────────┘     │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────┐     │
+│  │  SettingsViewModel  [@Observable, @MainActor]  [NEW]          │     │
+│  │                                                               │     │
+│  │  Owns: pausePlayback, maximizeMicVolume (UserDefaults via      │     │
+│  │         didSet),  launchAtLogin (SMAppService live query),     │     │
+│  │         selectedMicID (MicrophoneDeviceService delegate),      │     │
+│  │         vocabularyEntries ([VocabularyEntry] — VocabService)   │     │
+│  └──────────────────────────────────────────────────────────────┘     │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────┐     │
+│  │  SettingsView (SwiftUI)  [NEW]                                │     │
+│  │                                                               │     │
+│  │  Form {                                                       │     │
+│  │    Section("Grabacion") { KeyboardShortcuts.Recorder; Picker} │     │
+│  │    Section("API") { Button → APIKeyWindowController.show() }  │     │
+│  │    Section("Vocabulario") { List + add/remove }               │     │
+│  │    Section("Sistema") { Toggle launch; Toggle pause; Toggle   │     │
+│  │                         maximize }                            │     │
+│  │  }                                                            │     │
+│  └──────────────────────────────────────────────────────────────┘     │
+├──────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────┐  ┌────────────────────┐  ┌─────────────────┐   │
+│  │ VocabularyService│  │MicrophoneDevService │  │ APIKeyWindow    │   │
+│  │ (unchanged)      │  │ (unchanged)         │  │ Controller      │   │
+│  │                  │  │                     │  │ (unchanged)     │   │
+│  └──────────────────┘  └────────────────────┘  └─────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## New vs Modified Components
 
-### Feature 1: Haiku Prompt Fix ("gracias" phantom suffix)
+### Modified: `SettingsWindowController.swift` (306 lines → ~60 lines)
 
-**What changes:** `HaikuCleanupService.swift` only — the system prompt string.
+**What changes:** Gutted from a full AppKit NSPanel builder with NSTableView/NSLayoutConstraint
+to a thin window host that creates an NSWindow, wraps `SettingsView` in `NSHostingController`,
+and manages the activation policy lifecycle.
 
-**Root cause:** The current system prompt ends with rule 5 ("PROHIBIDO") but does not explicitly forbid appending closing phrases. Haiku occasionally adds a Spanish conversational sign-off ("gracias", "hasta luego", etc.) that mimics a well-formed dictation ending. A single explicit rule eliminates this.
+**The only AppKit responsibility that remains:**
+- Creating the `NSWindow` (titled, closable)
+- Injecting a `SettingsViewModel` as the hosting controller's root view
+- Managing the `panel = nil` / activation policy dance on open and close
+- Forwarding `show()` calls from `StatusMenuController`
 
-**Change:** Add one rule to the `systemPrompt` string inside `HaikuCleanupService`:
-
-```swift
-// Add as Rule 6 in the existing numbered list:
-"6. CIERRE: NO añadas palabras de despedida ni agradecimiento al final \
-(\"gracias\", \"hasta luego\", etc.) salvo que estén en el texto original."
-```
-
-No protocol changes. No new types. No wiring changes. The `HaikuCleanupProtocol` signature is unaffected.
-
-**File touched:** `MyWhisper/Cleanup/HaikuCleanupService.swift` (systemPrompt string only)
-
----
-
-### Feature 2: Mic Input Volume — New Service
-
-**What changes:**
-
-| Change | File | Type |
-|--------|------|------|
-| New protocol `MicInputVolumeServiceProtocol` | `AppCoordinatorDependencies.swift` | Modified |
-| New service `MicInputVolumeService` | `MyWhisper/Audio/MicInputVolumeService.swift` | New |
-| New coordinator property + 3 call sites | `AppCoordinator.swift` | Modified |
-| Wire service at startup | `AppDelegate.swift` | Modified |
-
-#### Protocol (added to `AppCoordinatorDependencies.swift`)
+The class stays `@MainActor final` and `NSWindowDelegate` for `windowWillClose`. All
+NSTableView datasource/delegate code, NSPopUpButton wiring, NSButton target/action pairs,
+and NSLayoutConstraint blocks are deleted.
 
 ```swift
-protocol MicInputVolumeServiceProtocol: AnyObject {
-    /// Read current input volume, store it, then set input volume to 1.0.
-    func maximizeAndSave()
-    /// Restore the input volume saved by the last maximizeAndSave() call.
-    func restore()
+@MainActor
+final class SettingsWindowController: NSObject, NSWindowDelegate {
+    private var panel: NSWindow?
+    private let viewModel: SettingsViewModel
+
+    init(vocabularyService: VocabularyService,
+         microphoneService: MicrophoneDeviceService,
+         haikuCleanup: (any HaikuCleanupProtocol)?) {
+        self.viewModel = SettingsViewModel(
+            vocabularyService: vocabularyService,
+            microphoneService: microphoneService,
+            haikuCleanup: haikuCleanup
+        )
+        super.init()
+    }
+
+    func show() {
+        if let existing = panel {
+            existing.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let hostingController = NSHostingController(
+            rootView: SettingsView(viewModel: viewModel)
+        )
+        let window = NSWindow(contentViewController: hostingController)
+        window.title = "MyWhisper — Preferencias"
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        window.center()
+        NSApp.setActivationPolicy(.regular)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.panel = window
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
+        self.panel = nil
+    }
 }
 ```
 
-Kept minimal — coordinator needs only these two operations. The saved volume is internal state of the service.
+The `NSWindow(contentViewController:)` initializer auto-sizes the window to fit the
+`NSHostingController`'s `view.fittingSize`, so no fixed `contentRect` is needed — the SwiftUI
+Form determines the window size.
 
-#### `MicInputVolumeService` implementation sketch
+**Why NSWindow over NSPanel:** The current NSPanel with `[.titled, .closable]` closes when
+the user clicks outside because that is the default NSPanel behavior. Using a plain `NSWindow`
+with the same style mask keeps it open until the user explicitly presses the close button,
+fulfilling the v1.3 requirement. (NSPanel with `.nonactivating` would be wrong here —
+that prevents the panel from ever becoming key, making text fields unresponsive.)
+
+---
+
+### New: `SettingsViewModel.swift`
+
+**Location:** `MyWhisper/Settings/SettingsViewModel.swift`
+
+`@Observable @MainActor` class. Holds all settings state, bridges UserDefaults and the
+existing services, and provides mutation methods the SwiftUI view calls.
+
+**State owned:**
+
+| Property | Type | Persistence | Bridge |
+|----------|------|-------------|--------|
+| `pausePlaybackEnabled` | `Bool` | UserDefaults key `"pausePlaybackEnabled"` | didSet writes to UserDefaults |
+| `maximizeMicVolumeEnabled` | `Bool` | UserDefaults key `"maximizeMicVolumeEnabled"` | didSet writes to UserDefaults |
+| `launchAtLoginEnabled` | `Bool` | SMAppService live query | didSet calls register/unregister |
+| `selectedMicID` | `AudioDeviceID?` | UserDefaults via MicrophoneDeviceService | didSet delegates to microphoneService |
+| `vocabularyEntries` | `[VocabularyEntry]` | UserDefaults via VocabularyService | didSet delegates to vocabularyService |
+
+**Why @Observable over @AppStorage in the view:**
+
+`@AppStorage` inside a SwiftUI view works for scalar types but conflicts with
+`@Observable` — the Observation framework does not support `@AppStorage` as a stored
+property on an `@Observable` class (confirmed limitation as of macOS 14/15). Using
+`didSet` on plain stored properties with manual `UserDefaults.standard.set(...)` is
+the correct pattern when `@Observable` is required. This also centralizes all
+persistence logic in one class rather than scattering `@AppStorage` across views.
+
+**Why not pass SettingsViewModel via environment:**
+
+The hosting controller creates a fresh SwiftUI view tree. Passing the view model as a
+direct constructor argument (`SettingsView(viewModel:)`) is simpler than environment
+injection for a single-window case and avoids the `environmentObject`/`@Observable`
+environment mismatch (the `.environment` modifier for `@Observable` objects requires
+the object to be passed at the scene level, which is inaccessible from an
+`NSHostingController` created outside the `App` scene graph).
 
 ```swift
-final class MicInputVolumeService: MicInputVolumeServiceProtocol {
-    private var savedVolume: Float32? = nil
+@Observable
+@MainActor
+final class SettingsViewModel {
+    var pausePlaybackEnabled: Bool {
+        didSet { UserDefaults.standard.set(pausePlaybackEnabled, forKey: "pausePlaybackEnabled") }
+    }
+    var maximizeMicVolumeEnabled: Bool {
+        didSet { UserDefaults.standard.set(maximizeMicVolumeEnabled, forKey: "maximizeMicVolumeEnabled") }
+    }
+    var launchAtLoginEnabled: Bool {
+        didSet {
+            do {
+                if launchAtLoginEnabled { try SMAppService.mainApp.register() }
+                else { try SMAppService.mainApp.unregister() }
+            } catch {
+                // Revert on failure — SMAppService can fail if user denied in Privacy
+                launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+            }
+        }
+    }
+    var selectedMicID: AudioDeviceID?  {
+        didSet { microphoneService.selectedDeviceID = selectedMicID }
+    }
+    var vocabularyEntries: [VocabularyEntry] {
+        didSet { vocabularyService.entries = vocabularyEntries }
+    }
+
+    private(set) var availableMics: [AudioDeviceInfo] = []
+    private(set) var haikuCleanup: (any HaikuCleanupProtocol)?
+
+    private let vocabularyService: VocabularyService
     private let microphoneService: MicrophoneDeviceService
 
-    init(microphoneService: MicrophoneDeviceService) {
+    init(vocabularyService: VocabularyService,
+         microphoneService: MicrophoneDeviceService,
+         haikuCleanup: (any HaikuCleanupProtocol)?) {
+        self.vocabularyService = vocabularyService
         self.microphoneService = microphoneService
-    }
-
-    func maximizeAndSave() {
-        guard let deviceID = resolveActiveDeviceID() else { return }
-        savedVolume = getVolume(deviceID: deviceID)
-        setVolume(1.0, deviceID: deviceID)
-    }
-
-    func restore() {
-        guard let volume = savedVolume,
-              let deviceID = resolveActiveDeviceID() else { return }
-        setVolume(volume, deviceID: deviceID)
-        savedVolume = nil
-    }
-
-    private func resolveActiveDeviceID() -> AudioDeviceID? {
-        // Prefer the user-selected device (mirrors AudioRecorder selection logic).
-        // Fall back to system default input device if none selected.
-        if let selected = microphoneService.selectedDeviceID {
-            let available = microphoneService.availableInputDevices().map(\.id)
-            if available.contains(selected) { return selected }
-        }
-        return systemDefaultInputDeviceID()
-    }
-
-    private func systemDefaultInputDeviceID() -> AudioDeviceID? {
-        var deviceID = AudioDeviceID(0)
-        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioHardwarePropertyDefaultInputDevice,
-            mScope: kAudioObjectPropertyScopeGlobal,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectGetPropertyData(
-            AudioObjectID(kAudioObjectSystemObject),
-            &address, 0, nil, &size, &deviceID
-        ) == noErr, deviceID != kAudioDeviceUnknown else { return nil }
-        return deviceID
-    }
-
-    private func getVolume(deviceID: AudioDeviceID) -> Float32? {
-        var volume = Float32(0)
-        var size = UInt32(MemoryLayout<Float32>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        guard AudioObjectGetPropertyData(
-            deviceID, &address, 0, nil, &size, &volume
-        ) == noErr else { return nil }
-        return volume
-    }
-
-    private func setVolume(_ volume: Float32, deviceID: AudioDeviceID) {
-        var vol = volume
-        let size = UInt32(MemoryLayout<Float32>.size)
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyVolumeScalar,
-            mScope: kAudioDevicePropertyScopeInput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-        AudioObjectSetPropertyData(deviceID, &address, 0, nil, size, &vol)
+        self.haikuCleanup = haikuCleanup
+        // Load initial values from existing persistence layer
+        self.pausePlaybackEnabled = UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")
+        self.maximizeMicVolumeEnabled = UserDefaults.standard.bool(forKey: "maximizeMicVolumeEnabled")
+        self.launchAtLoginEnabled = SMAppService.mainApp.status == .enabled
+        self.selectedMicID = microphoneService.selectedDeviceID
+        self.vocabularyEntries = vocabularyService.entries
+        self.availableMics = microphoneService.availableInputDevices()
     }
 }
 ```
 
-**Key design decisions:**
+---
 
-- Uses the same `MicrophoneDeviceService` that `AudioRecorder` already uses for device selection. No new device resolution logic; no duplicate code.
-- `savedVolume` is instance state. If the app crashes after `maximizeAndSave()` but before `restore()`, the OS keeps the volume at 1.0 — acceptable risk for a desktop utility.
-- `kAudioObjectPropertyElementMain` (element 0) targets the master channel. This is correct for consumer microphones. Multi-channel interfaces may require per-channel iteration — flag as a known edge case (see PITFALLS).
-- No `isSettable` guard in the sketch; add `AudioObjectIsPropertySettable` check before `AudioObjectSetPropertyData` if some devices return errors. Silent failure on `setVolume` is acceptable — worst case: volume is not changed.
-- No new entitlements required. `AudioObjectGetPropertyData` / `AudioObjectSetPropertyData` for device volume are available to non-sandboxed apps. (The app is already Developer ID signed and non-sandboxed.)
+### New: `SettingsView.swift`
+
+**Location:** `MyWhisper/Settings/SettingsView.swift`
+
+Pure SwiftUI view. Receives `SettingsViewModel` as a constructor argument. Uses `@Bindable`
+to derive bindings from the `@Observable` view model.
+
+```swift
+struct SettingsView: View {
+    @Bindable var viewModel: SettingsViewModel
+
+    var body: some View {
+        Form {
+            Section("Grabacion") {
+                KeyboardShortcuts.Recorder("Atajo de grabacion:", name: .toggleRecording)
+                Picker("Microfono:", selection: $viewModel.selectedMicID) {
+                    Text("Predeterminado del sistema").tag(AudioDeviceID?.none)
+                    ForEach(viewModel.availableMics) { mic in
+                        Text(mic.name).tag(AudioDeviceID?.some(mic.id))
+                    }
+                }
+            }
+            Section("API") {
+                Button("Cambiar clave de API...") {
+                    // delegate to APIKeyWindowController via callback stored in viewModel
+                    viewModel.openAPIKey()
+                }
+            }
+            Section("Vocabulario") {
+                // List with inline editing, add/remove buttons
+            }
+            Section("Sistema") {
+                Toggle("Iniciar al arranque", isOn: $viewModel.launchAtLoginEnabled)
+                Toggle("Pausar reproduccion al grabar", isOn: $viewModel.pausePlaybackEnabled)
+                Toggle("Maximizar volumen al grabar", isOn: $viewModel.maximizeMicVolumeEnabled)
+            }
+        }
+        .formStyle(.grouped)
+        .padding()
+        .frame(minWidth: 480, minHeight: 520)
+    }
+}
+```
+
+**`KeyboardShortcuts.Recorder` in SwiftUI:** The `KeyboardShortcuts` library ships a native
+SwiftUI `KeyboardShortcuts.Recorder` view (distinct from the existing `RecorderCocoa` used
+in the AppKit panel). No bridge required. It handles UserDefaults persistence internally
+and integrates directly in a `Form` without wrapper code.
+
+**Vocabulary list:** `List` with `ForEach` over `viewModel.vocabularyEntries` using
+`.onDelete` and a toolbar button for add. Each row uses `TextField` bound to
+`$viewModel.vocabularyEntries[index].wrong` / `.correct`. This replaces the
+`NSTableView` + manual datasource entirely.
+
+**APIKeyWindowController bridge:** The view model holds a closure `openAPIKey: () -> Void`
+injected by `SettingsWindowController` at init. The SwiftUI button calls it. This keeps
+the SwiftUI view free of AppKit references while preserving the existing APIKeyWindowController
+without modification.
 
 ---
 
-## Modified: `AppCoordinator.swift`
+### Unchanged Components
 
-Add one stored property:
-
-```swift
-var micVolumeService: (any MicInputVolumeServiceProtocol)?
-```
-
-Add call sites within `handleHotkey()` and `handleEscape()`:
-
-| Location | Call | Rationale |
-|----------|------|-----------|
-| `.idle` branch — after `mediaPlayback?.pause()`, before `audioRecorder?.start()` | `micVolumeService?.maximizeAndSave()` | Maximize before engine starts so volume takes effect during capture |
-| `.recording` branch — after `mediaPlayback?.resume()`, before `audioRecorder?.stop()` | `micVolumeService?.restore()` | Restore as soon as recording ends, before processing begins |
-| `handleEscape()` — after `mediaPlayback?.resume()` | `micVolumeService?.restore()` | Restore on cancel path as well |
-
----
-
-## Modified: `AppDelegate.swift`
-
-Add stored property:
-
-```swift
-private var micInputVolumeService: MicInputVolumeService?
-```
-
-In `applicationDidFinishLaunching`, after `microphoneService` is initialized:
-
-```swift
-let micInputVolumeService = MicInputVolumeService(microphoneService: microphoneService)
-coordinator.micVolumeService = micInputVolumeService
-self.micInputVolumeService = micInputVolumeService
-```
-
-`MicInputVolumeService` depends on `MicrophoneDeviceService` (already instantiated). No other dependency changes.
+| Component | Why Unchanged |
+|-----------|---------------|
+| `APIKeyWindowController.swift` | Remains AppKit NSPanel; called via closure from SettingsViewModel |
+| `VocabularyService.swift` | SettingsViewModel delegates to it directly; no interface change needed |
+| `MicrophoneDeviceService.swift` | SettingsViewModel reads `availableInputDevices()` and delegates `selectedDeviceID` writes |
+| `StatusMenuController.swift` | `openSettings()` already calls `settingsWindowController?.show()` — no change |
+| `AppDelegate.swift` | `SettingsWindowController` init signature stays identical (`vocabularyService:microphoneService:haikuCleanup:`) |
+| `AppCoordinator.swift` | Not involved in settings UI at all |
+| `UserDefaults` keys | Same keys: `"pausePlaybackEnabled"`, `"maximizeMicVolumeEnabled"`, `"selectedMicrophoneID"`, `"vocabularyCorrections"` |
 
 ---
 
 ## Data Flow
 
-### Recording Start (idle → recording)
+### Settings Open
 
 ```
-User presses Option+Space  [state: .idle]
+User clicks "Preferencias..." in menubar
     ↓
-AppCoordinator.handleHotkey()
-    ↓  permission check + API key check pass
-mediaPlayback?.pause()                     (v1.1 — pause media)
-    ↓  150ms sleep (existing)
-micVolumeService?.maximizeAndSave()        [NEW — read+save current volume, set to 1.0]
-    → resolveActiveDeviceID()              (selected or system default)
-    → getVolume() via AudioObjectGetPropertyData(kAudioDevicePropertyVolumeScalar)
-    → save to savedVolume
-    → setVolume(1.0) via AudioObjectSetPropertyData
+StatusMenuController.openSettings()
     ↓
-audioRecorder?.start()                     (engine starts, mic now at max volume)
-transitionTo(.recording)
+SettingsWindowController.show()
+    → panel already exists? → makeKeyAndOrderFront()
+    → first open: create NSWindow(contentViewController: NSHostingController(rootView: SettingsView(viewModel:)))
+    → window.center(), setActivationPolicy(.regular), makeKeyAndOrderFront()
+    ↓
+NSHostingController renders SettingsView
+    → @Bindable var viewModel reads initial state already loaded in SettingsViewModel.init()
+    → All controls show current values immediately
 ```
 
-### Recording Stop (recording → processing)
+### Setting Changed (Boolean Toggle)
 
 ```
-User presses Option+Space  [state: .recording]
+User flips "Pausar reproduccion al grabar"
     ↓
-AppCoordinator.handleHotkey()
-escapeMonitor?.stopMonitoring()
-stopAudioLevelPolling()
-mediaPlayback?.resume()                    (v1.1 — resume media)
-micVolumeService?.restore()               [NEW — restore saved volume]
-    → getVolume: use savedVolume
-    → setVolume(savedVolume) via AudioObjectSetPropertyData
-    → savedVolume = nil
+SwiftUI Toggle mutates $viewModel.pausePlaybackEnabled (Binding from @Bindable)
     ↓
-audioRecorder?.stop() → VAD → transcription → Haiku cleanup → paste
+SettingsViewModel.pausePlaybackEnabled.didSet fires
+    → UserDefaults.standard.set(true, forKey: "pausePlaybackEnabled")
+    ↓
+AppCoordinator reads UserDefaults.standard.bool(forKey: "pausePlaybackEnabled")
+  at next recording start — no live observer needed, value is read on each use
 ```
 
-### Escape Cancel
+### Setting Changed (Microphone Selection)
 
 ```
-User presses Escape  [state: .recording]
+User selects mic from Picker
     ↓
-AppCoordinator.handleEscape()
-escapeMonitor?.stopMonitoring()
-stopAudioLevelPolling()
-overlayController?.hide()
-audioRecorder?.cancel()
-mediaPlayback?.resume()                    (v1.1)
-micVolumeService?.restore()               [NEW]
-NSSound.beep()
-transitionTo(.idle)
+SwiftUI Picker mutates $viewModel.selectedMicID
+    ↓
+SettingsViewModel.selectedMicID.didSet fires
+    → microphoneService.selectedDeviceID = newValue
+    → MicrophoneDeviceService writes UInt32 to UserDefaults key "selectedMicrophoneID"
+    ↓
+AudioRecorder.start() reads microphoneService.selectedDeviceID at next recording
+  — no live observer needed
 ```
 
-### Haiku Cleanup (unchanged flow, prompt only)
+### Setting Changed (Vocabulary)
 
 ```
-rawText (from WhisperKit)
+User edits vocabulary entry text field
     ↓
-HaikuCleanupService.clean(rawText)
-    → system prompt now includes Rule 6: no closing phrases
-    → Haiku returns corrected text without phantom "gracias"
+Binding mutation on $viewModel.vocabularyEntries[i].wrong/.correct
     ↓
-vocabularyService.apply(to: cleanedText)
+SettingsViewModel.vocabularyEntries.didSet fires
+    → vocabularyService.entries = vocabularyEntries
+    → VocabularyService encodes [VocabularyEntry] to UserDefaults key "vocabularyCorrections"
     ↓
-textInjector?.inject(correctedText)
+AppCoordinator calls vocabularyService.apply(to:) after Haiku cleanup —
+  reads from UserDefaults on each call; always current
 ```
 
----
+### Settings Window Closed
 
-## Component Boundaries
-
-| Component | Responsibility | Communicates With |
-|-----------|----------------|-------------------|
-| `MicInputVolumeService` | Read/save/restore CoreAudio input volume for the active device | `MicrophoneDeviceService` (device resolution), CoreAudio HAL |
-| `MicrophoneDeviceService` | Device enumeration and selection persistence | `MicInputVolumeService`, `AudioRecorder`, Settings UI |
-| `AppCoordinator` | FSM orchestration; calls `micVolumeService` at state boundaries | `MicInputVolumeService` (via protocol), all other services |
-| `HaikuCleanupService` | Text cleanup via Anthropic API | Anthropic API, `KeychainService` |
-| `AppDelegate` | Wiring; owns strong references to all services | All services |
+```
+User clicks red close button
+    ↓
+NSWindowDelegate.windowWillClose(_:)
+    → NSApp.setActivationPolicy(.accessory)  // hide from Dock
+    → self.panel = nil                        // allow fresh window on next open
+```
 
 ---
 
 ## Architectural Patterns
 
-### Pattern 1: FSM Side-Effect Injection (same as v1.1 MediaPlayback)
+### Pattern 1: NSHostingController as Content View Controller
 
-**What:** `AppCoordinator` holds a protocol reference injected by `AppDelegate`. Side effects at state boundaries are delegated to specialized services.
+**What:** `NSWindow(contentViewController: NSHostingController(rootView:))` — AppKit creates
+the window and owns the lifecycle; SwiftUI owns the layout. The hosting controller's
+`view.fittingSize` drives automatic window sizing.
 
-**When to use:** Any external system action at a state transition boundary that has no bearing on the FSM state itself.
+**When to use:** Any AppKit-managed window that needs SwiftUI content in an existing
+non-scene-based (AppDelegate) app.
 
-**Trade-offs:** Coordinator stays focused and testable. Services are independently mockable.
+**Trade-offs:** Clean boundary. SwiftUI Form renders natively with macOS grouping/styling.
+No storyboard or XIB needed. Window lifecycle (show/close/activate) remains in AppKit
+where the existing activation policy logic already lives.
 
-### Pattern 2: Symmetric Save/Restore
+### Pattern 2: @Observable ViewModel as Bridge Layer
 
-**What:** `MicInputVolumeService.maximizeAndSave()` atomically reads the current value and saves it before mutating. `restore()` writes the saved value back and clears it. The pair is always called at the same FSM boundary (one on enter recording, one on exit recording).
+**What:** `SettingsViewModel` acts as the translation layer between the SwiftUI reactive
+model (Observation framework) and the imperative persistence layer (UserDefaults direct
+writes, service method calls). `didSet` on each property fires the side effect.
 
-**When to use:** Any resource that must be temporarily overridden and then returned to its original state.
+**When to use:** When services are injected objects (not singletons), when `@AppStorage`
+is insufficient (custom types, service delegation), or when bridging `@Observable` with
+existing non-reactive services.
 
-**Trade-offs:** Saved state is instance-scoped, not persisted. Crash between save and restore leaves mic at 1.0. Acceptable for this use case — the OS resets mic volume to user preference after reboot; the volume setting persists in System Preferences, not in app state.
+**Trade-offs:** All mutation logic is in one class — easy to test. The view stays dumb.
+`didSet` fires synchronously on `@MainActor`, consistent with all existing service access
+patterns. Slight verbosity vs `@AppStorage` for scalar Booleans, but necessary because
+`@Observable` and `@AppStorage` on the same class are incompatible.
 
-### Pattern 3: Prompt Rule Addition (Haiku)
+### Pattern 3: Closure Injection for AppKit Sub-Panel
 
-**What:** Add an explicit numbered rule to the existing system prompt. Do not restructure the prompt or change other rules.
+**What:** `SettingsViewModel` holds `var openAPIKey: () -> Void = {}`. The
+`SettingsWindowController` injects a concrete implementation at init:
+`viewModel.openAPIKey = { [weak self] in self?.apiKeyController.show() }`.
 
-**When to use:** When Claude adds content that is not in the input and the system prompt does not explicitly forbid it. A direct prohibition in the same format as existing rules is the lowest-risk fix.
+**When to use:** When a SwiftUI view needs to trigger an AppKit window without importing
+AppKit or holding a reference to a controller.
 
-**Trade-offs:** Minimal prompt change reduces regression risk. No model version change. No API contract change. Easy to test by sending a known transcription through the cleaned pipeline.
+**Trade-offs:** SwiftUI view remains pure Swift/SwiftUI. APIKeyWindowController needs
+no changes. Testable — the closure can be swapped for a mock in tests.
+
+### Pattern 4: Persistent Window (NSWindow not NSPanel)
+
+**What:** Replace `NSPanel` with `NSWindow` using identical style mask `[.titled, .closable]`.
+
+**When to use:** When a settings-style window should remain open after the user clicks
+outside it (standard System Preferences / Settings.app behavior).
+
+**Why NSPanel closed on outside click:** `NSPanel` has implicit behavior where it
+resigns key status and can be closed on outside click unless style flags are carefully
+set. `NSWindow` with `[.titled, .closable]` does not auto-close on outside click.
+This is the simplest fix for the v1.3 requirement.
+
+---
+
+## Recommended File Structure
+
+```
+MyWhisper/
+├── Settings/
+│   ├── SettingsWindowController.swift   (MODIFIED — gutted to ~60 lines)
+│   ├── SettingsViewModel.swift          (NEW)
+│   └── SettingsView.swift               (NEW)
+├── UI/
+│   ├── APIKeyWindowController.swift     (unchanged)
+│   └── ...
+```
+
+No folder restructuring required. The existing `MyWhisper/Settings/` folder already exists
+(currently holds only `SettingsWindowController.swift`).
 
 ---
 
 ## Build Order
 
-Dependencies determine order. Feature 1 (Haiku fix) and Feature 2 (mic volume) are fully independent and can be built in parallel.
+Dependencies determine build order. No changes to AppDelegate, StatusMenuController,
+or any service — only the Settings folder changes.
 
 ```
-FEATURE 1 — Haiku Prompt Fix (no dependencies)
+Step 1: SettingsViewModel.swift  (new file)
+        - Depends on: VocabularyService, MicrophoneDeviceService, HaikuCleanupProtocol
+          (all already exist, no changes needed there)
+        - Add ServiceManagement import; no new framework import in project needed
+          (ServiceManagement already imported in SettingsWindowController for SMAppService)
+        - Can be written and compiled before the view exists
 
-  Step 1: HaikuCleanupService.swift
-          → Add Rule 6 to systemPrompt
-          → No protocol changes, no wiring changes
-          → Self-contained; testable by sending a transcription through clean()
+Step 2: SettingsView.swift  (new file)
+        - Depends on: SettingsViewModel (Step 1)
+        - Import KeyboardShortcuts for KeyboardShortcuts.Recorder SwiftUI view
+        - Write Form structure with all sections
+        - Vocabulary List with inline editing
+        - APIKey button calling viewModel.openAPIKey()
 
-FEATURE 2 — Mic Input Volume (has internal dependencies)
+Step 3: SettingsWindowController.swift  (modify — delete ~250 lines, write ~60)
+        - Depends on: SettingsViewModel (Step 1), SettingsView (Step 2)
+        - Delete all NSTableView datasource/delegate code
+        - Delete all NSLayoutConstraint code
+        - Delete all NSButton/NSPopUpButton/NSCheckbox wiring
+        - Replace show() body with NSHostingController embedding
+        - Inject openAPIKey closure into viewModel
+        - windowWillClose keeps existing activation policy reset
 
-  Step 2: AppCoordinatorDependencies.swift
-          → Add MicInputVolumeServiceProtocol
-          → Must come first; both Service and Coordinator depend on this
-
-  Step 3: MicInputVolumeService.swift  (new file in MyWhisper/Audio/)
-          → Implement service conforming to MicInputVolumeServiceProtocol
-          → Depends on: Step 2 (protocol) + MicrophoneDeviceService (already exists)
-
-  Step 4: AppCoordinator.swift
-          → Add micVolumeService property
-          → Add 3 call sites (maximizeAndSave on idle→recording, restore on recording→*, restore on escape)
-          → Depends on: Step 2 (protocol)
-
-  Step 5: AppDelegate.swift
-          → Instantiate MicInputVolumeService(microphoneService: microphoneService)
-          → Wire: coordinator.micVolumeService = micInputVolumeService
-          → Depends on: Steps 3 and 4
-
-TESTING
-
-  Step 6 (Feature 1): Unit test for HaikuCleanupService
-          → Mock URLSession to return a Haiku-style response with "gracias" appended
-          → Verify clean() strips it
-
-  Step 7 (Feature 2): Unit tests for AppCoordinator
-          → Mock MicInputVolumeServiceProtocol
-          → Verify maximizeAndSave() called when transitioning idle→recording
-          → Verify restore() called on recording→processing transition
-          → Verify restore() called from handleEscape()
+Step 4: Manual smoke test
+        - Open Settings from menubar
+        - Verify window stays open on outside click
+        - Toggle each setting, quit, relaunch — verify persistence
+        - Change mic, record audio — verify correct device used
+        - Add/edit/remove vocabulary entry — verify applied to next transcription
+        - Change API key via button — verify APIKeyWindowController opens
+        - Verify hotkey recorder (KeyboardShortcuts.Recorder) works in the Form
 ```
-
----
-
-## Anti-Patterns
-
-### Anti-Pattern 1: Using AVAudioSession for Volume (iOS API)
-
-**What people do:** Call `AVAudioSession.sharedInstance().setInputGain()` to control mic volume.
-
-**Why it's wrong:** `AVAudioSession` input gain is an iOS/iPadOS API. On macOS it is unavailable. The macOS equivalent is CoreAudio HAL via `AudioObjectSetPropertyData`.
-
-**Do this instead:** `AudioObjectSetPropertyData` with `kAudioDevicePropertyVolumeScalar` and `kAudioDevicePropertyScopeInput`.
-
-### Anti-Pattern 2: Re-resolving the Device ID in MicInputVolumeService Independently
-
-**What people do:** Duplicate device-enumeration logic inside `MicInputVolumeService` instead of delegating to `MicrophoneDeviceService`.
-
-**Why it's wrong:** Creates two sources of truth for which device is active. If the user changes the selected device in Settings, the AudioRecorder and MicInputVolumeService would target different devices.
-
-**Do this instead:** Inject `MicrophoneDeviceService` and call `selectedDeviceID` / `availableInputDevices()` from there. Mirror the same fallback logic as `AudioRecorder.start()`.
-
-### Anti-Pattern 3: Saving Volume in UserDefaults
-
-**What people do:** Persist the saved mic volume to UserDefaults so it survives a crash.
-
-**Why it's wrong:** Adds a stale-state risk: if the user changed mic volume between the crash and relaunch, restoring a stale value would be worse than doing nothing. The physical System Preferences value is the real source of truth. Let the OS own it.
-
-**Do this instead:** Keep `savedVolume` as instance-scoped `Float32?`. On cold launch, `savedVolume` is `nil`, so `restore()` is a no-op. No stale state possible.
-
-### Anti-Pattern 4: Addressing a Specific Element Channel for Consumer Mics
-
-**What people do:** Iterate all channels (elements > 0) and set each individually, assuming element 0 (main) is always wrong.
-
-**Why it's wrong:** `kAudioObjectPropertyElementMain` (value 0) is the master/main element and is the correct target for per-device volume on consumer microphones. Per-channel addressing is only necessary for professional multi-channel interfaces.
-
-**Do this instead:** Start with element 0. Detect failure (non-noErr return) as the signal that per-channel addressing may be needed, and handle as an edge case.
-
-### Anti-Pattern 5: Restructuring the Haiku System Prompt
-
-**What people do:** Rewrite the entire system prompt to address the "gracias" issue.
-
-**Why it's wrong:** The existing prompt was tuned over real dictation sessions. A full rewrite risks regressing on punctuation quality, filler-word removal accuracy, or paragraph-break behavior.
-
-**Do this instead:** Append a single targeted rule (Rule 6) in the same style as existing rules. Surgical change, no regression surface.
 
 ---
 
@@ -424,32 +503,102 @@ TESTING
 
 | Boundary | Communication | Notes |
 |----------|---------------|-------|
-| `AppCoordinator` → `MicInputVolumeService` | Protocol method calls at state transitions | Injected by `AppDelegate` at startup |
-| `MicInputVolumeService` → `MicrophoneDeviceService` | Direct method calls for device resolution | Constructor injection; same instance used by `AudioRecorder` |
-| `MicInputVolumeService` → CoreAudio HAL | `AudioObjectGetPropertyData` / `AudioObjectSetPropertyData` | Same API already used by `MicrophoneDeviceService` for device enumeration |
-| `HaikuCleanupService` → Anthropic API | URLSession POST | Unchanged; only system prompt string changes |
+| `SettingsWindowController` → `SettingsViewModel` | Constructor injection | ViewModel created once per controller lifetime |
+| `SettingsWindowController` → `NSHostingController` | `NSWindow(contentViewController:)` | SwiftUI tree created on first `show()` |
+| `SettingsViewModel` → `VocabularyService` | Direct method calls in `didSet` | Same instance AppCoordinator uses |
+| `SettingsViewModel` → `MicrophoneDeviceService` | Direct property write in `didSet` | Same instance AudioRecorder uses |
+| `SettingsViewModel` → `UserDefaults.standard` | Direct key-value write in `didSet` | Same keys as current AppKit implementation |
+| `SettingsViewModel` → `SMAppService.mainApp` | `register()` / `unregister()` in `didSet` | Error causes state revert |
+| `SettingsView` → `SettingsViewModel` | `@Bindable` bindings | Two-way, mutation goes through ViewModel |
+| `SettingsView` → `APIKeyWindowController` | Closure via ViewModel | No AppKit import in view |
 
 ### No New External Boundaries
 
-Both features operate entirely within existing system boundaries: CoreAudio HAL (already used) and Anthropic API (already used). No new frameworks, no new entitlements, no new network endpoints.
+No new frameworks, no new UserDefaults keys, no new network calls. The migration is
+entirely within the Settings folder.
 
 ---
 
-## Scaling Considerations
+## Anti-Patterns
 
-Single-user local macOS app. Not applicable. The CoreAudio API calls in `MicInputVolumeService` complete synchronously in microseconds — no async overhead, no UI blocking.
+### Anti-Pattern 1: Using @AppStorage in SettingsView Directly
+
+**What people do:** Add `@AppStorage("pausePlaybackEnabled") var pause = false` directly
+in the SwiftUI view, skipping the view model.
+
+**Why it's wrong:** `@AppStorage` on an `@Observable` class is unsupported (compiler error
+or silent misbehavior). In the view itself it works, but then persistence logic is scattered
+across the view instead of centralized. More importantly, it bypasses the `VocabularyService`
+and `MicrophoneDeviceService` — those services own the storage for their respective keys
+and must be the single writer.
+
+**Do this instead:** Centralize all persistence in `SettingsViewModel.didSet` blocks.
+`@AppStorage` is acceptable for simple scalar preferences in a fully SwiftUI app with
+no existing service layer; not appropriate here.
+
+### Anti-Pattern 2: Keeping NSPanel for the Settings Window
+
+**What people do:** Keep `NSPanel` and add `.nonactivating` or `becomesKeyOnlyIfNeeded`
+flags to prevent it from closing on outside click.
+
+**Why it's wrong:** `.nonactivating` prevents the panel from ever becoming the key window,
+which makes text fields (vocabulary editing, API key) unresponsive to keyboard input.
+`becomesKeyOnlyIfNeeded` helps but has documented edge cases. A plain `NSWindow` avoids
+the entire NSPanel behavioral complexity for a standard settings use case.
+
+**Do this instead:** Use `NSWindow` with `[.titled, .closable]`. It stays open on outside
+click by default.
+
+### Anti-Pattern 3: Injecting Services via SwiftUI Environment from NSHostingController
+
+**What people do:** Call `.environment(viewModel)` on the SwiftUI view inside the
+`NSHostingController` to inject the view model.
+
+**Why it's wrong:** The `.environment` modifier for `@Observable` objects (the new API,
+not `environmentObject`) works within a SwiftUI `App` scene graph. An `NSHostingController`
+created outside the scene (which is the case here — `MyWhisperApp.body` is just a
+`Settings { EmptyView() }` stub) may not propagate environment values correctly in all
+macOS versions. Direct constructor argument is reliable and explicit.
+
+**Do this instead:** Pass `SettingsView(viewModel: viewModel)` as the root view.
+
+### Anti-Pattern 4: Recreating NSHostingController on Every show()
+
+**What people do:** Create a new `NSHostingController` and `NSWindow` every time `show()`
+is called, including when the window is already open.
+
+**Why it's wrong:** Recreating the hosting controller discards SwiftUI state (vocabulary
+list edits in progress, scroll position). The existing `if let existing = panel` guard
+prevents this and is the correct pattern — reuse the existing window.
+
+**Do this instead:** Keep the `guard if panel exists → makeKeyAndOrderFront` early return.
+Set `panel = nil` only in `windowWillClose`, not in `show()`.
+
+### Anti-Pattern 5: Observing UserDefaults in AppCoordinator for Live Settings Updates
+
+**What people do:** Add a `UserDefaults` observer or Combine publisher in `AppCoordinator`
+so settings changes take effect immediately without restarting a recording.
+
+**Why it's wrong:** None of the settings require live application during an active recording.
+`pausePlaybackEnabled` and `maximizeMicVolumeEnabled` are read at recording start. Adding
+reactive observation adds complexity with no user-visible benefit.
+
+**Do this instead:** Keep the current pattern — services read their UserDefaults values
+at the moment they are needed (recording start). No observer wiring required.
 
 ---
 
 ## Sources
 
 - Existing source code read directly from `/Users/max/Personal/repos/my-superwhisper/MyWhisper/` — HIGH confidence
-- [CoreAudio AudioObjectSetPropertyData — Apple Developer Documentation](https://developer.apple.com/documentation/coreaudio/1422920-audioobjectsetpropertydata) — HIGH confidence (official API reference)
-- [kAudioDevicePropertyVolumeScalar — CoreAudio HAL](https://developer.apple.com/documentation/coreaudio) — HIGH confidence (same property family already used in MicrophoneDeviceService for device enumeration)
-- [SimplyCoreAudio — Swift framework confirming kAudioDevicePropertyVolumeScalar + ScopeInput pattern](https://github.com/rnine/SimplyCoreAudio) — MEDIUM confidence (community; confirms API usage pattern)
-- [Anthropic: Minimizing Hallucinations](https://docs.anthropic.com/en/docs/minimizing-hallucinations) — MEDIUM confidence (confirms explicit prohibition in system prompt is correct approach)
+- [Showing Settings from macOS Menu Bar Items — Peter Steinberger (2025)](https://steipete.me/posts/2025/showing-settings-from-macos-menu-bar-items) — HIGH confidence (documents activation policy pattern, NSWindow vs NSPanel for menubar apps)
+- [KeyboardShortcuts — sindresorhus/KeyboardShortcuts GitHub README](https://github.com/sindresorhus/KeyboardShortcuts) — HIGH confidence (confirms SwiftUI `KeyboardShortcuts.Recorder` view, distinct from `RecorderCocoa`)
+- [Launch at Login Setting — nilcoalescing.com](https://nilcoalescing.com/blog/LaunchAtLoginSetting/) — HIGH confidence (SMAppService + SwiftUI Toggle pattern with error revert)
+- [NSHostingController — Apple Developer Documentation](https://developer.apple.com/documentation/swiftui/nshostingcontroller) — HIGH confidence (official API)
+- [@Observable and @AppStorage compatibility — Apple Developer Forums](https://developer.apple.com/forums/thread/731187) — MEDIUM confidence (confirms @Observable + @AppStorage incompatibility; workaround is didSet + manual UserDefaults.standard.set)
+- [The Curious Case of NSPanel's Nonactivating Style Mask Flag (2025)](https://philz.blog/nspanel-nonactivating-style-mask-flag/) — MEDIUM confidence (explains NSPanel behavioral edge cases; supports NSWindow preference)
 
 ---
 
-*Architecture research for: v1.2 Dictation Quality — Haiku prompt fix + mic input volume control*
-*Researched: 2026-03-17*
+*Architecture research for: v1.3 Settings UX — SwiftUI migration + persistent window*
+*Researched: 2026-03-24*

@@ -2,6 +2,29 @@
 
 All notable changes to My SuperWhisper will be documented in this file.
 
+## [v1.3] - 2026-03-24 — Settings UX
+
+### Added
+- Ventana de Settings persistente: permanece abierta al hacer click fuera (NSWindow reemplaza NSPanel)
+- SwiftUI Form con 4 secciones agrupadas estilo System Settings: Grabacion, API, Vocabulario, Sistema
+- SF Symbols en headers de seccion (mic.fill, key.fill, textformat.abc, gear)
+- Picker de microfono con opcion "Predeterminado del sistema" y dispositivos disponibles
+- Lista de vocabulario editable inline con botones +/- para agregar y eliminar correcciones
+- Boton "Configurar clave API..." que abre el panel existente de ingreso
+
+### Changed
+- SettingsWindowController: NSPanel reemplazado por NSWindow + NSHostingController para ciclo de vida correcto
+- SettingsView: expandida de 1 seccion placeholder a Form completo con 4 secciones
+- VocabularyEntry: agregado Identifiable conformance (var id: UUID) para ForEach binding syntax
+- Activation policy lifecycle: .regular al abrir Settings, .accessory al cerrar, con restauracion de foco
+
+### Technical
+- SettingsViewModel con @Observable y @Bindable bridge — didSet persistence sin @AppStorage
+- Picker con .tag(nil as AudioDeviceID?) y .tag(device.id as AudioDeviceID?) para seleccion correcta con tipo opcional
+- ForEach($viewModel.vocabularyEntries) con binding syntax habilitada por Identifiable
+- Task { @MainActor in } para diferir mutacion de array y evitar exclusive access violation
+- import CoreAudio en SettingsView para AudioDeviceID en scope
+
 ## [v1.2] - 2026-03-17 — Dictation Quality
 
 ### Added
