@@ -10,13 +10,14 @@ final class OverlayWindowController: OverlayWindowControllerProtocol {
         guard panel == nil else { return }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 100, height: 48),
+            contentRect: NSRect(x: 0, y: 0, width: 124, height: 72),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.isOpaque = false
         panel.backgroundColor = .clear
+        panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
@@ -25,7 +26,7 @@ final class OverlayWindowController: OverlayWindowControllerProtocol {
 
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - 50
+            let x = screenFrame.midX - 62
             let y = screenFrame.midY + 60
             panel.setFrameOrigin(NSPoint(x: x, y: y))
         } else {
