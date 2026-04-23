@@ -17,10 +17,11 @@ final class MenubarController {
     }
 
     static func image(for state: AppState) -> NSImage? {
+        let symbolName = "captions.bubble.fill"
         switch state {
         case .idle:
             // Template image — macOS renders it matching menubar appearance (light/dark)
-            let img = NSImage(systemSymbolName: "mic.fill", accessibilityDescription: "MyWhisper")
+            let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: "MyWhisper")
             img?.isTemplate = true
             return img
         case .recording, .processing, .error:
@@ -32,7 +33,7 @@ final class MenubarController {
             case .error: color = .systemOrange
             default: color = .labelColor
             }
-            return coloredSymbol("mic.fill", color: color)
+            return coloredSymbol(symbolName, color: color)
         }
     }
 
