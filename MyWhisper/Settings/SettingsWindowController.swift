@@ -9,16 +9,22 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
     init(vocabularyService: VocabularyService,
          microphoneService: MicrophoneDeviceService,
-         haikuCleanup: (any HaikuCleanupProtocol)?) {
+         permissionsManager: PermissionsManager,
+         haikuCleanup: (any HaikuCleanupProtocol)?,
+         sttEngine: (any STTEngineProtocol)?) {
         self.viewModel = SettingsViewModel(
             vocabularyService: vocabularyService,
             microphoneService: microphoneService,
-            haikuCleanup: haikuCleanup
+            permissionsManager: permissionsManager,
+            haikuCleanup: haikuCleanup,
+            sttEngine: sttEngine
         )
         self.apiKeyWindowController = APIKeyWindowController(haikuCleanup: haikuCleanup)
         super.init()
         self.viewModel.openAPIKey = { [weak self] in
-            self?.apiKeyWindowController?.show()
+            self?.apiKeyWindowController?.show {
+                self?.viewModel.refreshStatuses()
+            }
         }
     }
 

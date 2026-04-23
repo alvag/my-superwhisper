@@ -2,14 +2,23 @@
 
 All notable changes to My SuperWhisper will be documented in this file.
 
-## [Unreleased] - 2026-04-23 — Listening Overlay Polish
+## [Unreleased] - 2026-04-23
 
-### Changed
+### Added — Trust + Observability (Phase 1)
+- New "Estado y permisos" section in Preferences showing live status for microphone, accessibility, and paste automation
+- Quick-action buttons to jump straight to macOS Accessibility and Microphone settings
+- API status summary with configured-state display, last validation result, and a "Probar conexión" action for the stored key
+- Diagnostics section with app version, STT model info, cleanup provider, Whisper load state, last transcription error, and "Copiar diagnóstico"
+
+### Changed — Listening Overlay Polish
 - Cleaned up the listening overlay container so the rounded capsule renders cleanly without clipped dark bottom artifacts
 - Reworked the listening animation from a basic red-bar look into a more polished waveform-style visualization
 - Tuned overlay stroke, shadow, spacing, and panel sizing for a more native macOS feel
 
 ### Technical
+- Persisted lightweight diagnostics state for API validation results and the most recent transcription/preload error
+- Wired Preferences to runtime services for permission checks, Whisper readiness/progress, and cleanup-key validation
+- Added a lightweight validation path for the stored Haiku API key without requiring the user to re-enter it
 - Disabled the native panel shadow and moved visual depth styling into SwiftUI for more predictable rendering
 - Increased overlay panel bounds/padding so the material, shadow, and rounded shape are not cut off
 - Updated the audio visualization to use seven capsule bars, a refined gradient, and spring-based animation

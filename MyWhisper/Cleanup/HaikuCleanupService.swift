@@ -97,11 +97,38 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
     }
 
     func saveAPIKey(_ key: String) async throws {
-        // Validate the key with a tiny test request before saving
+        try await validate(apiKey: key)
+        try KeychainService.save(key)
+        AppDiagnosticsStore.recordAPIValidation("Válida")
+    }
+
+    func validateStoredAPIKey() async throws {
+        guard let apiKey = KeychainService.load(), !apiKey.isEmpty else {
+            AppDiagnosticsStore.recordAPIValidation("No configurada")
+            throw HaikuCleanupError.noAPIKey
+        }
+
+        try await validate(apiKey: apiKey)
+        AppDiagnosticsStore.recordAPIValidation("Válida")
+    }
+
+    func removeAPIKey() async throws {
+        try KeychainService.delete()
+        AppDiagnosticsStore.recordAPIValidation("Eliminada")
+    }
+
+    // MARK: - Private helpers
+
+    func estimateMaxTokens(for text: String) -> Int {
+        let estimate = Int(Double(text.count) / 4.0 * 1.5)
+        return min(max(estimate, 128), 2048)
+    }
+
+    private func validate(apiKey: String) async throws {
         let url = URL(string: "https://api.anthropic.com/v1/messages")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.setValue(key, forHTTPHeaderField: "x-api-key")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("application/json", forHTTPHeaderField: "content-type")
 
@@ -112,35 +139,28 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
         ]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        let data: Data
+        let _: Data
         let response: URLResponse
         do {
-            (data, response) = try await session.data(for: request)
+            (_, response) = try await session.data(for: request)
         } catch let urlError as URLError {
+            AppDiagnosticsStore.recordAPIValidation("Error de red")
             throw HaikuCleanupError.networkError(urlError)
         }
 
         let httpResponse = response as! HTTPURLResponse
         switch httpResponse.statusCode {
         case 200:
-            try KeychainService.save(key)
+            return
         case 401, 403:
+            AppDiagnosticsStore.recordAPIValidation("Inválida o sin crédito")
             throw HaikuCleanupError.authFailed
         case 429:
+            AppDiagnosticsStore.recordAPIValidation("Rate limited")
             throw HaikuCleanupError.rateLimited
         default:
+            AppDiagnosticsStore.recordAPIValidation("Error servidor (\(httpResponse.statusCode))")
             throw HaikuCleanupError.serverError(httpResponse.statusCode)
         }
-    }
-
-    func removeAPIKey() async throws {
-        try KeychainService.delete()
-    }
-
-    // MARK: - Private helpers
-
-    func estimateMaxTokens(for text: String) -> Int {
-        let estimate = Int(Double(text.count) / 4.0 * 1.5)
-        return min(max(estimate, 128), 2048)
     }
 }

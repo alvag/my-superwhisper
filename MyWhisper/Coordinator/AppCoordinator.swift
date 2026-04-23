@@ -151,10 +151,12 @@ final class AppCoordinator {
 
                 // Save to transcription history (OUT-03)
                 historyService?.append(correctedText)
+                AppDiagnosticsStore.clearTranscriptionError()
 
                 transitionTo(.idle)
             } catch {
                 overlayController?.hide()
+                AppDiagnosticsStore.recordTranscriptionError(error.localizedDescription)
                 NotificationHelper.show(
                     title: "Error de transcripcion",
                     body: error.localizedDescription

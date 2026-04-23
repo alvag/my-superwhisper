@@ -1,3 +1,5 @@
+import Foundation
+
 protocol AudioRecorderProtocol: AnyObject {
     /// Start audio capture. Throws if AVAudioEngine fails to start.
     func start() throws
@@ -45,4 +47,53 @@ protocol MicInputVolumeServiceProtocol: AnyObject {
     func restore()
     /// Whether the feature is enabled (UserDefaults toggle).
     var isEnabled: Bool { get }
+}
+
+struct AppDiagnosticsSnapshot {
+    let appVersion: String
+    let sttModel: String
+    let cleanupProvider: String
+    let lastAPIValidation: String
+    let lastTranscriptionError: String
+}
+
+enum AppDiagnosticsStore {
+    private static let apiValidationKey = "diagnostics.apiValidationStatus"
+    private static let transcriptionErrorKey = "diagnostics.lastTranscriptionError"
+
+    static func recordAPIValidation(_ message: String) {
+        UserDefaults.standard.set(message, forKey: apiValidationKey)
+    }
+
+    static func lastAPIValidation() -> String {
+        UserDefaults.standard.string(forKey: apiValidationKey) ?? "Sin validar todavía"
+    }
+
+    static func recordTranscriptionError(_ message: String) {
+        UserDefaults.standard.set(message, forKey: transcriptionErrorKey)
+    }
+
+    static func clearTranscriptionError() {
+        UserDefaults.standard.removeObject(forKey: transcriptionErrorKey)
+    }
+
+    static func lastTranscriptionError() -> String {
+        UserDefaults.standard.string(forKey: transcriptionErrorKey) ?? "Sin errores recientes"
+    }
+
+    static func appVersionString(bundle: Bundle = .main) -> String {
+        let version = bundle.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = bundle.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "v\(version) (build \(build))"
+    }
+
+    static func snapshot() -> AppDiagnosticsSnapshot {
+        AppDiagnosticsSnapshot(
+            appVersion: appVersionString(),
+            sttModel: "WhisperKit · openai_whisper-large-v3",
+            cleanupProvider: "Anthropic Haiku cleanup",
+            lastAPIValidation: lastAPIValidation(),
+            lastTranscriptionError: lastTranscriptionError()
+        )
+    }
 }
