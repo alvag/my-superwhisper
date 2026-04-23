@@ -102,6 +102,8 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
         AppDiagnosticsStore.recordAPIValidation("Válida")
     }
 
+    // Validate the key with a tiny test request before saving or when re-checking a stored key.
+
     func validateStoredAPIKey() async throws {
         guard let apiKey = KeychainService.load(), !apiKey.isEmpty else {
             AppDiagnosticsStore.recordAPIValidation("No configurada")
