@@ -90,7 +90,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             coordinator: coordinator,
             haikuCleanup: haikuCleanup,
             vocabularyService: vocabularyService,
-            microphoneService: microphoneService
+            microphoneService: microphoneService,
+            permissionsManager: permissionsManager,
+            sttEngine: sttEngine
         )
         statusMenuController.historyWindowController = historyWindowController
         menubarController.setMenu(statusMenuController.buildMenu())
@@ -113,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             do {
                 try await sttEngine.prepareModel()
             } catch {
+                AppDiagnosticsStore.recordTranscriptionError("Preload STT: \(error.localizedDescription)")
                 print("[AppDelegate] STT model pre-load failed: \(error)")
                 // Non-fatal -- model will load on first transcription attempt
             }

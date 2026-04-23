@@ -5,6 +5,8 @@ final class StatusMenuController: NSObject {
     private var haikuCleanup: (any HaikuCleanupProtocol)?
     private var vocabularyService: VocabularyService?
     private var microphoneService: MicrophoneDeviceService?
+    private var permissionsManager: PermissionsManager?
+    private var sttEngine: (any STTEngineProtocol)?
     private var settingsWindowController: SettingsWindowController?
     private var aboutWindowController: AboutWindowController?
     var historyWindowController: HistoryWindowController?
@@ -13,12 +15,16 @@ final class StatusMenuController: NSObject {
         coordinator: AppCoordinator,
         haikuCleanup: (any HaikuCleanupProtocol)? = nil,
         vocabularyService: VocabularyService? = nil,
-        microphoneService: MicrophoneDeviceService? = nil
+        microphoneService: MicrophoneDeviceService? = nil,
+        permissionsManager: PermissionsManager? = nil,
+        sttEngine: (any STTEngineProtocol)? = nil
     ) {
         self.coordinator = coordinator
         self.haikuCleanup = haikuCleanup
         self.vocabularyService = vocabularyService
         self.microphoneService = microphoneService
+        self.permissionsManager = permissionsManager
+        self.sttEngine = sttEngine
         super.init()
     }
 
@@ -69,11 +75,16 @@ final class StatusMenuController: NSObject {
 
     @objc private func openSettings() {
         Task { @MainActor in
-            if settingsWindowController == nil, let vocab = vocabularyService, let mic = microphoneService {
+            if settingsWindowController == nil,
+               let vocab = vocabularyService,
+               let mic = microphoneService,
+               let permissionsManager {
                 settingsWindowController = SettingsWindowController(
                     vocabularyService: vocab,
                     microphoneService: mic,
-                    haikuCleanup: haikuCleanup
+                    permissionsManager: permissionsManager,
+                    haikuCleanup: haikuCleanup,
+                    sttEngine: sttEngine
                 )
             }
             settingsWindowController?.show()

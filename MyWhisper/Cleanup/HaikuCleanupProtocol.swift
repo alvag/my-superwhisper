@@ -5,6 +5,8 @@ protocol HaikuCleanupProtocol: AnyObject, Sendable {
     var hasAPIKey: Bool { get async }
     /// Save a new API key (validates first, then stores in Keychain).
     func saveAPIKey(_ key: String) async throws
+    /// Validate the currently stored API key with a lightweight request.
+    func validateStoredAPIKey() async throws
     /// Remove the stored API key from Keychain.
     func removeAPIKey() async throws
 }

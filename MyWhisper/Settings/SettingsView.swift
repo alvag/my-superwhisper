@@ -7,7 +7,37 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // SECCION 1: GRABACION (per D-01, D-02)
+            Section {
+                ForEach(viewModel.permissionItems) { item in
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(item.title, systemImage: item.isGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                .foregroundStyle(item.isGranted ? .green : .orange)
+                            Text(item.detail)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(item.isGranted ? "OK" : "Pendiente")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(item.isGranted ? .green : .orange)
+                    }
+                    .padding(.vertical, 2)
+                }
+
+                HStack {
+                    Button("Abrir Accesibilidad") {
+                        viewModel.openAccessibilitySettings()
+                    }
+                    Button("Abrir Micrófono") {
+                        viewModel.openMicrophoneSettings()
+                    }
+                }
+            } header: {
+                Label("Estado y permisos", systemImage: "checkmark.shield")
+            }
+
+            // SECCION 1: GRABACION
             Section {
                 KeyboardShortcuts.Recorder("Atajo de grabación:", name: .toggleRecording)
 
@@ -26,16 +56,33 @@ struct SettingsView: View {
                 Label("Grabación", systemImage: "mic.fill")
             }
 
-            // SECCION 2: API (per D-01, D-03, D-12)
+            // SECCION 2: API
             Section {
-                Button("Configurar clave API...") {
-                    viewModel.openAPIKey()
+                LabeledContent("Clave configurada") {
+                    Text(viewModel.apiKeyConfigured ? "Sí" : "No")
+                        .foregroundStyle(viewModel.apiKeyConfigured ? .green : .secondary)
+                }
+
+                LabeledContent("Última validación") {
+                    Text(viewModel.apiValidationStatus)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                HStack {
+                    Button("Configurar clave API...") {
+                        viewModel.openAPIKey()
+                    }
+                    Button(viewModel.apiValidationInFlight ? "Validando..." : "Probar conexión") {
+                        viewModel.testAPIConnection()
+                    }
+                    .disabled(viewModel.apiValidationInFlight || !viewModel.apiKeyConfigured)
                 }
             } header: {
                 Label("API", systemImage: "key.fill")
             }
 
-            // SECCION 3: VOCABULARIO (per D-01, D-04, D-07, D-08)
+            // SECCION 3: VOCABULARIO
             Section {
                 ForEach($viewModel.vocabularyEntries) { $entry in
                     HStack {
@@ -64,7 +111,35 @@ struct SettingsView: View {
                 Label("Vocabulario", systemImage: "textformat.abc")
             }
 
-            // SECCION 4: SISTEMA (per D-01, D-05)
+            Section {
+                LabeledContent("Versión") {
+                    Text(viewModel.diagnostics.appVersion)
+                }
+                LabeledContent("Modelo STT") {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(viewModel.diagnostics.sttModel)
+                        Text(viewModel.whisperReady ? "Listo" : "Cargando (\(Int(viewModel.whisperLoadProgress * 100))%)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("Limpieza") {
+                    Text(viewModel.diagnostics.cleanupProvider)
+                }
+                LabeledContent("Último error") {
+                    Text(viewModel.diagnostics.lastTranscriptionError)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+
+                Button("Copiar diagnóstico") {
+                    viewModel.copyDiagnosticsToClipboard()
+                }
+            } header: {
+                Label("Diagnóstico", systemImage: "stethoscope")
+            }
+
+            // SECCION 4: SISTEMA
             Section {
                 Toggle("Iniciar al arranque", isOn: $viewModel.launchAtLoginEnabled)
             } header: {
@@ -72,6 +147,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(minWidth: 420, minHeight: 400)
+        .onAppear {
+            viewModel.refreshStatuses()
+        }
+        .frame(minWidth: 520, minHeight: 620)
     }
 }
