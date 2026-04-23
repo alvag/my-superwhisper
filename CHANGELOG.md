@@ -2,6 +2,18 @@
 
 All notable changes to My SuperWhisper will be documented in this file.
 
+## [Unreleased] - 2026-04-23 — Listening Overlay Polish
+
+### Changed
+- Cleaned up the listening overlay container so the rounded capsule renders cleanly without clipped dark bottom artifacts
+- Reworked the listening animation from a basic red-bar look into a more polished waveform-style visualization
+- Tuned overlay stroke, shadow, spacing, and panel sizing for a more native macOS feel
+
+### Technical
+- Disabled the native panel shadow and moved visual depth styling into SwiftUI for more predictable rendering
+- Increased overlay panel bounds/padding so the material, shadow, and rounded shape are not cut off
+- Updated the audio visualization to use seven capsule bars, a refined gradient, and spring-based animation
+
 ## [v1.3] - 2026-03-24 — Settings UX
 
 ### Added
