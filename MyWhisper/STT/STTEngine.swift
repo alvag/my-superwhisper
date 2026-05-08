@@ -4,7 +4,16 @@ import WhisperKit
 actor STTEngine: STTEngineProtocol {
     private var whisperKit: WhisperKit?
     private var isLoading: Bool = false
+    private var activeTranscriptions: Int = 0
     private var _loadProgress: Double = 0.0
+    private var cachedModelAssetsStatus: ModelAssetsStatus?
+    private let modelDirectoryOverride: URL?
+    private let repository = "argmaxinc/whisperkit-coreml"
+    private let modelVariant = AppDiagnosticsStore.sttModelName
+
+    init(modelDirectory: URL? = nil) {
+        self.modelDirectoryOverride = modelDirectory
+    }
 
     // MARK: - STTEngineProtocol
 
@@ -13,38 +22,44 @@ actor STTEngine: STTEngineProtocol {
     func prepareModel() async throws {
         guard whisperKit == nil, !isLoading else { return }
         isLoading = true
+        cachedModelAssetsStatus = .partial
         defer { isLoading = false }
 
         // Download model into Application Support (avoids iCloud sync of ~/.cache/huggingface)
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let modelsDir = appSupport.appendingPathComponent("MyWhisper/Models", isDirectory: true)
-        try FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
+        let modelsDir = modelDirectory
+        do {
+            try FileManager.default.createDirectory(at: modelsDir, withIntermediateDirectories: true)
 
-        let modelFolder = try await WhisperKit.download(
-            variant: "openai_whisper-large-v3",
-            downloadBase: modelsDir,
-            from: "argmaxinc/whisperkit-coreml",
-            progressCallback: { [weak self] progress in
-                guard let self else { return }
-                // Download accounts for the first 50% of total load progress
-                Task { await self.setLoadProgress(progress.fractionCompleted * 0.5) }
-            }
-        )
+            let modelFolder = try await WhisperKit.download(
+                variant: modelVariant,
+                downloadBase: modelsDir,
+                from: repository,
+                progressCallback: { [weak self] progress in
+                    guard let self else { return }
+                    // Download accounts for the first 50% of total load progress
+                    Task { await self.setLoadProgress(progress.fractionCompleted * 0.5) }
+                }
+            )
 
-        // Initialize WhisperKit with CoreML/ANE compute
-        // WhisperKit.download returns a URL, WhisperKitConfig.modelFolder expects a String path
-        let config = WhisperKitConfig(
-            model: "openai_whisper-large-v3",
-            modelFolder: modelFolder.path,
-            computeOptions: ModelComputeOptions(audioEncoderCompute: .cpuAndNeuralEngine)
-        )
-        whisperKit = try await WhisperKit(config)
-        _loadProgress = 0.75
+            // Initialize WhisperKit with CoreML/ANE compute
+            // WhisperKit.download returns a URL, WhisperKitConfig.modelFolder expects a String path
+            let config = WhisperKitConfig(
+                model: modelVariant,
+                modelFolder: modelFolder.path,
+                computeOptions: ModelComputeOptions(audioEncoderCompute: .cpuAndNeuralEngine)
+            )
+            whisperKit = try await WhisperKit(config)
+            _loadProgress = 0.75
 
-        // Prewarm + load — both required (prewarm alone is not sufficient per research)
-        try await whisperKit?.prewarmModels()
-        try await whisperKit?.loadModels()
-        _loadProgress = 1.0
+            // Prewarm + load — both required (prewarm alone is not sufficient per research)
+            try await whisperKit?.prewarmModels()
+            try await whisperKit?.loadModels()
+            _loadProgress = 1.0
+            cachedModelAssetsStatus = .ready
+        } catch {
+            cachedModelAssetsStatus = inspectModelAssetsOnDisk()
+            throw error
+        }
     }
 
     /// Transcribe a 16kHz mono Float32 audio buffer to Spanish text.
@@ -73,6 +88,9 @@ actor STTEngine: STTEngineProtocol {
             noSpeechThreshold: 0.6
         )
 
+        activeTranscriptions += 1
+        defer { activeTranscriptions -= 1 }
+
         let results = try await kit.transcribe(audioArray: audioArray, decodeOptions: options)
         let text = results.map { $0.text }.joined(separator: " ").trimmingCharacters(in: .whitespaces)
 
@@ -92,9 +110,80 @@ actor STTEngine: STTEngineProtocol {
         _loadProgress
     }
 
+    var modelName: String {
+        modelVariant
+    }
+
+    var modelDirectory: URL {
+        if let modelDirectoryOverride {
+            return modelDirectoryOverride
+        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport.appendingPathComponent("MyWhisper/Models", isDirectory: true)
+    }
+
+    var modelAssetsStatus: ModelAssetsStatus {
+        if whisperKit != nil {
+            return .ready
+        }
+        if isLoading {
+            return .partial
+        }
+        if let cachedModelAssetsStatus {
+            return cachedModelAssetsStatus
+        }
+
+        let status = inspectModelAssetsOnDisk()
+        cachedModelAssetsStatus = status
+        return status
+    }
+
+    func resetModelAssets() async throws {
+        guard !isLoading, activeTranscriptions == 0 else {
+            throw STTError.modelBusy
+        }
+
+        whisperKit = nil
+        _loadProgress = 0.0
+
+        let fileManager = FileManager.default
+        if fileManager.fileExists(atPath: modelDirectory.path) {
+            try fileManager.removeItem(at: modelDirectory)
+        }
+        cachedModelAssetsStatus = .missing
+    }
+
     // MARK: - Private helpers
+
+    private func inspectModelAssetsOnDisk() -> ModelAssetsStatus {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: modelDirectory.path, isDirectory: &isDirectory), isDirectory.boolValue else {
+            return .missing
+        }
+
+        guard let enumerator = fileManager.enumerator(
+            at: modelDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return .partial
+        }
+
+        for case let fileURL as URL in enumerator {
+            let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey])
+            if values?.isRegularFile == true {
+                return .partial
+            }
+        }
+
+        return .missing
+    }
 
     private func setLoadProgress(_ value: Double) {
         _loadProgress = value
+        if value > 0, value < 1 {
+            cachedModelAssetsStatus = .partial
+        }
     }
 }

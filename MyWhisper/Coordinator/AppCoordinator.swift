@@ -90,7 +90,7 @@ final class AppCoordinator {
 
             // Switch overlay from waveform to spinner
             overlayController?.showProcessing()
-            transitionTo(.processing)
+            transitionTo(.transcribing)
 
             // Transcribe via WhisperKit (STT-01)
             do {
@@ -101,6 +101,7 @@ final class AppCoordinator {
                 // Haiku cleanup (CLN-01/02/03/04) — fallback to raw on any error
                 let finalText: String
                 if let haiku = haikuCleanup {
+                    transitionTo(.cleaning)
                     do {
                         finalText = try await haiku.clean(rawText)
                     } catch let error as HaikuCleanupError {
@@ -164,7 +165,7 @@ final class AppCoordinator {
                 transitionTo(.idle)
             }
 
-        case .processing:
+        case .transcribing, .cleaning, .processing:
             break // Ignored per spec
 
         case .error:

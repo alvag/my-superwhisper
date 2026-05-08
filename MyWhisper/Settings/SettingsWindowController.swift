@@ -10,12 +10,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     init(vocabularyService: VocabularyService,
          microphoneService: MicrophoneDeviceService,
          permissionsManager: PermissionsManager,
+         coordinator: AppCoordinator?,
          haikuCleanup: (any HaikuCleanupProtocol)?,
          sttEngine: (any STTEngineProtocol)?) {
         self.viewModel = SettingsViewModel(
             vocabularyService: vocabularyService,
             microphoneService: microphoneService,
             permissionsManager: permissionsManager,
+            coordinator: coordinator,
             haikuCleanup: haikuCleanup,
             sttEngine: sttEngine
         )
@@ -54,6 +56,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        viewModel.stopRuntimeRefresh()
         sender.orderOut(nil)
         NSApp.setActivationPolicy(.accessory)
         NSApp.hide(nil)

@@ -20,16 +20,15 @@ final class MenubarController {
         let symbolName = "captions.bubble.fill"
         switch state {
         case .idle:
-            // Template image — macOS renders it matching menubar appearance (light/dark)
             let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: "MyWhisper")
             img?.isTemplate = true
             return img
-        case .recording, .processing, .error:
+        case .recording, .transcribing, .cleaning, .processing, .error:
             // Colored image — draw SF Symbol with explicit color baked in
             let color: NSColor
             switch state {
             case .recording: color = .systemRed
-            case .processing: color = .systemBlue
+            case .transcribing, .cleaning, .processing: color = .systemBlue
             case .error: color = .systemOrange
             default: color = .labelColor
             }

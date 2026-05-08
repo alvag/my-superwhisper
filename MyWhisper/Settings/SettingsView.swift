@@ -56,6 +56,65 @@ struct SettingsView: View {
                 Label("Grabación", systemImage: "mic.fill")
             }
 
+            Section {
+                LabeledContent("Modelo") {
+                    Text(viewModel.whisperModelName)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Assets") {
+                    Text(viewModel.whisperAssetsStatus)
+                        .foregroundStyle(viewModel.whisperReady ? .green : .secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Ruta") {
+                    Text(viewModel.whisperAssetsPath)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Carga") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView(value: viewModel.whisperLoadProgress)
+                            .frame(width: 160)
+                        Text(viewModel.whisperReady ? "Listo" : "\(Int(viewModel.whisperLoadProgress * 100))%")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                LabeledContent("Runtime") {
+                    Text(viewModel.runtimeState)
+                        .foregroundStyle(.secondary)
+                }
+                HStack {
+                    Button(viewModel.whisperActionInFlight ? "Preparando..." : "Preparar modelo") {
+                        viewModel.prepareWhisperModel()
+                    }
+                    .disabled(viewModel.whisperActionInFlight)
+
+                    Button("Resetear modelo") {
+                        viewModel.resetWhisperModel()
+                    }
+                    .disabled(viewModel.whisperActionInFlight)
+                }
+                Divider()
+                LabeledContent("Prueba de micrófono") {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        ProgressView(value: viewModel.micTestLevel)
+                            .frame(width: 160)
+                        Text(viewModel.micTestStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Button(viewModel.micTestInFlight ? "Probando..." : "Probar micrófono") {
+                    viewModel.runMicTest()
+                }
+                .disabled(viewModel.micTestInFlight)
+            } header: {
+                Label("Whisper", systemImage: "waveform")
+            }
+
             // SECCION 2: API
             Section {
                 LabeledContent("Clave configurada") {
@@ -149,7 +208,11 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             viewModel.refreshStatuses()
+            viewModel.startRuntimeRefresh()
         }
-        .frame(minWidth: 520, minHeight: 620)
+        .onDisappear {
+            viewModel.stopRuntimeRefresh()
+        }
+        .frame(minWidth: 560, minHeight: 700)
     }
 }

@@ -9,8 +9,12 @@ final class MockSTTEngineProtocol: STTEngineProtocol, @unchecked Sendable {
     var shouldThrow = false
     var prepareModelCalled = false
     var transcribeCalled = false
+    var resetCalled = false
     private var _isReady = false
     private var _loadProgress: Double = 0.0
+    var modelName: String = "openai_whisper-large-v3"
+    var modelDirectory: URL = URL(fileURLWithPath: "/tmp/MyWhisperTests/Models")
+    var modelAssetsStatus: ModelAssetsStatus = .missing
 
     var isReady: Bool { _isReady }
     var loadProgress: Double { _loadProgress }
@@ -19,6 +23,14 @@ final class MockSTTEngineProtocol: STTEngineProtocol, @unchecked Sendable {
         prepareModelCalled = true
         _loadProgress = 1.0
         _isReady = true
+        modelAssetsStatus = .ready
+    }
+
+    func resetModelAssets() async throws {
+        resetCalled = true
+        _loadProgress = 0.0
+        _isReady = false
+        modelAssetsStatus = .missing
     }
 
     func transcribe(_ audioArray: [Float]) async throws -> String {
@@ -62,6 +74,60 @@ final class STTEngineTests: XCTestCase {
         try await engine.prepareModel()
         let progress = await engine.loadProgress
         XCTAssertEqual(progress, 1.0, "Progress should be 1.0 after model load")
+    }
+
+    func testModelMetadataContract() async {
+        let engine = MockSTTEngineProtocol()
+        let modelName = await engine.modelName
+        let modelDirectory = await engine.modelDirectory
+        let assetsStatus = await engine.modelAssetsStatus
+        XCTAssertEqual(modelName, "openai_whisper-large-v3")
+        XCTAssertTrue(modelDirectory.path.contains("MyWhisperTests"))
+        XCTAssertEqual(assetsStatus, .missing)
+    }
+
+    func testResetModelAssetsClearsReadiness() async throws {
+        let engine = MockSTTEngineProtocol()
+        try await engine.prepareModel()
+        try await engine.resetModelAssets()
+        let isReady = await engine.isReady
+        let loadProgress = await engine.loadProgress
+        let assetsStatus = await engine.modelAssetsStatus
+        XCTAssertTrue(engine.resetCalled)
+        XCTAssertFalse(isReady)
+        XCTAssertEqual(loadProgress, 0.0)
+        XCTAssertEqual(assetsStatus, .missing)
+    }
+
+    func testRealEngineReportsMissingWhenModelDirectoryDoesNotExist() async throws {
+        let directory = temporaryModelDirectory()
+        let engine = STTEngine(modelDirectory: directory)
+        let status = await engine.modelAssetsStatus
+        XCTAssertEqual(status, .missing)
+    }
+
+    func testRealEngineReportsPartialForFilesWithoutLoadedModel() async throws {
+        let directory = temporaryModelDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("partial".utf8).write(to: directory.appendingPathComponent("partial.bin"))
+
+        let engine = STTEngine(modelDirectory: directory)
+        let status = await engine.modelAssetsStatus
+        XCTAssertEqual(status, .partial)
+    }
+
+    func testRealEngineResetInvalidatesCachedAssetsStatus() async throws {
+        let directory = temporaryModelDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("partial".utf8).write(to: directory.appendingPathComponent("partial.bin"))
+
+        let engine = STTEngine(modelDirectory: directory)
+        let firstStatus = await engine.modelAssetsStatus
+        try await engine.resetModelAssets()
+        let resetStatus = await engine.modelAssetsStatus
+
+        XCTAssertEqual(firstStatus, .partial)
+        XCTAssertEqual(resetStatus, .missing)
     }
 
     // MARK: - Transcription (STT-02 protocol contract)
@@ -115,5 +181,22 @@ final class STTEngineTests: XCTestCase {
         let failed = STTError.transcriptionFailed(underlying: NSError(domain: "test", code: 42))
         XCTAssertNotNil(failed.errorDescription)
         XCTAssertTrue(failed.errorDescription!.contains("transcripcion"))
+
+        let busy = STTError.modelBusy
+        XCTAssertNotNil(busy.errorDescription)
+        XCTAssertTrue(busy.errorDescription!.contains("ocupado"))
+    }
+
+    private func temporaryModelDirectory(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MyWhisperTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return directory
     }
 }

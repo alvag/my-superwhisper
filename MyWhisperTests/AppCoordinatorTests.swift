@@ -36,8 +36,12 @@ final class MockSTTEngine: STTEngineProtocol, @unchecked Sendable {
     var transcribeCalled = false
     var isReady: Bool = true
     var loadProgress: Double = 1.0
+    var modelName: String = "openai_whisper-large-v3"
+    var modelDirectory: URL = URL(fileURLWithPath: "/tmp/MyWhisperTests/Models")
+    var modelAssetsStatus: ModelAssetsStatus = .ready
 
     func prepareModel() async throws {}
+    func resetModelAssets() async throws {}
 
     func transcribe(_ audioArray: [Float]) async throws -> String {
         transcribeCalled = true
@@ -77,6 +81,7 @@ final class MockHaikuCleanup: HaikuCleanupProtocol, @unchecked Sendable {
     var hasAPIKey: Bool { hasAPIKeyValue }
 
     func saveAPIKey(_ key: String) async throws {}
+    func validateStoredAPIKey() async throws {}
     func removeAPIKey() async throws {}
 }
 
