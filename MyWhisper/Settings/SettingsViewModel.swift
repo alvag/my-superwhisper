@@ -55,6 +55,14 @@ final class SettingsViewModel {
     private(set) var diagnostics = AppDiagnosticsStore.snapshot()
     private(set) var whisperReady = false
     private(set) var whisperLoadProgress: Double = 0.0
+    private(set) var whisperModelName = AppDiagnosticsStore.sttModelName
+    private(set) var whisperAssetsStatus = ModelAssetsStatus.missing.displayText
+    private(set) var whisperAssetsPath = ""
+    private(set) var whisperActionInFlight = false
+    private(set) var runtimeState = AppState.idle.description
+    private(set) var micTestInFlight = false
+    private(set) var micTestStatus = "Sin probar"
+    private(set) var micTestLevel: Double = 0.0
 
     // -- Closure para abrir APIKeyWindowController sin importar AppKit --
     var openAPIKey: () -> Void = {}
@@ -63,17 +71,21 @@ final class SettingsViewModel {
     private let vocabularyService: VocabularyService
     private let microphoneService: MicrophoneDeviceService
     private let permissionsManager: PermissionsManager
+    private weak var coordinator: AppCoordinator?
     private let haikuCleanup: (any HaikuCleanupProtocol)?
     private let sttEngine: (any STTEngineProtocol)?
+    private var refreshTimer: Timer?
 
     init(vocabularyService: VocabularyService,
          microphoneService: MicrophoneDeviceService,
          permissionsManager: PermissionsManager,
+         coordinator: AppCoordinator?,
          haikuCleanup: (any HaikuCleanupProtocol)?,
          sttEngine: (any STTEngineProtocol)?) {
         self.vocabularyService = vocabularyService
         self.microphoneService = microphoneService
         self.permissionsManager = permissionsManager
+        self.coordinator = coordinator
         self.haikuCleanup = haikuCleanup
         self.sttEngine = sttEngine
         // Cargar valores iniciales de la capa de persistencia existente
@@ -118,6 +130,19 @@ final class SettingsViewModel {
         apiKeyConfigured = KeychainService.load() != nil
         apiValidationStatus = AppDiagnosticsStore.lastAPIValidation()
         diagnostics = AppDiagnosticsStore.snapshot()
+        refreshRuntimeState()
+    }
+
+    func startRuntimeRefresh() {
+        refreshTimer?.invalidate()
+        refreshRuntimeState()
+        Task { await refreshWhisperStatus() }
+        refreshTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.refreshRuntimeState()
+                await self?.refreshWhisperStatus()
+            }
+        }
     }
 
     func openAccessibilitySettings() {
@@ -158,6 +183,9 @@ final class SettingsViewModel {
         MyWhisper diagnostics
         Versión: \(snapshot.appVersion)
         Modelo STT: \(snapshot.sttModel)
+        Whisper assets: \(whisperAssetsStatus)
+        Whisper path: \(whisperAssetsPath)
+        Estado runtime: \(runtimeState)
         Provider limpieza: \(snapshot.cleanupProvider)
         API key configurada: \(apiKeyConfigured ? "sí" : "no")
         Última validación API: \(snapshot.lastAPIValidation)
@@ -174,11 +202,91 @@ final class SettingsViewModel {
         pasteboard.setString(text, forType: .string)
     }
 
+    func prepareWhisperModel() {
+        guard let sttEngine else { return }
+        whisperActionInFlight = true
+        Task {
+            defer {
+                Task { @MainActor in
+                    self.whisperActionInFlight = false
+                    await self.refreshWhisperStatus()
+                }
+            }
+            do {
+                try await sttEngine.prepareModel()
+            } catch {
+                AppDiagnosticsStore.recordTranscriptionError("Whisper prepare: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func resetWhisperModel() {
+        guard let sttEngine else { return }
+        whisperActionInFlight = true
+        Task {
+            defer {
+                Task { @MainActor in
+                    self.whisperActionInFlight = false
+                    await self.refreshWhisperStatus()
+                }
+            }
+            do {
+                try await sttEngine.resetModelAssets()
+            } catch {
+                AppDiagnosticsStore.recordTranscriptionError("Whisper reset: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func runMicTest() {
+        guard !micTestInFlight else { return }
+
+        micTestInFlight = true
+        micTestStatus = "Probando..."
+        micTestLevel = 0.0
+
+        Task {
+            let granted = await permissionsManager.requestMicrophone()
+            guard granted else {
+                micTestStatus = "Permiso de micrófono pendiente"
+                micTestInFlight = false
+                return
+            }
+
+            let recorder = AudioRecorder()
+            recorder.microphoneService = microphoneService
+
+            do {
+                try recorder.start()
+                var peak: Float = 0.0
+                for _ in 0..<12 {
+                    try await Task.sleep(for: .milliseconds(100))
+                    peak = max(peak, recorder.audioLevel)
+                    micTestLevel = Double(peak)
+                }
+                recorder.cancel()
+                micTestStatus = peak > 0.02 ? "Entrada detectada" : "Sin señal clara"
+            } catch {
+                recorder.cancel()
+                micTestStatus = "No se pudo iniciar: \(error.localizedDescription)"
+            }
+
+            micTestInFlight = false
+        }
+    }
+
     private func refreshWhisperStatus() async {
         guard let sttEngine else { return }
         whisperReady = await sttEngine.isReady
         whisperLoadProgress = await sttEngine.loadProgress
+        whisperModelName = await sttEngine.modelName
+        whisperAssetsStatus = await sttEngine.modelAssetsStatus.displayText
+        whisperAssetsPath = await sttEngine.modelDirectory.path
         diagnostics = AppDiagnosticsStore.snapshot()
+    }
+
+    private func refreshRuntimeState() {
+        runtimeState = coordinator?.state.description ?? AppState.idle.description
     }
 
     private func accessibilityText(for status: AVAuthorizationStatus) -> String {

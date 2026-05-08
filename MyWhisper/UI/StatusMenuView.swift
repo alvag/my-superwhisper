@@ -83,6 +83,7 @@ final class StatusMenuController: NSObject {
                     vocabularyService: vocab,
                     microphoneService: mic,
                     permissionsManager: permissionsManager,
+                    coordinator: coordinator,
                     haikuCleanup: haikuCleanup,
                     sttEngine: sttEngine
                 )

@@ -10,12 +10,14 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     init(vocabularyService: VocabularyService,
          microphoneService: MicrophoneDeviceService,
          permissionsManager: PermissionsManager,
+         coordinator: AppCoordinator?,
          haikuCleanup: (any HaikuCleanupProtocol)?,
          sttEngine: (any STTEngineProtocol)?) {
         self.viewModel = SettingsViewModel(
             vocabularyService: vocabularyService,
             microphoneService: microphoneService,
             permissionsManager: permissionsManager,
+            coordinator: coordinator,
             haikuCleanup: haikuCleanup,
             sttEngine: sttEngine
         )

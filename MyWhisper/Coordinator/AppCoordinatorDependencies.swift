@@ -32,6 +32,28 @@ protocol STTEngineProtocol: AnyObject, Sendable {
     var isReady: Bool { get async }
     /// Model download/load progress (0.0-1.0). Observable for UI.
     var loadProgress: Double { get async }
+    /// Human-readable model identifier currently configured for WhisperKit.
+    var modelName: String { get async }
+    /// Directory where model assets are stored.
+    var modelDirectory: URL { get async }
+    /// Whether local model assets appear available.
+    var modelAssetsStatus: ModelAssetsStatus { get async }
+    /// Clear loaded state and remove local model assets so they can be downloaded again.
+    func resetModelAssets() async throws
+}
+
+enum ModelAssetsStatus: Equatable, Sendable {
+    case ready
+    case missing
+    case partial
+
+    var displayText: String {
+        switch self {
+        case .ready: return "Descargados y listos"
+        case .missing: return "No descargados"
+        case .partial: return "Incompletos o en descarga"
+        }
+    }
 }
 
 protocol MediaPlaybackServiceProtocol: AnyObject {
@@ -58,6 +80,8 @@ struct AppDiagnosticsSnapshot {
 }
 
 enum AppDiagnosticsStore {
+    static let sttModelName = "openai_whisper-large-v3"
+
     private static let apiValidationKey = "diagnostics.apiValidationStatus"
     private static let transcriptionErrorKey = "diagnostics.lastTranscriptionError"
 
@@ -90,7 +114,7 @@ enum AppDiagnosticsStore {
     static func snapshot() -> AppDiagnosticsSnapshot {
         AppDiagnosticsSnapshot(
             appVersion: appVersionString(),
-            sttModel: "WhisperKit · openai_whisper-large-v3",
+            sttModel: "WhisperKit · \(sttModelName)",
             cleanupProvider: "Anthropic Haiku cleanup",
             lastAPIValidation: lastAPIValidation(),
             lastTranscriptionError: lastTranscriptionError()
