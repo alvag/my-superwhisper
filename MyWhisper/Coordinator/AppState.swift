@@ -5,6 +5,7 @@ enum AppState: Equatable {
     case recording
     case transcribing
     case cleaning
+    /// Legacy aggregate state kept for compatibility with existing tests and callers.
     case processing
     case error(String)
 

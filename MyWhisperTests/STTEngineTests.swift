@@ -99,6 +99,37 @@ final class STTEngineTests: XCTestCase {
         XCTAssertEqual(assetsStatus, .missing)
     }
 
+    func testRealEngineReportsMissingWhenModelDirectoryDoesNotExist() async throws {
+        let directory = temporaryModelDirectory()
+        let engine = STTEngine(modelDirectory: directory)
+        let status = await engine.modelAssetsStatus
+        XCTAssertEqual(status, .missing)
+    }
+
+    func testRealEngineReportsPartialForFilesWithoutLoadedModel() async throws {
+        let directory = temporaryModelDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("partial".utf8).write(to: directory.appendingPathComponent("partial.bin"))
+
+        let engine = STTEngine(modelDirectory: directory)
+        let status = await engine.modelAssetsStatus
+        XCTAssertEqual(status, .partial)
+    }
+
+    func testRealEngineResetInvalidatesCachedAssetsStatus() async throws {
+        let directory = temporaryModelDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("partial".utf8).write(to: directory.appendingPathComponent("partial.bin"))
+
+        let engine = STTEngine(modelDirectory: directory)
+        let firstStatus = await engine.modelAssetsStatus
+        try await engine.resetModelAssets()
+        let resetStatus = await engine.modelAssetsStatus
+
+        XCTAssertEqual(firstStatus, .partial)
+        XCTAssertEqual(resetStatus, .missing)
+    }
+
     // MARK: - Transcription (STT-02 protocol contract)
 
     func testTranscribeReturnsText() async throws {
@@ -154,5 +185,18 @@ final class STTEngineTests: XCTestCase {
         let busy = STTError.modelBusy
         XCTAssertNotNil(busy.errorDescription)
         XCTAssertTrue(busy.errorDescription!.contains("ocupado"))
+    }
+
+    private func temporaryModelDirectory(
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MyWhisperTests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock {
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return directory
     }
 }

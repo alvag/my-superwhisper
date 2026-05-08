@@ -14,6 +14,9 @@ struct PermissionItem: Identifiable {
 @Observable
 @MainActor
 final class SettingsViewModel {
+    private static let micTestSampleCount = 12
+    private static let micTestSampleInterval: Duration = .milliseconds(100)
+    private static let micTestSignalThreshold: Float = 0.02
 
     // -- Bool toggles con didSet -> UserDefaults --
     var pausePlaybackEnabled: Bool {
@@ -211,17 +214,13 @@ final class SettingsViewModel {
         guard let sttEngine else { return }
         whisperActionInFlight = true
         Task {
-            defer {
-                Task { @MainActor in
-                    self.whisperActionInFlight = false
-                    await self.refreshWhisperStatus()
-                }
-            }
             do {
                 try await sttEngine.prepareModel()
             } catch {
                 AppDiagnosticsStore.recordTranscriptionError("Whisper prepare: \(error.localizedDescription)")
             }
+            whisperActionInFlight = false
+            await refreshWhisperStatus()
         }
     }
 
@@ -229,17 +228,13 @@ final class SettingsViewModel {
         guard let sttEngine else { return }
         whisperActionInFlight = true
         Task {
-            defer {
-                Task { @MainActor in
-                    self.whisperActionInFlight = false
-                    await self.refreshWhisperStatus()
-                }
-            }
             do {
                 try await sttEngine.resetModelAssets()
             } catch {
                 AppDiagnosticsStore.recordTranscriptionError("Whisper reset: \(error.localizedDescription)")
             }
+            whisperActionInFlight = false
+            await refreshWhisperStatus()
         }
     }
 
@@ -263,16 +258,16 @@ final class SettingsViewModel {
 
             do {
                 try recorder.start()
+                defer { recorder.cancel() }
+
                 var peak: Float = 0.0
-                for _ in 0..<12 {
-                    try await Task.sleep(for: .milliseconds(100))
+                for _ in 0..<Self.micTestSampleCount {
+                    try await Task.sleep(for: Self.micTestSampleInterval)
                     peak = max(peak, recorder.audioLevel)
                     micTestLevel = Double(peak)
                 }
-                recorder.cancel()
-                micTestStatus = peak > 0.02 ? "Entrada detectada" : "Sin señal clara"
+                micTestStatus = peak > Self.micTestSignalThreshold ? "Entrada detectada" : "Sin señal clara"
             } catch {
-                recorder.cancel()
                 micTestStatus = "No se pudo iniciar: \(error.localizedDescription)"
             }
 

@@ -20,7 +20,9 @@ final class MenubarController {
         let symbolName = "captions.bubble.fill"
         switch state {
         case .idle:
-            return coloredSymbol(symbolName, color: .labelColor)
+            let img = NSImage(systemSymbolName: symbolName, accessibilityDescription: "MyWhisper")
+            img?.isTemplate = true
+            return img
         case .recording, .transcribing, .cleaning, .processing, .error:
             // Colored image — draw SF Symbol with explicit color baked in
             let color: NSColor
