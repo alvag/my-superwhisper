@@ -145,6 +145,11 @@ final class SettingsViewModel {
         }
     }
 
+    func stopRuntimeRefresh() {
+        refreshTimer?.invalidate()
+        refreshTimer = nil
+    }
+
     func openAccessibilitySettings() {
         permissionsManager.openSystemSettingsForAccessibility()
         refreshStatuses()

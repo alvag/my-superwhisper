@@ -56,6 +56,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        viewModel.stopRuntimeRefresh()
         sender.orderOut(nil)
         NSApp.setActivationPolicy(.accessory)
         NSApp.hide(nil)

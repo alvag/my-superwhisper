@@ -150,5 +150,9 @@ final class STTEngineTests: XCTestCase {
         let failed = STTError.transcriptionFailed(underlying: NSError(domain: "test", code: 42))
         XCTAssertNotNil(failed.errorDescription)
         XCTAssertTrue(failed.errorDescription!.contains("transcripcion"))
+
+        let busy = STTError.modelBusy
+        XCTAssertNotNil(busy.errorDescription)
+        XCTAssertTrue(busy.errorDescription!.contains("ocupado"))
     }
 }

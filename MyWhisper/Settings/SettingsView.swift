@@ -210,6 +210,9 @@ struct SettingsView: View {
             viewModel.refreshStatuses()
             viewModel.startRuntimeRefresh()
         }
+        .onDisappear {
+            viewModel.stopRuntimeRefresh()
+        }
         .frame(minWidth: 560, minHeight: 700)
     }
 }

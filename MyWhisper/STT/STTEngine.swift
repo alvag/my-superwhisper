@@ -4,6 +4,7 @@ import WhisperKit
 actor STTEngine: STTEngineProtocol {
     private var whisperKit: WhisperKit?
     private var isLoading: Bool = false
+    private var activeTranscriptions: Int = 0
     private var _loadProgress: Double = 0.0
     private let repository = "argmaxinc/whisperkit-coreml"
     private let modelVariant = AppDiagnosticsStore.sttModelName
@@ -74,6 +75,9 @@ actor STTEngine: STTEngineProtocol {
             noSpeechThreshold: 0.6
         )
 
+        activeTranscriptions += 1
+        defer { activeTranscriptions -= 1 }
+
         let results = try await kit.transcribe(audioArray: audioArray, decodeOptions: options)
         let text = results.map { $0.text }.joined(separator: " ").trimmingCharacters(in: .whitespaces)
 
@@ -132,8 +136,11 @@ actor STTEngine: STTEngineProtocol {
     }
 
     func resetModelAssets() async throws {
+        guard !isLoading, activeTranscriptions == 0 else {
+            throw STTError.modelBusy
+        }
+
         whisperKit = nil
-        isLoading = false
         _loadProgress = 0.0
 
         let fileManager = FileManager.default

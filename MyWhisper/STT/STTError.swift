@@ -4,6 +4,7 @@ enum STTError: LocalizedError {
     case notLoaded
     case transcriptionFailed(underlying: Error)
     case emptyResult
+    case modelBusy
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +14,8 @@ enum STTError: LocalizedError {
             return "Error de transcripcion: \(error.localizedDescription)"
         case .emptyResult:
             return "La transcripcion no produjo texto"
+        case .modelBusy:
+            return "El modelo esta ocupado; intenta nuevamente cuando termine la carga o transcripcion"
         }
     }
 }
