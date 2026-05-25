@@ -51,23 +51,32 @@ class HaikuCleanupServiceTests: XCTestCase {
 
     var service: HaikuCleanupService!
     var mockSession: URLSession!
+    private var keychainConfiguration: KeychainConfiguration!
 
     override func setUp() {
         super.setUp()
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         mockSession = URLSession(configuration: config)
-        service = HaikuCleanupService(session: mockSession)
+        keychainConfiguration = KeychainConfiguration(
+            service: "com.mywhisper.tests.haiku.\(UUID().uuidString)",
+            account: "anthropic-tests"
+        )
+        service = HaikuCleanupService(
+            session: mockSession,
+            keychainConfiguration: keychainConfiguration
+        )
         // Clean up any leftover key
-        try? KeychainService.delete()
+        try? KeychainService.delete(configuration: keychainConfiguration)
     }
 
     override func tearDown() {
         MockURLProtocol.requestHandler = nil
         MockURLProtocol.lastCapturedBody = nil
-        try? KeychainService.delete()
+        try? KeychainService.delete(configuration: keychainConfiguration)
         service = nil
         mockSession = nil
+        keychainConfiguration = nil
         super.tearDown()
     }
 
@@ -92,7 +101,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     // MARK: - Tests
 
     func testCleanReturns200CleanedText() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.requestHandler = { [weak self] _ in
             guard let self else { throw URLError(.unknown) }
             return (self.makeResponse(statusCode: 200), self.validResponseData(text: "Hola mundo."))
@@ -102,7 +111,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testCleanThrowsAuthFailedOn401() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.requestHandler = { [weak self] _ in
             guard let self else { throw URLError(.unknown) }
             return (self.makeResponse(statusCode: 401), Data())
@@ -116,7 +125,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testCleanThrowsServerErrorOn500() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.requestHandler = { [weak self] _ in
             guard let self else { throw URLError(.unknown) }
             return (self.makeResponse(statusCode: 500), Data())
@@ -130,7 +139,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testCleanThrowsInvalidResponseOnEmptyContent() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.requestHandler = { [weak self] _ in
             guard let self else { throw URLError(.unknown) }
             let data = Data(#"{"content":[]}"#.utf8)
@@ -157,7 +166,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testHasAPIKeyReturnsTrueWhenKeyExists() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         let result = await service.hasAPIKey
         XCTAssertTrue(result)
     }
@@ -168,7 +177,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testRequestBodyContainsModelAndSystemPrompt() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.lastCapturedBody = nil
 
         MockURLProtocol.requestHandler = { [weak self] _ in
@@ -200,7 +209,7 @@ class HaikuCleanupServiceTests: XCTestCase {
     }
 
     func testRequestBodyContainsRule6() async throws {
-        try KeychainService.save("test-key-123")
+        try KeychainService.save("test-key-123", configuration: keychainConfiguration)
         MockURLProtocol.lastCapturedBody = nil
 
         MockURLProtocol.requestHandler = { [weak self] _ in
@@ -233,7 +242,10 @@ class HaikuCleanupServiceTests: XCTestCase {
             return (self.makeResponse(statusCode: 200), self.validResponseData(text: "ok"))
         }
         try await service.saveAPIKey("valid-key")
-        XCTAssertNotNil(KeychainService.load(), "Key should be saved after successful validation")
+        XCTAssertNotNil(
+            KeychainService.load(configuration: keychainConfiguration),
+            "Key should be saved after successful validation"
+        )
     }
 
     func testSaveAPIKeyDoesNotSaveOnAuthFailure() async throws {
@@ -245,7 +257,10 @@ class HaikuCleanupServiceTests: XCTestCase {
             try await service.saveAPIKey("invalid-key")
             XCTFail("Expected authFailed error")
         } catch HaikuCleanupError.authFailed {
-            XCTAssertNil(KeychainService.load(), "Key must NOT be saved on auth failure")
+            XCTAssertNil(
+                KeychainService.load(configuration: keychainConfiguration),
+                "Key must NOT be saved on auth failure"
+            )
         }
     }
 }

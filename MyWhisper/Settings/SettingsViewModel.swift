@@ -210,6 +210,17 @@ final class SettingsViewModel {
         pasteboard.setString(text, forType: .string)
     }
 
+    func copyWhisperAssetsPathToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(whisperAssetsPath, forType: .string)
+    }
+
+    func openWhisperAssetsFolder() {
+        guard !whisperAssetsPath.isEmpty else { return }
+        NSWorkspace.shared.open(URL(fileURLWithPath: whisperAssetsPath, isDirectory: true))
+    }
+
     func prepareWhisperModel() {
         guard let sttEngine else { return }
         whisperActionInFlight = true

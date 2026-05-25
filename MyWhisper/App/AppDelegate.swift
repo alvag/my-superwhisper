@@ -122,6 +122,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    @MainActor
+    func showSettings() {
+        statusMenuController?.showSettings()
+    }
+
     private func showPermissionBlockedWindow(reason: PermissionReason, permissionsManager: PermissionsManager) {
         let view = PermissionBlockedView(reason: reason, permissionsManager: permissionsManager)
         let hostingView = NSHostingView(rootView: view)

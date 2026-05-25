@@ -39,10 +39,16 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         }
 
         let hostingController = NSHostingController(rootView: SettingsView(viewModel: viewModel))
-        let window = NSWindow(contentViewController: hostingController)
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 820, height: 720),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentViewController = hostingController
         window.title = "MyWhisper — Preferencias"
         window.isReleasedWhenClosed = false
-        window.styleMask = [.titled, .closable]
+        window.minSize = NSSize(width: 760, height: 640)
         window.delegate = self
         window.center()
 

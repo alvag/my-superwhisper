@@ -75,20 +75,25 @@ final class StatusMenuController: NSObject {
 
     @objc private func openSettings() {
         Task { @MainActor in
-            if settingsWindowController == nil,
-               let vocab = vocabularyService,
-               let mic = microphoneService,
-               let permissionsManager {
-                settingsWindowController = SettingsWindowController(
-                    vocabularyService: vocab,
-                    microphoneService: mic,
-                    permissionsManager: permissionsManager,
-                    coordinator: coordinator,
-                    haikuCleanup: haikuCleanup,
-                    sttEngine: sttEngine
-                )
-            }
-            settingsWindowController?.show()
+            showSettings()
         }
+    }
+
+    @MainActor
+    func showSettings() {
+        if settingsWindowController == nil,
+           let vocab = vocabularyService,
+           let mic = microphoneService,
+           let permissionsManager {
+            settingsWindowController = SettingsWindowController(
+                vocabularyService: vocab,
+                microphoneService: mic,
+                permissionsManager: permissionsManager,
+                coordinator: coordinator,
+                haikuCleanup: haikuCleanup,
+                sttEngine: sttEngine
+            )
+        }
+        settingsWindowController?.show()
     }
 }

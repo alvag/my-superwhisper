@@ -15,6 +15,7 @@ actor HaikuCleanupService: HaikuCleanupProtocol {
     // MARK: - Properties
 
     private let session: URLSession
+    private let keychainConfiguration: KeychainConfiguration
 
     private let systemPrompt = """
 Eres un corrector de texto para dictado en español. \
@@ -33,7 +34,8 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
 
     // MARK: - Init
 
-    init(session: URLSession? = nil) {
+    init(session: URLSession? = nil, keychainConfiguration: KeychainConfiguration = .production) {
+        self.keychainConfiguration = keychainConfiguration
         if let session = session {
             self.session = session
         } else {
@@ -48,7 +50,7 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
     // MARK: - HaikuCleanupProtocol
 
     func clean(_ rawText: String) async throws -> String {
-        guard let apiKey = KeychainService.load() else {
+        guard let apiKey = KeychainService.load(configuration: keychainConfiguration) else {
             throw HaikuCleanupError.noAPIKey
         }
 
@@ -93,19 +95,19 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
     }
 
     var hasAPIKey: Bool {
-        KeychainService.load() != nil
+        KeychainService.load(configuration: keychainConfiguration) != nil
     }
 
     func saveAPIKey(_ key: String) async throws {
         try await validate(apiKey: key)
-        try KeychainService.save(key)
+        try KeychainService.save(key, configuration: keychainConfiguration)
         AppDiagnosticsStore.recordAPIValidation("Válida")
     }
 
     // Validate the key with a tiny test request before saving or when re-checking a stored key.
 
     func validateStoredAPIKey() async throws {
-        guard let apiKey = KeychainService.load(), !apiKey.isEmpty else {
+        guard let apiKey = KeychainService.load(configuration: keychainConfiguration), !apiKey.isEmpty else {
             AppDiagnosticsStore.recordAPIValidation("No configurada")
             throw HaikuCleanupError.noAPIKey
         }
@@ -115,7 +117,7 @@ Devuelve SOLO el texto corregido. Sin explicaciones, sin comillas, sin prefijos.
     }
 
     func removeAPIKey() async throws {
-        try KeychainService.delete()
+        try KeychainService.delete(configuration: keychainConfiguration)
         AppDiagnosticsStore.recordAPIValidation("Eliminada")
     }
 

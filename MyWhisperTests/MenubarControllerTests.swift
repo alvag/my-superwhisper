@@ -22,3 +22,22 @@ final class MenubarControllerTests: XCTestCase {
         }
     }
 }
+
+final class SettingsNavigationTests: XCTestCase {
+    func testGuidedSettingsSectionsUseExpectedOrder() {
+        XCTAssertEqual(
+            SettingsSection.allCases.map(\.title),
+            ["Estado", "Grabación", "Modelo", "API", "Vocabulario", "Diagnóstico", "Sistema"]
+        )
+    }
+
+    func testGuidedSettingsSectionsExposeIcons() {
+        XCTAssertEqual(SettingsSection.status.systemImage, "checkmark.shield")
+        XCTAssertEqual(SettingsSection.recording.systemImage, "mic.fill")
+        XCTAssertEqual(SettingsSection.model.systemImage, "waveform")
+        XCTAssertEqual(SettingsSection.api.systemImage, "key.fill")
+        XCTAssertEqual(SettingsSection.vocabulary.systemImage, "textformat.abc")
+        XCTAssertEqual(SettingsSection.diagnostics.systemImage, "stethoscope")
+        XCTAssertEqual(SettingsSection.system.systemImage, "gearshape")
+    }
+}
