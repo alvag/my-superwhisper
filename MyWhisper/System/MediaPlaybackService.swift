@@ -1,8 +1,10 @@
 import AppKit
+import IOKit.hidsystem
 
 final class MediaPlaybackService: MediaPlaybackServiceProtocol {
     private var pausedByApp = false
     private let sendCommand: (Int) -> Bool
+    private let postMediaPlayPauseKey: () -> Bool
     private let queryIsPlaying: (@escaping (Bool) -> Void) -> Void
     private let queryNowPlayingInfo: (@escaping ([AnyHashable: Any]?) -> Void) -> Void
     private let mediaAppRunningProvider: () -> Bool
@@ -25,6 +27,7 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
         } else {
             sendCommand = { _ in false }
         }
+        postMediaPlayPauseKey = Self.postSystemPlayPauseKey
 
         if let bundle,
            let ptr = CFBundleGetFunctionPointerForName(bundle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying" as CFString) {
@@ -49,11 +52,13 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
     }
 
     init(sendCommand: @escaping (Int) -> Bool,
+         postMediaPlayPauseKey: @escaping () -> Bool,
          queryIsPlaying: @escaping (@escaping (Bool) -> Void) -> Void,
          queryNowPlayingInfo: @escaping (@escaping ([AnyHashable: Any]?) -> Void) -> Void,
          isAnyMediaAppRunning: @escaping () -> Bool,
          playbackStateTimeout: DispatchTimeInterval = .milliseconds(300)) {
         self.sendCommand = sendCommand
+        self.postMediaPlayPauseKey = postMediaPlayPauseKey
         self.queryIsPlaying = queryIsPlaying
         self.queryNowPlayingInfo = queryNowPlayingInfo
         self.mediaAppRunningProvider = isAnyMediaAppRunning
@@ -64,7 +69,7 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
         guard isEnabled else { return }
         guard isAnyMediaAppRunning() else { return }
         guard isMediaPlaying() else { return }
-        guard sendCommand(1) else { return } // MRMediaRemoteCommandPause
+        guard postMediaPlayPauseKey() || sendCommand(1) else { return } // 1 = MRMediaRemoteCommandPause fallback
         pausedByApp = true
     }
 
@@ -90,7 +95,10 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
         guard pausedByApp else { return }
         pausedByApp = false
         guard isEnabled else { return }
-        _ = sendCommand(0) // MRMediaRemoteCommandPlay
+        guard !isMediaPlaying() else { return }
+        if !postMediaPlayPauseKey() {
+            _ = sendCommand(0) // 0 = MRMediaRemoteCommandPlay fallback
+        }
     }
 
     private func isMediaPlaying() -> Bool {
@@ -145,5 +153,30 @@ final class MediaPlaybackService: MediaPlaybackServiceProtocol {
             return Double(int)
         }
         return nil
+    }
+
+    private static func postSystemPlayPauseKey() -> Bool {
+        let postedKeyDown = postMediaKey(NX_KEYTYPE_PLAY, state: 0xA)
+        usleep(80_000)
+        return postedKeyDown && postMediaKey(NX_KEYTYPE_PLAY, state: 0xB)
+    }
+
+    private static func postMediaKey(_ key: Int32, state: Int32) -> Bool {
+        let data1 = Int((key << 16) | (state << 8))
+        guard let event = NSEvent.otherEvent(
+            with: .systemDefined,
+            location: .zero,
+            modifierFlags: NSEvent.ModifierFlags(rawValue: 0xA00),
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            subtype: 8,
+            data1: data1,
+            data2: -1
+        )?.cgEvent else {
+            return false
+        }
+        event.post(tap: .cghidEventTap)
+        return true
     }
 }

@@ -49,37 +49,48 @@ final class MediaPlaybackServiceTests: XCTestCase {
 
     func testPauseUsesPlaybackRateWhenIsPlayingQueryReturnsFalse() {
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
+        var playbackRates = [playbackInfo(rate: 1), playbackInfo(rate: 0)]
         let service = makeService(
             sendCommand: recorder.record,
-            isPlaying: false,
-            nowPlayingInfo: playbackInfo(rate: 1)
+            postMediaPlayPauseKey: mediaKey.post,
+            queryIsPlaying: { handler in handler(false) },
+            queryNowPlayingInfo: { handler in handler(playbackRates.removeFirst()) }
         )
 
         service.pause()
         service.resume()
 
-        XCTAssertEqual(recorder.commands, [pauseCommand, playCommand])
+        XCTAssertEqual(mediaKey.postCount, 2)
+        XCTAssertEqual(recorder.commands, [])
     }
 
     func testPauseUsesIsPlayingWhenNowPlayingInfoIsUnavailable() {
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
+        var isPlayingResponses = [true, false]
         let service = makeService(
             sendCommand: recorder.record,
-            isPlaying: true,
-            nowPlayingInfo: nil
+            postMediaPlayPauseKey: mediaKey.post,
+            queryIsPlaying: { handler in handler(isPlayingResponses.removeFirst()) },
+            queryNowPlayingInfo: { handler in handler(nil) }
         )
 
         service.pause()
         service.resume()
 
-        XCTAssertEqual(recorder.commands, [pauseCommand, playCommand])
+        XCTAssertEqual(mediaKey.postCount, 2)
+        XCTAssertEqual(recorder.commands, [])
     }
 
     func testPauseUsesIsPlayingEvenWhenNowPlayingInfoTimesOut() {
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
+        var isPlayingResponses = [true, false]
         let service = makeService(
             sendCommand: recorder.record,
-            queryIsPlaying: { handler in handler(true) },
+            postMediaPlayPauseKey: mediaKey.post,
+            queryIsPlaying: { handler in handler(isPlayingResponses.removeFirst()) },
             queryNowPlayingInfo: { _ in },
             playbackStateTimeout: .milliseconds(1)
         )
@@ -87,13 +98,16 @@ final class MediaPlaybackServiceTests: XCTestCase {
         service.pause()
         service.resume()
 
-        XCTAssertEqual(recorder.commands, [pauseCommand, playCommand])
+        XCTAssertEqual(mediaKey.postCount, 2)
+        XCTAssertEqual(recorder.commands, [])
     }
 
-    func testPauseDoesNotSendCommandWhenPlaybackRateIsZero() {
+    func testPauseDoesNotToggleWhenPlaybackRateIsZero() {
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
         let service = makeService(
             sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
             isPlaying: false,
             nowPlayingInfo: playbackInfo(rate: 0)
         )
@@ -101,13 +115,16 @@ final class MediaPlaybackServiceTests: XCTestCase {
         service.pause()
         service.resume()
 
+        XCTAssertEqual(mediaKey.postCount, 0)
         XCTAssertEqual(recorder.commands, [])
     }
 
     func testPauseDoesNotResumeAfterPlaybackStateTimeout() {
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
         let service = makeService(
             sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
             queryIsPlaying: { _ in },
             queryNowPlayingInfo: { _ in },
             playbackStateTimeout: .milliseconds(1)
@@ -116,13 +133,16 @@ final class MediaPlaybackServiceTests: XCTestCase {
         service.pause()
         service.resume()
 
+        XCTAssertEqual(mediaKey.postCount, 0)
         XCTAssertEqual(recorder.commands, [])
     }
 
-    func testPauseDoesNotMarkPausedByAppWhenPauseCommandFails() {
+    func testPauseDoesNotMarkPausedByAppWhenMediaKeyAndFallbackFail() {
         let recorder = CommandRecorder(result: false)
+        let mediaKey = MediaKeyRecorder(result: false)
         let service = makeService(
             sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
             isPlaying: true,
             nowPlayingInfo: playbackInfo(rate: 1)
         )
@@ -130,14 +150,51 @@ final class MediaPlaybackServiceTests: XCTestCase {
         service.pause()
         service.resume()
 
+        XCTAssertEqual(mediaKey.postCount, 1)
         XCTAssertEqual(recorder.commands, [pauseCommand])
+    }
+
+    func testPauseFallsBackToRemoteCommandWhenMediaKeyCannotPost() {
+        let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder(result: false)
+        let service = makeService(
+            sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
+            isPlaying: true,
+            nowPlayingInfo: playbackInfo(rate: 1)
+        )
+
+        service.pause()
+
+        XCTAssertEqual(mediaKey.postCount, 1)
+        XCTAssertEqual(recorder.commands, [pauseCommand])
+    }
+
+    func testResumeDoesNotToggleWhenUserAlreadyResumedPlayback() {
+        let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
+        var isPlayingResponses = [true, true]
+        let service = makeService(
+            sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
+            queryIsPlaying: { handler in handler(isPlayingResponses.removeFirst()) },
+            queryNowPlayingInfo: { handler in handler(nil) }
+        )
+
+        service.pause()
+        service.resume()
+
+        XCTAssertEqual(mediaKey.postCount, 1)
+        XCTAssertEqual(recorder.commands, [])
     }
 
     func testPauseDoesNotSendCommandWhenToggleDisabled() {
         UserDefaults.standard.set(false, forKey: testKey)
         let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
         let service = makeService(
             sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
             isPlaying: true,
             nowPlayingInfo: playbackInfo(rate: 1)
         )
@@ -145,6 +202,7 @@ final class MediaPlaybackServiceTests: XCTestCase {
         service.pause()
         service.resume()
 
+        XCTAssertEqual(mediaKey.postCount, 0)
         XCTAssertEqual(recorder.commands, [])
     }
 
@@ -157,34 +215,33 @@ final class MediaPlaybackServiceTests: XCTestCase {
         XCTAssertTrue(result == true || result == false)
     }
 
-    func testPauseDoesNotSendKeyWhenNoMediaAppRunning() {
-        // If no known media app is running, pause() should skip the media key
-        // and NOT set pausedByApp. We verify this indirectly: call pause(), then
-        // call resume(). If pausedByApp was never set, resume() is a no-op.
-        // Since we cannot assert on postMediaKeyToggle() without mocking,
-        // this verifies that when isAnyMediaAppRunning() returns false,
-        // pause() completes without crash and pausedByApp remains false
-        // (tested by observing resume() does nothing).
-        let service = MediaPlaybackService()
-        // Only run this test if no media app is actually running (clean CI env)
-        guard !service.isAnyMediaAppRunning() else {
-            // Media app is running — skip behavioral assertion, guard is ON
-            return
-        }
-        // No media app running — pause() should be a no-op beyond isEnabled check
+    func testPauseDoesNotToggleWhenNoMediaAppRunning() {
+        let recorder = CommandRecorder()
+        let mediaKey = MediaKeyRecorder()
+        let service = MediaPlaybackService(
+            sendCommand: recorder.record,
+            postMediaPlayPauseKey: mediaKey.post,
+            queryIsPlaying: { handler in handler(true) },
+            queryNowPlayingInfo: { [self] handler in handler(playbackInfo(rate: 1)) },
+            isAnyMediaAppRunning: { false }
+        )
+
         service.pause()
-        // resume() should also be a no-op since pausedByApp was never set
-        // (no crash = pass; we cannot observe pausedByApp directly)
         service.resume()
+
+        XCTAssertEqual(mediaKey.postCount, 0)
+        XCTAssertEqual(recorder.commands, [])
     }
 
     private func makeService(
         sendCommand: @escaping (Int) -> Bool,
+        postMediaPlayPauseKey: @escaping () -> Bool,
         isPlaying: Bool,
         nowPlayingInfo: [AnyHashable: Any]?
     ) -> MediaPlaybackService {
         makeService(
             sendCommand: sendCommand,
+            postMediaPlayPauseKey: postMediaPlayPauseKey,
             queryIsPlaying: { handler in handler(isPlaying) },
             queryNowPlayingInfo: { handler in handler(nowPlayingInfo) }
         )
@@ -192,12 +249,14 @@ final class MediaPlaybackServiceTests: XCTestCase {
 
     private func makeService(
         sendCommand: @escaping (Int) -> Bool,
+        postMediaPlayPauseKey: @escaping () -> Bool,
         queryIsPlaying: @escaping (@escaping (Bool) -> Void) -> Void,
         queryNowPlayingInfo: @escaping (@escaping ([AnyHashable: Any]?) -> Void) -> Void,
         playbackStateTimeout: DispatchTimeInterval = .milliseconds(300)
     ) -> MediaPlaybackService {
         MediaPlaybackService(
             sendCommand: sendCommand,
+            postMediaPlayPauseKey: postMediaPlayPauseKey,
             queryIsPlaying: queryIsPlaying,
             queryNowPlayingInfo: queryNowPlayingInfo,
             isAnyMediaAppRunning: { true },
@@ -207,6 +266,20 @@ final class MediaPlaybackServiceTests: XCTestCase {
 
     private func playbackInfo(rate: Double) -> [AnyHashable: Any] {
         ["kMRMediaRemoteNowPlayingInfoPlaybackRate": rate]
+    }
+}
+
+private final class MediaKeyRecorder {
+    private(set) var postCount = 0
+    private let result: Bool
+
+    init(result: Bool = true) {
+        self.result = result
+    }
+
+    func post() -> Bool {
+        postCount += 1
+        return result
     }
 }
 
