@@ -138,13 +138,14 @@ final class AppCoordinator {
 
                 // Strip hallucinated suffix (HAIKU-02) — safety net after Haiku cleanup
                 let strippedText = stripHallucinatedSuffix(from: finalText, rawInput: rawText)
+                let guardedText = isAssistantStyleResponse(strippedText, rawInput: rawText) ? rawText : strippedText
 
                 // Apply vocabulary corrections AFTER Haiku cleanup (VOC-02)
                 let correctedText: String
                 if let vocab = vocabularyService {
-                    correctedText = vocab.apply(to: strippedText)
+                    correctedText = vocab.apply(to: guardedText)
                 } else {
-                    correctedText = strippedText
+                    correctedText = guardedText
                 }
 
                 overlayController?.hide()
@@ -233,5 +234,50 @@ final class AppCoordinator {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return result
+    }
+
+    private func isAssistantStyleResponse(_ output: String, rawInput: String) -> Bool {
+        let normalizedOutput = normalizedForAssistantGuard(output)
+        let normalizedInput = normalizedForAssistantGuard(rawInput)
+        let assistantPatterns = [
+            "bien esperando alguna tarea",
+            "soy un corrector",
+            "corrector de texto",
+            "recibo texto bruto",
+            "devuelvo el mismo texto",
+            "entendido",
+            "estoy listo",
+            "puedo ayudarte",
+            "te pueda ayudar",
+            "esperando alguna tarea",
+            "comparte el texto",
+            "necesitas que corrija"
+        ]
+
+        for pattern in assistantPatterns {
+            if normalizedOutput.contains(pattern), !normalizedInput.contains(pattern) {
+                return true
+            }
+        }
+
+        let inputWords = Set(normalizedWords(in: rawInput).filter { $0.count > 2 })
+        let outputWords = normalizedWords(in: output).filter { $0.count > 2 }
+        let overlapCount = Set(outputWords).intersection(inputWords).count
+        let longAndMisaligned = outputWords.count >= max(18, inputWords.count * 4)
+            && overlapCount <= max(1, inputWords.count / 2)
+
+        return longAndMisaligned
+    }
+
+    private func normalizedForAssistantGuard(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "es"))
+            .lowercased()
+    }
+
+    private func normalizedWords(in text: String) -> [String] {
+        normalizedForAssistantGuard(text)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
     }
 }

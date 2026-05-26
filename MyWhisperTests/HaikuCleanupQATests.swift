@@ -264,6 +264,45 @@ final class HaikuCleanupQATests: XCTestCase {
                        "Question and exclamation marks from Haiku must be preserved")
     }
 
+    // MARK: - Section D: Assistant/Meta Response Guard
+    // Haiku must edit the dictated text, not answer it as a chat assistant.
+
+    func testAssistantGuard01_HolaComoEstasFallsBackToRawText() async {
+        let result = await runPipeline(
+            stt: "hola como estas",
+            haiku: "Bien, esperando alguna tarea en la que te pueda ayudar."
+        )
+        XCTAssertEqual(result, "hola como estas",
+                       "Assistant-style answers must fall back to raw STT text")
+    }
+
+    func testAssistantGuard02_QueTareaEstasRealizandoFallsBackToRawText() async {
+        let result = await runPipeline(
+            stt: "que tarea estas realizando",
+            haiku: "Soy un corrector de texto para dictado en español. Recibo texto bruto de reconocimiento de voz y devuelvo el mismo texto corregido."
+        )
+        XCTAssertEqual(result, "que tarea estas realizando",
+                       "Meta descriptions of the assistant role must fall back to raw STT text")
+    }
+
+    func testAssistantGuard03_RevisaLoSiguienteFallsBackToRawText() async {
+        let result = await runPipeline(
+            stt: "revisa lo siguiente",
+            haiku: "Entendido. Estoy listo para recibir el texto que necesitas que corrija."
+        )
+        XCTAssertEqual(result, "revisa lo siguiente",
+                       "Assistant-style readiness responses must fall back to raw STT text")
+    }
+
+    func testAssistantGuard04_GoodAmbiguousQuestionCleanupPassesThrough() async {
+        let result = await runPipeline(
+            stt: "que tarea estas realizando",
+            haiku: "¿Qué tarea estás realizando?"
+        )
+        XCTAssertEqual(result, "¿Qué tarea estás realizando?",
+                       "Valid cleanup of an ambiguous question must not be blocked")
+    }
+
     // MARK: - Section D: Edge Cases
 
     // Note: testEdge01 for empty STT buffer is SKIPPED intentionally.
